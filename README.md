@@ -7,8 +7,9 @@ only describes grouping and gives nothing a meaning.
 
 Anyfix expressions are to a language what S-expressions are to Lisp and WAT: a
 consumer-neutral notation. The crate builds tree structure and nothing else.
-Deciding what a word means is the consumer's job. resh is the first consumer,
-but this crate knows nothing about it.
+Deciding what a word means is the consumer's job.
+[resh](https://github.com/wongjiahau/resh) is the first consumer, but this
+crate knows nothing about it.
 
 `.`, `:` and `_` are syntactic sugar, like `'` in Lisp: `'x` is read as
 `(quote x)` before any evaluator sees it. They fill a slot of a call while
@@ -324,3 +325,8 @@ let anyfix_expr::NodeKind::Call(call) = &nodes[0].kind else { unreachable!() };
 assert_eq!(call.name_text(), "search _");
 assert_eq!(parsed.syntax.to_source(), "search { max depth : 3 }");
 ```
+
+## License
+
+Licensed under either of [Apache License, Version 2.0](LICENSE-APACHE) or
+[MIT license](LICENSE-MIT) at your option.

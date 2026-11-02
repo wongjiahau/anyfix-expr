@@ -3,7 +3,11 @@ name = "anyfix-expr"
 version = "0.1.0"
 edition = "2024"
 description = "A lossless parser for anyfix expressions, a notation that only describes grouping"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/wongjiahau/anyfix-expr"
+homepage = "https://github.com/wongjiahau/anyfix-expr"
 readme = "README.md"
-repository = "https://github.com/wongjiahau/resh"
+keywords = ["parser", "syntax", "notation", "lossless", "expression"]
+categories = ["parser-implementations"]
 
 [dependencies]
