@@ -154,6 +154,68 @@ FROM users . WHERE (signup . year) >= 2024 . SELECT [email]
 WHEN (customer . years active) > 3 THEN reward
 ```
 
+### Proofs that read like the textbook
+
+Proof assistants are powerful, but their syntax is an obstacle:
+`theorem length_append : ∀ xs ys, (xs ++ ys).length = xs.length + ys.length`.
+In anyfix, a proof by induction reads the way you'd write it on a whiteboard:
+
+```text
+theorem (length of append) {
+  FOR ALL [xs, ys] IN List PROVE: length (xs ++ ys) EQUALS length (xs) + length (ys),
+
+  PROOF BY induction on (xs) {
+    CASE empty BY calc [
+      length ([] ++ ys),
+      EQUALS length (ys)                                   BY (definition of append),
+      EQUALS 0 + length (ys)                               BY (arithmetic),
+      EQUALS length ([]) + length (ys)                     BY (definition of length),
+    ],
+    CASE (x) followed by (rest) BY calc [
+      length ((x) followed by (rest) ++ ys),
+      EQUALS length ((x) followed by (rest ++ ys))         BY (definition of append),
+      EQUALS 1 + length (rest ++ ys)                       BY (definition of length),
+      EQUALS 1 + (length (rest) + length (ys))             BY (induction hypothesis),
+      EQUALS length ((x) followed by (rest)) + length (ys) BY (definition of length),
+    ],
+  },
+}
+```
+
+Nothing here is built into anyfix: `induction`, `calc` and `EQUALS` are
+all just words. A checker receives a precise tree and matches a few shapes:
+
+| Source | Call name | Arguments |
+| --- | --- | --- |
+| `FOR ALL [xs, ys] IN List PROVE: …` | `FOR ALL _ IN _ PROVE _` | `[xs, ys]`, `List`, the claim |
+| `length (xs ++ ys) EQUALS length (xs) + length (ys)` | `_ EQUALS _` | `length _` of (`_ ++ _` of `xs`, `ys`), `_ + _` of … |
+| `PROOF BY induction on (xs) { … }` | `PROOF BY _` | `induction on _ _` of `xs` and the cases |
+| `CASE (x) followed by (rest) BY calc [ … ]` | `CASE _ BY _` | `_ followed by _` of `x`, `rest`, then the steps |
+| `EQUALS 1 + length (rest ++ ys) BY (definition of length)` | `EQUALS _ BY _` | `_ + _` of `1`, `length _` of …, then `definition of length` |
+
+Each step names its justification, so a checker can verify step by step, and
+a reviewer who has never used a proof assistant can still follow the
+argument.
+
+The same style works for program contracts:
+
+```text
+function (withdraw) {
+  REQUIRES amount > 0,
+  REQUIRES amount <= balance,
+  ENSURES new balance == (old balance - amount),
+  ENSURES new balance >= 0,
+}
+```
+
+Each line arrives as `REQUIRES _` or `ENSURES _` wrapping a comparison,
+ready to hand to an SMT solver.
+
+Two habits keep proofs grouped the way you mean them. Arithmetic has no
+precedence, so mixed operators take parentheses (`1 + (a + b)`). And
+`PROVE:` with a colon nests the whole claim under the keyword, the same way
+`LET s BE: IF …` does in the README.
+
 ### Your interpreter is a lookup table
 
 Because the tree arrives fully grouped, evaluating a language is a `match` on
@@ -271,6 +333,8 @@ objects.
   policies that read like the runbook.
 - **Test framework authors** who want specs like
   `cart . items . count . SHOULD BE 3` without a custom grammar.
+- **Verification and proof tool builders** who want theorems, proofs and
+  contracts that read like a textbook but still parse into a precise tree.
 - **Language designers** who want to prototype semantics, not syntax.
 - **AI and agent builders**, where a small, regular syntax and fix-it error
   messages make generated code easy to check and repair.
@@ -324,6 +388,13 @@ Dual-licensed MIT / Apache-2.0.
 > Test specs with no test DSL to write:
 > `cart . items . count . SHOULD BE 3`
 > `login "bob" with "wrong password" . SHOULD FAIL WITH "invalid credentials"`
+
+**Thread: proofs**
+> A proof by induction, written like the textbook:
+> `PROOF BY induction on (xs) { CASE empty BY calc [ … ], … }`
+> `EQUALS 1 + length (rest ++ ys) BY (definition of length)`
+> Every step names its reason, and every line parses to a call a checker can
+> verify. No unicode, no tactic language.
 
 **Thread: calculator**
 > A whole calculator with English operators:
