@@ -27,7 +27,7 @@ fn atoms(source: &str) -> Vec<Atom> {
             Item::Atom(token) => match &token.kind {
                 TokenKind::Word => Atom::Word(token.text.clone()),
                 TokenKind::Number => Atom::Number(token.text.clone()),
-                TokenKind::String { value } => Atom::String(value.clone()),
+                TokenKind::String(literal) => Atom::String(literal.value.clone()),
                 other => panic!("an atom is not {other:?}"),
             },
             other => panic!("expected only atoms in {source:?}, got {other:?}"),
@@ -111,9 +111,22 @@ fn dot_in_a_number_needs_a_digit_after_it() {
 }
 
 #[test]
-fn numbers_have_no_sign_and_exponents_split_at_it() {
+fn numbers_have_no_sign_but_a_decimal_exponent_does() {
     assert_eq!(atoms("-5"), [word("-"), number("5")]);
-    assert_eq!(atoms("1e-5"), [number("1e"), word("-"), number("5")]);
+    assert_eq!(atoms("1e-5"), [number("1e-5")]);
+    assert_eq!(atoms("2.5E+3"), [number("2.5E+3")]);
+    assert_eq!(atoms("1_000e-3"), [number("1_000e-3")]);
+    assert_eq!(atoms("-1.5e-10"), [word("-"), number("1.5e-10")]);
+    assert_eq!(tree("1e-5"), "1e-5");
+}
+
+#[test]
+fn an_exponent_sign_needs_a_decimal_number_and_a_digit_after_it() {
+    assert_eq!(atoms("0xFE-1"), [number("0xFE"), word("-"), number("1")]);
+    assert_eq!(atoms("1e-x"), [number("1e"), word("-"), word("x")]);
+    assert_eq!(atoms("1e--5"), [number("1e"), word("--"), number("5")]);
+    assert_eq!(atoms("1x2e-5"), [number("1x2e"), word("-"), number("5")]);
+    assert_eq!(atoms("2-3"), [number("2"), word("-"), number("3")]);
 }
 
 #[test]
@@ -167,6 +180,46 @@ fn every_string_escape() {
     assert_eq!(string(r#""\u{3bb}""#), "λ");
     assert_eq!(string(r#""plain""#), "plain");
     assert_eq!(string(r#""""#), "");
+}
+
+#[test]
+fn json_escapes() {
+    assert_eq!(string(r#""\/""#), "/");
+    assert_eq!(string(r#""\b\f""#), "\u{8}\u{c}");
+    assert_eq!(string(r#""\B\F""#), "\u{8}\u{c}");
+    assert_eq!(string(r#""caf\u00e9""#), "café");
+    assert_eq!(string(r#""\u00E9\U00e9""#), "éé");
+    assert_eq!(string(r#""\u0041BC""#), "ABC");
+    assert_eq!(string(r#""\ud83d\ude00""#), "😀");
+    assert_eq!(string(r#""\uD83D\uDE00!""#), "😀!");
+}
+
+#[test]
+fn a_lone_surrogate_is_an_invalid_escape() {
+    let invalid = |source: &str, span: (usize, usize)| {
+        assert_eq!(
+            errors(source),
+            [(ErrorCode::InvalidEscape, span.0, span.1)],
+            "{source}"
+        )
+    };
+    invalid(r#""\ud83d""#, (1, 7));
+    invalid(r#""\ude00""#, (1, 7));
+    invalid(r#""\ud83dx""#, (1, 7));
+    invalid(r#""\ud83d\u0041""#, (1, 7));
+    assert_eq!(
+        errors(r#""\ud83d\u{de00}""#),
+        [
+            (ErrorCode::InvalidEscape, 1, 7),
+            (ErrorCode::InvalidEscape, 7, 15)
+        ]
+    );
+}
+
+#[test]
+fn a_leading_byte_order_mark_is_whitespace() {
+    assert_eq!(tree("\u{FEFF}{\"a\": 1}"), r#"Braces[(`_ _` "a" 1)]"#);
+    assert_eq!(atoms("a \u{FEFF}"), [word("a"), word("\u{FEFF}")]);
 }
 
 #[test]

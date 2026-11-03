@@ -82,6 +82,37 @@ fn invalid_escape() {
         [(ErrorCode::InvalidEscape, 1, 11)]
     );
     assert_eq!(tree_despite_errors(r#""a\qb""#), r#""a\\qb""#);
+    assert_eq!(errors(r#""\u12""#), [(ErrorCode::InvalidEscape, 1, 3)]);
+    assert_eq!(errors(r#""\udc00""#), [(ErrorCode::InvalidEscape, 1, 7)]);
+    assert_eq!(tree_despite_errors(r#""\ud800""#), r#""\\ud800""#);
+}
+
+#[test]
+fn raw_string_opening_points_at_the_text_after_the_quotes() {
+    let source = "\"\"\"abc \n  x\n  \"\"\"";
+    assert_eq!(errors(source), [(ErrorCode::RawStringOpening, 3, 6)]);
+    assert_eq!(tree_despite_errors(source), r#""x""#);
+    assert!(messages(source)[0].contains("`abc`"));
+}
+
+#[test]
+fn raw_string_indentation_points_at_the_short_line() {
+    let source = "\"\"\"\n    a\n  b\n    \"\"\"";
+    assert_eq!(errors(source), [(ErrorCode::RawStringIndentation, 10, 12)]);
+    assert_eq!(tree_despite_errors(source), r#""a\nb""#);
+    let tabs = "\"\"\"\n\ta\n  \"\"\"";
+    assert_eq!(errors(tabs), [(ErrorCode::RawStringIndentation, 4, 5)]);
+}
+
+#[test]
+fn unterminated_raw_string_runs_to_the_end_of_input() {
+    let source = "x \"\"\"\n  a \"\"\"\n";
+    assert_eq!(
+        errors(source),
+        [(ErrorCode::UnterminatedString, 2, source.len())]
+    );
+    assert_eq!(tree_despite_errors(source), r#"(`x _` "  a \"\"\"\n")"#);
+    assert!(messages("\"\"\"\"")[0].contains("`\"\"\"\"`"));
 }
 
 #[test]

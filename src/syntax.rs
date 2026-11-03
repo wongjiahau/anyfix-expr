@@ -2,15 +2,15 @@
 //! back reproduces the source byte for byte.
 
 use crate::span::Span;
+use crate::string::StringLiteral;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TokenKind {
     Word,
     Number,
-    /// A string literal; `value` is its decoded text.
-    String {
-        value: String,
-    },
+    /// A string literal: its decoded value and where each part came from.
+    /// Boxed so tokens stay small on the parser's recursion.
+    String(Box<StringLiteral>),
     Comma,
     Colon,
     Dot,

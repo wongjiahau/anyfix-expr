@@ -45,7 +45,9 @@ and `y` (see [Tree](#tree)).
    but have no precedence or associativity among themselves.
 6. **One separator, `,`**, at the top level and inside every bracket. Trailing
    commas are allowed. `;` is an ordinary symbol word.
-7. **Newlines are plain whitespace.** They never end anything.
+7. **Newlines are plain whitespace.** They never end anything. The one place
+   lines matter is inside a [raw string](#raw-strings), whose lines are its
+   content.
 
 ## Grammar
 
@@ -68,9 +70,14 @@ symbol     = ? any char that is not whitespace, special, or alnum ? ;
 word       = name | symbols ;
 name       = ( letter | "_" ) { alnum } ;
 symbols    = symbol { symbol } ;
-number     = digit { alnum | "." digit } ;        (* source text kept *)
-string     = '"' { ? any char except '"' or "\" ? | escape } '"' ;
-escape     = "\" ( '"' | "\" | "n" | "t" | "r" | "u{" hex { hex } "}" ) ;
+number     = digit { alnum | "." digit | exponent } ;  (* source text kept *)
+exponent   = ( "e" | "E" ) ( "+" | "-" ) digit ;  (* only while the number is decimal *)
+string     = quoted | raw ;
+quoted     = '"' { ? any char except '"' or "\" ? | escape } '"' ;
+escape     = "\" ( '"' | "\" | "/" | "b" | "f" | "n" | "t" | "r"
+                  | "u{" hex { hex } "}" | "u" hex hex hex hex ) ;
+raw        = quotes newline { line newline } indent quotes ;  (* see Raw strings *)
+quotes     = '"' '"' '"' { '"' } ;               (* closed by as many as opened *)
 comment    = "#" { ? any char except newline ? } ;
 whitespace = ? char::is_whitespace ? ;
 letter     = ? char::is_alphabetic ? ;
@@ -81,7 +88,8 @@ digit      = "0" … "9" ;                          (* ASCII only *)
 
 1. Comments and whitespace separate tokens and are kept as trivia. `#` always
    starts a comment, even mid-token: `a#b` is the word `a` followed by a
-   comment. A shebang line is just a comment.
+   comment. A shebang line is just a comment. A byte order mark (U+FEFF) at
+   the very start is whitespace.
 2. Each special character is its own token, except that `"` starts a string
    and `#` starts a comment.
 3. A word is as long as possible within its kind (name or symbols). Switching
@@ -90,15 +98,58 @@ digit      = "0" … "9" ;                          (* ASCII only *)
    consumed only when an ASCII digit follows: `1.5` and `1.2.3` are single
    numbers, but `1.to` is `1`, `.`, `to`. Numbers keep their source text, so
    `0xFF`, `1_000`, `2.5e3` and `1mb` are all numbers whose meaning the
-   consumer decides.
+   consumer decides. A sign continues a number only in a decimal exponent:
+   `1e-5` and `2.5E+3` are single numbers, because the number so far is only
+   digits, `_` and `.`, and a digit follows the sign. `0xFE-1` is still `0xFE`,
+   `-`, `1`.
 5. Numbers have no sign. `-5` is `Word "-"` then `Number "5"`, the same tree as
    `- 5`.
 6. A name starts with a `char::is_alphabetic` letter or `_`, and continues with
    `char::is_alphanumeric` or `_`. So `x٣` is one name, while `٣` on its own
    (alphanumeric but not alphabetic) is a symbol word.
 7. `\u{…}` takes 1 to 6 hex digits and must be a valid Unicode scalar value.
-   Strings may contain literal newlines. No interpolation and no raw strings in
-   v1.
+   `\uXXXX` takes exactly 4, as in JSON, and a UTF-16 surrogate pair is two of
+   them in a row: `\ud83d\ude00` is 😀. A lone surrogate is invalid. `\/`,
+   `\b` and `\f` are JSON's too. Strings may contain literal newlines. No
+   interpolation.
+8. Three or more `"` at the end of a line open a [raw string](#raw-strings).
+   `""` is still the empty string.
+
+## Raw strings
+
+A raw string holds text that is not anyfix, such as an embedded language,
+as written:
+
+```text
+score """
+  bpm=90 key=F4 label="Verse"   # not a comment: this is content
+  [S1] 3 3 2_1_
+  """,
+```
+
+The value is `bpm=90 key=F4 label="Verse"   # not a comment: this is
+content` and `[S1] 3 3 2_1_`, on two lines.
+
+- **Opening:** three or more `"`, then the end of the line. Spaces and tabs
+  may follow the quotes; anything else is `RawStringOpening`.
+- **Closing:** a line holding only spaces or tabs, then exactly as many `"`
+  as opened the string. Tokens continue after it, so `""",` closes the string
+  and then has a comma.
+- **Indentation:** the closing line's spaces and tabs are stripped from every
+  content line. Each non-blank line must start with exactly that indentation,
+  or it is `RawStringIndentation`. Blank lines are empty.
+- **Line breaks:** the one after the opening quotes and the one before the
+  closing line are not part of the value. The rest are kept as written, so
+  `\r\n` stays `\r\n`.
+- **No escapes:** `\`, `"` and `#` are content. A run of quotes is only a
+  closer at the start of a line, after the indentation. Content with a line
+  starting with `"""` opens with `""""` instead.
+
+A consumer that parses a string's content can point its own errors back into
+the file. A `String` node holds a `StringLiteral`: its `value`, and the
+`pieces` of the value with the source each came from. `source_offset` maps a
+byte offset in the value to one in the source, past stripped indentation and
+escapes. An offset inside an escape maps to the escape's start.
 
 ## Sugar
 
@@ -139,7 +190,7 @@ with every run read as a call.
 
 ```text
 Node = Number     (source text)
-     | String     (decoded value)
+     | String     (StringLiteral: the decoded value, and where each part came from)
      | Call       { name: [NamePart], arguments: [Node] }
      | Parens     [Node]        // `()`, `(a, b)` or `(a,)`
      | Brackets   [Node]
@@ -252,8 +303,10 @@ found, what was expected, and the fix.
 | `EmptyOperand` | `a..b`, `. a`, `a :`, `: b`, `a::b` | The operator next to the missing run, which becomes `Missing`. |
 | `EmptyElement` | `a,,b`, `[, a]` | The comma with nothing before it. A trailing comma is fine. |
 | `ExtraUnderscore` | `x . f _ _`, `_ f _ : x` | The second bare `_` in a run that receives a value. It stays an `Underscore`. |
-| `UnterminatedString` | `"abc` | The string, which runs to the end of input. |
-| `InvalidEscape` | `"\q"`, `"\u{110000}"` | The escape, kept as written in the decoded value. |
+| `UnterminatedString` | `"abc`, a raw string with no closing line | The string, which runs to the end of input. A raw string's value is then its content as written. |
+| `InvalidEscape` | `"\q"`, `"\u{110000}"`, `"\uD800"` | The escape, kept as written in the decoded value. |
+| `RawStringOpening` | `"""abc` | The text after the opening quotes, which is skipped. The content starts on the next line. |
+| `RawStringIndentation` | a content line indented less than the closing line | The line's indentation. The line keeps what follows the indentation it shares with the closing line. |
 | `TooDeep` | 1000 nested `(` | The first bracket deeper than `MAX_DEPTH` (256). It and its contents are skipped, so the stack never overflows. |
 
 The notation never reports semantic problems. An unknown word or a `:` in an
@@ -290,10 +343,15 @@ word       : name | symbols,
 name       : (letter | "_") { alnum },
 symbols    : symbol { symbol },
 
-number     : digit { alnum | "." digit },
+number     : digit { alnum | "." digit | exponent },
+exponent   : ("e" | "E") ("+" | "-") digit,
 
-string     : "\"" { any char except ("\"" | "\\") | escape } "\"",
-escape     : "\\" ("\"" | "\\" | "n" | "t" | "r" | "u{" hex { hex } "}"),
+string     : quoted | raw,
+quoted     : "\"" { any char except ("\"" | "\\") | escape } "\"",
+escape     : "\\" ("\"" | "\\" | "/" | "b" | "f" | "n" | "t" | "r"
+                  | "u{" hex { hex } "}" | "u" hex hex hex hex),
+raw        : quotes newline { line newline } indent quotes,
+quotes     : "\"\"\"" { "\"" },
 
 comment    : "#" { any char except newline },
 whitespace : unicode whitespace,
@@ -304,16 +362,17 @@ digit      : "0" to "9",
 
 ## JSON
 
-Most JSON parses as anyfix expressions: objects are braces of `_ _` calls
-(`"key" : value` is the call `_ _` of the key and the value), arrays are
-brackets, and `true`, `false`, `null` are calls with no arguments. The
-exceptions:
+Every JSON document is an anyfix document. Objects are braces of `_ _`
+calls (`"key" : value` is the call `_ _` of the key and the value), arrays are
+brackets, `true`, `false` and `null` are calls with no arguments, and a
+negative number is the call `- _` of a number. JSON's exponents (`1e-5`),
+escapes (`\/`, `\b`, `\f`, `\uXXXX` with surrogate pairs) and a leading byte
+order mark all parse.
 
-- Exponent numbers like `1e-5` split at the sign into the call `_ - _` of
-  `Number "1e"` and `Number "5"`, and a negative number is the call `- _` of
-  a number.
-- JSON's `\uXXXX`, `\/`, `\b` and `\f` escapes are not anyfix escapes and
-  report `InvalidEscape`; anyfix writes code points as `\u{…}`.
+`tests/json.rs` generates documents covering every escape, number form and
+whitespace character JSON allows, parses each with no errors, and reads its
+tree back as the same JSON value. As with any input, folding the tree into
+values is the consumer's job; `read` in that test shows how.
 
 ## Usage
 

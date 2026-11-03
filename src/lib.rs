@@ -20,12 +20,14 @@ mod lexer;
 mod node;
 mod parser;
 mod span;
+mod string;
 mod syntax;
 
 pub use error::{Error, ErrorCode};
 pub use node::{Call, NamePart, Node, NodeKind};
 pub use parser::{MAX_DEPTH, Parsed, parse};
 pub use span::{LineColumn, Span, line_column};
+pub use string::{StringLiteral, StringPiece};
 pub use syntax::{
     BinaryExpression, Element, Expression, Group, GroupKind, Item, Run, Sequence, SyntaxTree,
     Token, TokenKind, Trivia, TriviaKind,

@@ -1,5 +1,6 @@
 use crate::error::{Error, ErrorCode};
 use crate::span::Span;
+use crate::string::StringLiteral;
 use crate::syntax::{Token, TokenKind, Trivia, TriviaKind};
 
 /// The eleven characters that never appear inside a word.
@@ -95,6 +96,11 @@ impl Lexer<'_> {
         loop {
             let start = self.position;
             let kind = match self.peek() {
+                // A byte order mark that starts the input is whitespace.
+                Some('\u{FEFF}') if self.position == 0 => {
+                    self.bump();
+                    TriviaKind::Whitespace
+                }
                 Some('#') => {
                     self.bump_while(|c| c != '\n');
                     TriviaKind::Comment
@@ -131,7 +137,7 @@ impl Lexer<'_> {
                     '}' => TokenKind::CloseBrace,
                     '"' => self.string(start),
                     c if c.is_ascii_digit() => {
-                        self.number();
+                        self.number(start);
                         TokenKind::Number
                     }
                     c if is_name_start(c) => {
@@ -157,10 +163,16 @@ impl Lexer<'_> {
         }
     }
 
-    /// The rest of a number: alnum characters, and `.` only before an ASCII digit.
-    fn number(&mut self) {
+    /// The rest of a number: alnum characters, `.` only before an ASCII digit,
+    /// and a sign only in a decimal exponent, as in `1e-5` or `2.5E+3`.
+    fn number(&mut self, start: usize) {
         loop {
             match self.peek() {
+                Some('e' | 'E') if self.at_signed_exponent(start) => {
+                    self.bump();
+                    self.bump();
+                    self.bump();
+                }
                 Some(c) if is_alnum(c) => self.bump(),
                 Some('.') if self.peek_second().is_some_and(|c| c.is_ascii_digit()) => {
                     self.bump();
@@ -171,9 +183,25 @@ impl Lexer<'_> {
         }
     }
 
-    /// The rest of a string after its opening `"`.
+    /// Whether an `e` or `E`, then a sign, then an ASCII digit come next, in a
+    /// number that is decimal so far (digits, `_` and `.`), so `0xFE-1` still
+    /// splits at the `-`.
+    fn at_signed_exponent(&self, start: usize) -> bool {
+        let mut next = self.rest().chars().skip(1);
+        matches!(next.next(), Some('+' | '-'))
+            && next.next().is_some_and(|c| c.is_ascii_digit())
+            && self.source[start..self.position]
+                .chars()
+                .all(|c| c.is_ascii_digit() || c == '_' || c == '.')
+    }
+
+    /// The rest of a string after its opening `"`. Three or more quotes open a
+    /// raw string.
     fn string(&mut self, start: usize) -> TokenKind {
-        let mut value = String::new();
+        if self.rest().starts_with("\"\"") {
+            return TokenKind::String(Box::new(self.raw_string(start)));
+        }
+        let mut literal = StringLiteral::new(self.position);
         loop {
             match self.peek() {
                 None => {
@@ -185,67 +213,125 @@ impl Lexer<'_> {
                     break;
                 }
                 Some('"') => {
+                    literal.content.end = self.position;
                     self.bump();
-                    break;
+                    return TokenKind::String(Box::new(literal));
                 }
                 Some('\\') => {
                     let escape_start = self.position;
                     self.bump();
-                    self.escape(escape_start, &mut value);
+                    match self.escape(escape_start) {
+                        Some(decoded) => {
+                            literal.push_escape(decoded, Span::new(escape_start, self.position))
+                        }
+                        None => literal.push_verbatim(
+                            &self.source[escape_start..self.position],
+                            Span::new(escape_start, self.position),
+                        ),
+                    }
                 }
-                Some(c) => {
+                Some(_) => {
+                    let char_start = self.position;
                     self.bump();
-                    value.push(c);
+                    literal.push_verbatim(
+                        &self.source[char_start..self.position],
+                        Span::new(char_start, self.position),
+                    );
                 }
             }
         }
-        TokenKind::String { value }
+        literal.content.end = self.position;
+        TokenKind::String(Box::new(literal))
     }
 
-    /// The rest of an escape after its `\`. Escape letters are case-insensitive.
-    /// An invalid escape keeps its source text in the decoded value.
-    fn escape(&mut self, start: usize, value: &mut String) {
-        let Some(c) = self.peek() else {
-            // The string is unterminated; `string` reports it.
-            value.push('\\');
-            return;
-        };
+    /// The rest of an escape after its `\`, decoded. Escape letters are
+    /// case-insensitive. An invalid escape is reported and returns `None`, so
+    /// the caller keeps its source text in the value.
+    fn escape(&mut self, start: usize) -> Option<char> {
+        // At the end of input the string is unterminated; `string` reports it.
+        let c = self.peek()?;
         self.bump();
         let decoded = match c.to_ascii_lowercase() {
             '"' => '"',
             '\\' => '\\',
+            '/' => '/',
+            'b' => '\u{8}',
+            'f' => '\u{c}',
             'n' => '\n',
             't' => '\t',
             'r' => '\r',
-            'u' => return self.unicode_escape(start, value),
+            'u' => return self.unicode_escape(start),
             _ => {
                 let found = self.text(start);
                 self.invalid_escape(
                     start,
                     format!(
-                        "found the unknown escape `{found}` in a string; expected one of `\\\"` `\\\\` `\\n` `\\t` `\\r` `\\u{{…}}`; write `\\\\` for a literal backslash"
+                        "found the unknown escape `{found}` in a string; expected one of `\\\"` `\\\\` `\\/` `\\b` `\\f` `\\n` `\\t` `\\r` `\\u{{…}}` `\\uXXXX`; write `\\\\` for a literal backslash"
                     ),
                 );
-                value.push_str(&found);
-                return;
+                return None;
             }
         };
-        value.push(decoded);
+        Some(decoded)
     }
 
-    /// The rest of `\u{…}` after its `u`: 1 to 6 hex digits naming a Unicode scalar value.
-    fn unicode_escape(&mut self, start: usize, value: &mut String) {
-        if self.peek() != Some('{') {
+    /// The rest of a `\u` escape after its `u`: `{…}` with 1 to 6 hex digits
+    /// naming a Unicode scalar value, or JSON's 4 hex digits, where a UTF-16
+    /// surrogate pair is two such escapes in a row.
+    fn unicode_escape(&mut self, start: usize) -> Option<char> {
+        if self.peek() == Some('{') {
+            return self.braced_unicode_escape(start);
+        }
+        let Some(unit) = self.four_hex_digits() else {
             let found = self.text(start);
             self.invalid_escape(
                 start,
                 format!(
-                    "found `{found}` without `{{` in a string; expected `\\u{{` then 1 to 6 hex digits then `}}`; write the code point as `\\u{{41}}`"
+                    "found `{found}` in a string; expected `\\u{{` then 1 to 6 hex digits then `}}`, or `\\u` then exactly 4 hex digits; write the code point as `\\u{{41}}`"
                 ),
             );
-            value.push_str(&found);
-            return;
+            return None;
+        };
+        if let Some(c) = char::from_u32(unit) {
+            return Some(c);
         }
+        if (0xD800..0xDC00).contains(&unit) {
+            let rest = self.rest();
+            let low = rest
+                .strip_prefix("\\u")
+                .or_else(|| rest.strip_prefix("\\U"))
+                .and_then(|after| after.get(..4))
+                .filter(|digits| digits.chars().all(|c| c.is_ascii_hexdigit()))
+                .and_then(|digits| u32::from_str_radix(digits, 16).ok())
+                .filter(|low| (0xDC00..0xE000).contains(low));
+            if let Some(low) = low {
+                self.position += 6;
+                return char::from_u32(0x10000 + ((unit - 0xD800) << 10) + (low - 0xDC00));
+            }
+        }
+        let found = self.text(start);
+        self.invalid_escape(
+            start,
+            format!(
+                "found `{found}` in a string, a UTF-16 surrogate without its pair; expected a high surrogate (D800 to DBFF) followed by a low one (DC00 to DFFF); write the code point as `\\u{{…}}` instead"
+            ),
+        );
+        None
+    }
+
+    /// Exactly 4 hex digits, consumed, as a number.
+    fn four_hex_digits(&mut self) -> Option<u32> {
+        let digits = self.rest().get(..4)?;
+        if !digits.chars().all(|c| c.is_ascii_hexdigit()) {
+            return None;
+        }
+        let unit = u32::from_str_radix(digits, 16).ok()?;
+        self.position += 4;
+        Some(unit)
+    }
+
+    /// The rest of `\u{…}` after its `u`: 1 to 6 hex digits naming a Unicode scalar value.
+    fn braced_unicode_escape(&mut self, start: usize) -> Option<char> {
         self.bump();
         let digits_start = self.position;
         self.bump_while(|c| c.is_ascii_hexdigit());
@@ -263,10 +349,7 @@ impl Lexer<'_> {
             (true, 0, _) => "has no hex digits",
             (true, 7.., _) => "has more than 6 hex digits",
             (true, _, None) => "is not a Unicode scalar value",
-            (true, _, Some(c)) => {
-                value.push(c);
-                return;
-            }
+            (true, _, Some(c)) => return Some(c),
         };
         self.invalid_escape(
             start,
@@ -274,7 +357,7 @@ impl Lexer<'_> {
                 "found `{found}` in a string, which {problem}; expected `\\u{{` then 1 to 6 hex digits naming a Unicode scalar value (at most 10FFFF, not D800 to DFFF) then `}}`; fix the code point"
             ),
         );
-        value.push_str(&found);
+        None
     }
 
     fn invalid_escape(&mut self, start: usize, message: String) {
@@ -284,4 +367,107 @@ impl Lexer<'_> {
             message,
         ));
     }
+
+    /// The rest of a raw string after its first `"`: more quotes, the end of
+    /// the line, then content lines up to a line holding only indentation and
+    /// as many quotes as opened it. That indentation is stripped from every
+    /// line, and the line breaks after the opening quotes and before the
+    /// closing line are not part of the value. There are no escapes.
+    fn raw_string(&mut self, start: usize) -> StringLiteral {
+        self.bump_while(|c| c == '"');
+        let quotes = self.text(start);
+        self.bump_while(is_indentation);
+        let extra_start = self.position;
+        self.bump_while(|c| c != '\n');
+        let extra = self.source[extra_start..self.position]
+            .trim_end_matches(|c| c == '\r' || is_indentation(c));
+        if !extra.is_empty() {
+            self.errors.push(Error::new(
+                ErrorCode::RawStringOpening,
+                Span::new(extra_start, extra_start + extra.len()),
+                format!(
+                    "found `{extra}` after the opening `{quotes}` of a raw string; expected the end of the line; start the content on the next line, or use a `\"…\"` string for one line"
+                ),
+            ));
+        }
+        self.bump();
+        let mut lines = Vec::new();
+        loop {
+            let line_start = self.position;
+            self.bump_while(is_indentation);
+            let indentation_end = self.position;
+            let run = self.rest().chars().take_while(|&c| c == '"').count();
+            if run == quotes.len() {
+                self.position += run;
+                return self.raw_value(&lines, Span::new(line_start, indentation_end));
+            }
+            self.bump_while(|c| c != '\n');
+            lines.push(Span::new(line_start, self.position));
+            if self.peek().is_none() {
+                break;
+            }
+            self.bump();
+        }
+        self.errors.push(Error::new(
+            ErrorCode::UnterminatedString,
+            Span::new(start, self.position),
+            format!(
+                "found a raw string that runs to the end of input; expected a line holding only `{quotes}`; add `{quotes}` on its own line where the string ends"
+            ),
+        ));
+        let content_start = lines.first().map_or(self.position, |line| line.start);
+        let mut literal = StringLiteral::new(content_start);
+        literal.push_verbatim(
+            &self.source[content_start..self.position],
+            Span::new(content_start, self.position),
+        );
+        literal.content.end = self.position;
+        literal
+    }
+
+    /// The value of a raw string's content `lines`, each stripped of the
+    /// closing line's `indentation`.
+    fn raw_value(&mut self, lines: &[Span], indentation: Span) -> StringLiteral {
+        let prefix = &self.source[indentation.start..indentation.end];
+        let content_start = lines.first().map_or(indentation.start, |line| line.start);
+        let mut literal = StringLiteral::new(content_start);
+        literal.content.end = indentation.start;
+        for (index, line) in lines.iter().enumerate() {
+            let text = self.source[line.start..line.end].trim_end_matches('\r');
+            let blank = text.chars().all(is_indentation);
+            let start = if blank {
+                line.start + text.len()
+            } else if text.starts_with(prefix) {
+                line.start + prefix.len()
+            } else {
+                let shared = text
+                    .bytes()
+                    .zip(prefix.bytes())
+                    .take_while(|(a, b)| a == b)
+                    .count();
+                let own = text.chars().take_while(|&c| is_indentation(c)).count();
+                self.errors.push(Error::new(
+                    ErrorCode::RawStringIndentation,
+                    Span::new(line.start, line.start + own),
+                    format!(
+                        "found a raw string line whose indentation ({own} spaces or tabs) does not start with the closing line's ({}); expected every non-blank line to start with the closing line's indentation; indent the line to match, or move the closing quotes left",
+                        prefix.len()
+                    ),
+                ));
+                line.start + shared
+            };
+            // The line break before the closing line is not part of the value.
+            let end = match lines.get(index + 1) {
+                Some(next) => next.start,
+                None => line.start + text.len(),
+            };
+            literal.push_verbatim(&self.source[start..end], Span::new(start, end));
+        }
+        literal
+    }
+}
+
+/// The whitespace a raw string's indentation is made of.
+fn is_indentation(c: char) -> bool {
+    c == ' ' || c == '\t'
 }

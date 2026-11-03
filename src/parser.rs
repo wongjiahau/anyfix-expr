@@ -220,7 +220,7 @@ impl Parser<'_> {
         loop {
             let kind = self.peek().kind.clone();
             match kind {
-                TokenKind::Word | TokenKind::Number | TokenKind::String { .. } => {
+                TokenKind::Word | TokenKind::Number | TokenKind::String(_) => {
                     items.push(Item::Atom(self.next()))
                 }
                 _ if opener(&kind).is_some() => {

@@ -20,10 +20,15 @@ word       : name | symbols,
 name       : (letter | "_") { alnum },
 symbols    : symbol { symbol },
 
-number     : digit { alnum | "." digit },
+number     : digit { alnum | "." digit | exponent },
+exponent   : ("e" | "E") ("+" | "-") digit,
 
-string     : "\"" { any char except ("\"" | "\\") | escape } "\"",
-escape     : "\\" ("\"" | "\\" | "n" | "t" | "r" | "u{" hex { hex } "}"),
+string     : quoted | raw,
+quoted     : "\"" { any char except ("\"" | "\\") | escape } "\"",
+escape     : "\\" ("\"" | "\\" | "/" | "b" | "f" | "n" | "t" | "r"
+                  | "u{" hex { hex } "}" | "u" hex hex hex hex),
+raw        : quotes newline { line newline } indent quotes,
+quotes     : "\"\"\"" { "\"" },
 
 comment    : "#" { any char except newline },
 whitespace : unicode whitespace,

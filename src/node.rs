@@ -2,6 +2,7 @@
 
 use crate::lexer::{is_keyword, is_symbol_word};
 use crate::span::Span;
+use crate::string::StringLiteral;
 use crate::syntax::{Expression, Group, GroupKind, Item, Run, Sequence, SyntaxTree, TokenKind};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -14,8 +15,8 @@ pub struct Node {
 pub enum NodeKind {
     /// The number's source text; its meaning is the consumer's.
     Number(String),
-    /// The decoded string value.
-    String(String),
+    /// The string literal: its decoded value, and where each part came from.
+    String(StringLiteral),
     /// A word, or a run of items side by side, read as a call.
     Call(Call),
     /// `()`, `(a, b)` or `(a,)`. Parens around one element with no comma only
@@ -267,8 +268,8 @@ fn item_piece(item: &Item) -> Option<Piece> {
                     kind: NodeKind::Number(token.text.clone()),
                     span,
                 }),
-                TokenKind::String { value } => Piece::Argument(Node {
-                    kind: NodeKind::String(value.clone()),
+                TokenKind::String(literal) => Piece::Argument(Node {
+                    kind: NodeKind::String(literal.as_ref().clone()),
                     span,
                 }),
                 other => unreachable!("an atom is a word, number or string, not {other:?}"),

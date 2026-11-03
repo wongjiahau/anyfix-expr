@@ -58,7 +58,7 @@ pub fn show(node: &Node) -> String {
     let list = |nodes: &[Node]| nodes.iter().map(show).collect::<Vec<_>>().join(", ");
     match &node.kind {
         NodeKind::Number(text) => text.clone(),
-        NodeKind::String(value) => format!("{value:?}"),
+        NodeKind::String(literal) => format!("{:?}", literal.value),
         NodeKind::Parens(nodes) => format!("Parens[{}]", list(nodes)),
         NodeKind::Brackets(nodes) => format!("Brackets[{}]", list(nodes)),
         NodeKind::Braces(nodes) => format!("Braces[{}]", list(nodes)),

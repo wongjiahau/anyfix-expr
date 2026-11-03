@@ -12,7 +12,7 @@ fn fixture(name: &str) -> String {
 #[test]
 fn grammar_parses_as_one_rule_per_element() {
     let nodes = nodes(&fixture("grammar.anyfix"));
-    assert_eq!(nodes.len(), 19);
+    assert_eq!(nodes.len(), 23);
     assert_eq!(show(&nodes[0]), "(`document _` sequence)");
     assert_eq!(
         show(&nodes[2]),
@@ -43,4 +43,10 @@ fn json_parses() {
     assert!(shown.contains(r#"(`_ _` "private" true)"#), "{shown}");
     assert!(shown.contains(r#"(`_ _` "max" (`- _` 3))"#), "{shown}");
     assert!(shown.contains(r#"(`_ _` "p50" 1.25)"#), "{shown}");
+    assert!(shown.contains(r#"(`_ _` "min" 1e-5)"#), "{shown}");
+    assert!(shown.contains(r#"(`_ _` "budget" 2.5E+3)"#), "{shown}");
+    assert!(
+        shown.contains("(`_ _` \"escapes\" \"a/b \\u{8}\\u{c} café 😀\")"),
+        "{shown}"
+    );
 }
