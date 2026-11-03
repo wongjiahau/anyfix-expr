@@ -1,161 +1,208 @@
 # anyfix-expr — marketing draft
 
 > Draft copy for a launch post, crates.io/GitHub blurb, and social posts.
-> Every technical claim below is taken from the README and tests; check the
-> "Before publishing" list at the bottom first.
+> Every example below was run through the parser, and every tree shown is
+> what `anyfix-expr` actually produces. Check the "Before publishing" list at
+> the bottom first.
 
 ---
 
 ## Taglines (pick one)
 
-- **S-expressions without the parentheses.**
+- **One parser. Every little language.**
 - **Write a language. Skip the parser.**
+- **S-expressions without the parentheses.**
 - **Syntax that reads like English and parses like Lisp.**
-- **The notation that means nothing, so your language can mean anything.**
 
 ## One-liner
 
-anyfix-expr is a zero-dependency Rust crate that parses a small, readable
-notation into a fully grouped tree of calls, so you can build a DSL, config
-format or scripting language without writing a parser or debating operator
-precedence.
-
-## Elevator pitch (short)
-
-Every new language starts the same way: a lexer, a grammar, a precedence
-table, error recovery, and months of bikeshedding over syntax. Lisp skipped all
-of that with S-expressions, at the cost of parentheses everywhere.
-
-**Anyfix expressions** give you the same deal with a syntax people actually
-want to read:
-
-```text
-IF x > 0 THEN x ELSE 0 - x
-list file in (dir)
-my weight <= average (all weights) < max (all weights)
-search { max depth : 3, include hidden file, glob ["*.rs", "!target"] }
-```
-
-anyfix-expr turns each line into a call with a readable name and its
-arguments: `IF _ THEN _ ELSE _`, `list file in _`, `_ <= _ < _`. Your
-language just matches those names against its own signatures. No recursive
-descent, no precedence climbing, no grammar file.
+anyfix-expr is a zero-dependency Rust crate that reads plain, English-like
+text into a tree of calls. Rule engines, game scripts, alerting configs and
+query languages can all share it, so none of them needs its own parser.
 
 ---
 
 ## Launch post
 
-### Stop writing parsers
+### Five languages, zero parsers
 
-Lisp got one thing deeply right: separate *reading* from *meaning*. The
-reader turns text into a tree; the language decides what the tree does. That
-is why Lisps sprout DSLs so easily.
+Each block below is a different little language. None of them has a grammar
+file, a lexer or a precedence table. The same crate parses all of them, with
+no configuration.
 
-The price was syntax. `(if (> x 0) x (- 0 x))` is easy for a machine and
-hard on people.
-
-**anyfix-expr keeps the split and drops the price.** It is a notation that
-only describes grouping. It gives no word a meaning: `true`, `LET` and `+`
-are just words. It builds a tree and hands it to you.
-
-### Calls you can read out loud
-
-In anyfix, a call's name can wrap around its arguments: prefix, infix,
-postfix, or all at once. That's the "any" in anyfix.
-
-| You write | Your language receives |
-| --- | --- |
-| `list file in (dir)` | call `list file in _` with `dir` |
-| `x < y < z` | call `_ < _ < _` with `x`, `y`, `z` |
-| `IF a THEN b ELSE c` | call `IF _ THEN _ ELSE _` with `a`, `b`, `c` |
-| `null?` | call `_ ?` with `null` |
-| `rg.search "TODO" in "src"` | call `_ search _ in _` with `rg`, `"TODO"`, `"src"` |
-
-Three rules do all the grouping:
-
-1. **ALL-CAPS keywords split a run first**, so `IF … THEN … ELSE …` needs no
-   parentheses.
-2. **Symbol words split next**, so `my weight <= max (all)` groups the way
-   you'd read it.
-3. **Name words form the call's name**, everything else fills its slots.
-
-There is no precedence table. `.` chains left to right, `:` chains right to
-left, and that is the entire operator story:
+**A pricing rules engine**
 
 ```text
-1 .+ 1 .+ 2            # ((1) + 1) + 2
-output . split on ":" . count
-f : g : x              # f (g (x))
+rule (free shipping)  : WHEN cart total >= 50 THEN shipping cost 0,
+rule (bulk discount)  : WHEN quantity >= 10 THEN discount 15 percent,
+rule (loyal customer) : WHEN years active > 3 THEN add 500 point,
 ```
 
-Define `_ + _` as an ordinary function in your language and you have infix
-operators, for free.
+**A game script**
 
-### Tiny, and on purpose
+```text
+ON player enter (castle gate) DO {
+  play sound "creak.wav",
+  say "Who goes there?" as (guard),
+  IF player has (royal seal) THEN open (gate) ELSE spawn 3 archer,
+}
+```
+
+**An alerting config**
+
+```text
+WHEN error rate > 5 percent FOR 10 minute PAGE (on call)
+```
+
+**A query language**
+
+```text
+SELECT [name, email] FROM users WHERE age >= 18 ORDER BY signup date
+```
+
+**An image pipeline**
+
+```text
+"photo.jpg" . resize to 800 by 600 . sharpen . save as "thumb.jpg"
+```
+
+Here's what your code receives for each. Every line becomes a **call whose
+name is its words, with `_` where the arguments go**:
+
+| Source | Call name | Arguments |
+| --- | --- | --- |
+| `WHEN cart total >= 50 THEN shipping cost 0` | `WHEN _ THEN _` | `cart total >= 50`, `shipping cost 0` |
+| `say "Who goes there?" as (guard)` | `say _ as _` | `"Who goes there?"`, `guard` |
+| `spawn 3 archer` | `spawn _ archer` | `3` |
+| `WHEN error rate > 5 percent FOR 10 minute PAGE (on call)` | `WHEN _ FOR _ PAGE _` | `error rate > 5 percent`, `10 minute`, `on call` |
+| `SELECT … FROM … WHERE … ORDER BY …` | `SELECT _ FROM _ WHERE _ ORDER BY _` | `[name, email]`, `users`, `age >= 18`, `signup date` |
+| `… . resize to 800 by 600 . sharpen . save as "thumb.jpg"` | `_ save as _` | `(_ sharpen (_ resize to _ by _ …))`, `"thumb.jpg"` |
+
+Arguments are calls too, all the way down: `error rate > 5 percent` arrives
+as `_ > _` of `error rate` and `_ percent` of `5`.
+
+### Your interpreter is a lookup table
+
+Because the tree arrives fully grouped, evaluating a language is a `match` on
+call names. This is a complete calculator with English operators:
+
+```rust
+use anyfix_expr::{parse, Node, NodeKind};
+
+fn eval(node: &Node) -> f64 {
+    let NodeKind::Call(call) = &node.kind else {
+        if let NodeKind::Number(n) = &node.kind { return n.parse().unwrap() }
+        panic!("unexpected node")
+    };
+    let a: Vec<f64> = call.arguments.iter().map(eval).collect();
+    match call.name_text().as_str() {
+        "_ + _" => a[0] + a[1],
+        "_ * _" => a[0] * a[1],
+        "_ > _" => (a[0] > a[1]) as u8 as f64,
+        "_ percent of _" => a[0] / 100.0 * a[1],
+        "average of _ and _" => (a[0] + a[1]) / 2.0,
+        "IF _ THEN _ ELSE _" => if a[0] != 0.0 { a[1] } else { a[2] },
+        other => panic!("unknown call `{other}`"),
+    }
+}
+```
+
+```text
+15 percent of 80                        = 12
+average of 3 and 7 .* 10                = 50
+IF 15 percent of 80 > 10 THEN 1 ELSE 0  = 1
+2 .+ 3 .* 4                             = 20
+```
+
+No tokenizer, no grammar, no precedence climbing. Adding a feature to the
+language means adding a line to the `match`.
+
+### The same rule, four ways
+
+The free-shipping rule from above, written in formats people use for this
+today:
+
+**JSON**
+```json
+{ "rule": "free shipping",
+  "when": { "op": ">=", "left": "cart.total", "right": 50 },
+  "then": { "set": "shipping_cost", "value": 0 } }
+```
+
+**YAML**
+```yaml
+- rule: free shipping
+  when: { op: ">=", left: cart.total, right: 50 }
+  then: { set: shipping_cost, value: 0 }
+```
+
+**S-expression**
+```lisp
+(rule "free shipping" (when (>= cart-total 50)) (then (set shipping-cost 0)))
+```
+
+**Anyfix**
+```text
+rule (free shipping) : WHEN cart total >= 50 THEN shipping cost 0
+```
+
+The anyfix version is the one a product manager can read, review and edit,
+and it is still a precise tree your program can check.
+
+### How it groups, in three rules
+
+1. **ALL-CAPS words split first.** `WHEN … FOR … PAGE …` needs no
+   parentheses, however long the parts are.
+2. **Symbols split next.** `cart total >= 50` is `>=` with `cart total` on
+   one side and `50` on the other.
+3. **The remaining words name the call; everything else fills its slots.**
+   `say "Who goes there?" as (guard)` is `say _ as _`.
+
+Then two operators chain calls together: `.` passes a value forward,
+`:` passes the rest of the line in. That's the whole notation. There is no
+precedence table to memorize: `2 .+ 3 .* 4` is 20, left to right, because it
+says so.
 
 - **11 special characters**: `, : . ( ) [ ] { } # "`. Nothing else is magic.
 - **2 operators**: `.` and `:`. Both are sugar, rewritten away like Lisp's `'`.
 - **1 separator**: `,`. Newlines are just whitespace.
 - **0 dependencies.**
 
-You can learn the whole notation in an afternoon. The grammar is short enough
-that it is written in anyfix itself (`tests/fixtures/grammar.anyfix`).
+### Your JSON files already parse
 
-### Every JSON file already parses
-
-Every JSON document is a valid anyfix document, escapes, exponents, surrogate
-pairs and BOM included. The test suite generates JSON covering every form the
-spec allows and reads each one back as the same value. Start with your
-existing config files and add comments, trailing commas and readable calls
-as you go:
-
-```text
-# a config file that grew up
-search { max depth : 3, include hidden file, glob ["*.rs", "!target"], }
-```
+Every JSON document is a valid anyfix document, escapes, exponents and
+surrogate pairs included. Start from the config you have and let it grow
+comments, trailing commas and readable rules where JSON used to need nested
+objects.
 
 ### Built for tooling, not just parsing
 
-- **Lossless.** `parse(src).syntax.to_source()` gives back the input byte for
-  byte, for every input, valid or not. Comments and whitespace are kept as
-  trivia. Write formatters, refactoring tools and language servers on top of
-  it.
-- **Never gives up.** Parsing recovers and reports every error, sorted by
-  position. Nesting is capped, so hostile input can't overflow the stack.
-- **Errors written for humans and agents.** Each diagnostic has a stable
-  code, a span, and a one-line message: what was found, what was expected,
-  and how to fix it.
-- **Spans everywhere.** Every node and name word carries a byte span, with a
-  helper for line/column.
-- **Embed other languages.** Raw strings (`"""`) hold SQL, regexes, music
-  notation or anything else as written, with indentation stripped. Your
-  embedded parser's errors can still point to the exact spot in the file.
+- **Lossless.** `to_source()` gives back the input byte for byte, valid or
+  not, comments included. Build formatters, linters and language servers on
+  the same tree.
+- **Never gives up.** The parser recovers and reports every error, sorted by
+  position, and caps nesting so hostile input can't overflow the stack.
+- **Errors that tell you the fix.** Each diagnostic has a stable code, a span
+  and a one-line message saying what was found, what was expected and how to
+  fix it. That works for people and for AI agents repairing their own output.
+- **Embed other languages.** Raw strings (`"""`) carry SQL, regexes or shader
+  code as written, and your embedded parser's errors can still point to the
+  exact spot in the file.
 
 ### Who it's for
 
+- **Product teams** who want business rules that non-engineers can read.
+- **Game and app developers** who want a scripting or config language without
+  shipping a parser.
 - **Language designers** who want to prototype semantics, not syntax.
-- **DSL and config authors** who have outgrown JSON/YAML/TOML but don't
-  want to ship a custom parser.
-- **Tool builders** who need a lossless tree for formatting, linting or
-  editor support.
-- **Agent and LLM tooling**, where a small, regular syntax and fix-it error
-  messages make generated code easier to check and repair.
+- **AI and agent builders**, where a small, regular syntax and fix-it error
+  messages make generated code easy to check and repair.
 
-### Proven in practice
+### Already powering a shell
 
 anyfix-expr is the reader behind
 [resh](https://github.com/wongjiahau/resh), a readable, typed shell, and the
-crate knows nothing about it. Here's resh code wrapping ripgrep, all parsed
-by anyfix-expr with no resh-specific rules:
-
-```text
-function { (output : String) match : List : Match } {
-    output . split on ":" at most 4 . let (parts) be (_),
-    unless (parts . count . equals 4) do : { return ([]) },
-    new (Match) : { path : parts . item 0, line : line, column : column, text : parts . item 3 }
-        . singleton
-}
-```
+crate knows nothing about it.
 
 ### Try it
 
@@ -165,12 +212,10 @@ anyfix-expr = { git = "https://github.com/wongjiahau/anyfix-expr" }
 ```
 
 ```rust
-let parsed = anyfix_expr::parse("search { max depth : 3 }");
-assert!(parsed.errors.is_empty());
-
+let parsed = anyfix_expr::parse("spawn 3 archer");
 let nodes = parsed.syntax.nodes();
 let anyfix_expr::NodeKind::Call(call) = &nodes[0].kind else { unreachable!() };
-assert_eq!(call.name_text(), "search _");
+assert_eq!(call.name_text(), "spawn _ archer");
 ```
 
 Dual-licensed MIT / Apache-2.0.
@@ -181,24 +226,31 @@ Dual-licensed MIT / Apache-2.0.
 ## Short-form copy
 
 **crates.io / GitHub description (≤ 160 chars)**
-> S-expressions without the parentheses: a lossless, zero-dependency parser
-> for a readable notation that groups calls and leaves meaning to you.
+> One parser for every little language: reads English-like text into a
+> lossless tree of calls. Rules, scripts, configs. Zero dependencies.
 
-**Social post / Hacker News title**
-> Show HN: Anyfix expressions – S-expressions without the parentheses
+**Hacker News title**
+> Show HN: Anyfix – one parser for rule engines, game scripts and configs
 
 **Tweet/Bluesky-length**
-> Lisp separated reading from meaning. anyfix-expr does too, minus the parens.
-> `IF x > 0 THEN x ELSE 0 - x` → call `IF _ THEN _ ELSE _`.
-> 11 special chars, 2 operators, no precedence table, every JSON file parses,
-> lossless round-trip. Rust, zero deps.
+> `WHEN error rate > 5 percent FOR 10 minute PAGE (on call)`
+> That's not pseudocode. It parses into the call `WHEN _ FOR _ PAGE _`
+> with three arguments. Same parser handles game scripts, pricing rules and
+> SQL-ish queries. Your interpreter is a `match`. Rust, zero deps.
+
+**Second tweet (thread)**
+> A whole calculator with English operators:
+> `"_ percent of _" => a[0] / 100.0 * a[1],`
+> `"average of _ and _" => (a[0] + a[1]) / 2.0,`
+> No tokenizer. No grammar. No precedence table.
 
 **Reddit (r/rust, r/ProgrammingLanguages) opener**
-> I wanted to build a language without spending months on its parser, so I
-> made the parser the part nobody has to write. anyfix-expr reads text into a
-> tree of calls whose names wrap their arguments (`list file in _`,
-> `_ <= _ < _`, `IF _ THEN _ ELSE _`), and assigns meaning to nothing.
-> Feedback on the grouping rules is very welcome.
+> I kept writing the same parser for every small language: a rule engine, a
+> config format, a scripting layer. So I wrote one notation they can all
+> share. `ON player enter (castle gate) DO { … }`, `SELECT … FROM … WHERE …`
+> and `WHEN cart total >= 50 THEN shipping cost 0` all parse with the same
+> crate, into calls like `ON _ DO _` that you evaluate with a `match`.
+> I'd love feedback on the grouping rules.
 
 ---
 
@@ -209,5 +261,6 @@ Dual-licensed MIT / Apache-2.0.
 - [ ] **resh link:** confirm the repo is public, or drop that section.
 - [ ] **Version:** the crate is 0.1.0; say whether the notation is stable or
       still open to change.
-- [ ] Consider adding a side-by-side "S-expression vs anyfix" image or GIF
-      for social posts.
+- [ ] **Calculator example:** consider adding it to the repo as
+      `examples/calc.rs` so readers can `cargo run --example calc`.
+- [ ] Consider a GIF that types one of the gallery lines and shows its tree.
