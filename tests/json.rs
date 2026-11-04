@@ -107,7 +107,7 @@ fn text(random: &mut Random) -> String {
 }
 
 fn space(random: &mut Random) -> &'static str {
-    random.pick(&["", " ", "  ", "\n", "\r\n", "\t", "\n  "])
+    *random.pick(&["", " ", "  ", "\n", "\r\n", "\t", "\n  "])
 }
 
 fn write_string(random: &mut Random, text: &str, out: &mut String) {
@@ -228,6 +228,21 @@ fn generated_json_reads_back_as_the_same_value() {
         let nodes = nodes(&source);
         assert_eq!(nodes.len(), 1, "{source}");
         assert_eq!(read(&nodes[0]), json, "{source}");
+    }
+}
+
+#[test]
+fn formatted_json_reads_back_as_the_same_value() {
+    let mut random = Random(0x5EED_1234_ABCD_0042);
+    for _ in 0..500 {
+        let json = value(&mut random, 4);
+        let mut source = String::new();
+        write(&mut random, &json, &mut source);
+        let formatted = anyfix_expr::format(&source).unwrap();
+        let nodes = nodes(&formatted);
+        assert_eq!(nodes.len(), 1, "{formatted}");
+        assert_eq!(read(&nodes[0]), json, "{formatted}");
+        assert_eq!(anyfix_expr::format(&formatted).unwrap(), formatted);
     }
 }
 
