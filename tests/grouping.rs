@@ -115,6 +115,27 @@ fn spans_cover_each_node() {
 }
 
 #[test]
+fn spans_cover_parens_that_only_group() {
+    let text = |source: &str| {
+        let nodes = nodes(source);
+        source[nodes[0].span.start..nodes[0].span.end].to_string()
+    };
+    // The grouped node is the inner one, but a run holding it covers the parens.
+    assert_eq!(text("(y)"), "y");
+    assert_eq!(text("f (y)"), "f (y)");
+    assert_eq!(text("x . f (y)"), "x . f (y)");
+    assert_eq!(text("a : (b)"), "a : (b)");
+    assert_eq!(text("(a) . f"), "(a) . f");
+    assert_eq!(text("(a) < b"), "(a) < b");
+    assert_eq!(text("IF (a) THEN b"), "IF (a) THEN b");
+    let nodes = nodes("IF (a) b THEN c");
+    let NodeKind::Call(call) = &nodes[0].kind else {
+        unreachable!()
+    };
+    assert_eq!(call.arguments[0].span, anyfix_expr::Span::new(3, 8));
+}
+
+#[test]
 fn line_column_is_one_based_and_counts_characters() {
     let source = "λ x\n  y";
     assert_eq!(

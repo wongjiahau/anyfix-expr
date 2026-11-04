@@ -95,8 +95,17 @@ struct Pieces {
 }
 
 enum Piece {
-    Word { text: String, span: Span },
-    Argument(Node),
+    Word {
+        text: String,
+        span: Span,
+    },
+    /// `extent` is the source the argument came from. It is wider than
+    /// `node.span` where parens only grouped: `(y)` is the node `y`, but a
+    /// run holding it still covers the parens.
+    Argument {
+        node: Node,
+        extent: Span,
+    },
     Underscore(Span),
 }
 
@@ -104,7 +113,7 @@ impl Piece {
     fn span(&self) -> Span {
         match self {
             Piece::Word { span, .. } | Piece::Underscore(span) => *span,
-            Piece::Argument(node) => node.span,
+            Piece::Argument { extent, .. } => *extent,
         }
     }
 
@@ -129,14 +138,16 @@ fn expression_node(expression: &Expression) -> Node {
 fn expression_pieces(expression: &Expression) -> Pieces {
     match expression {
         Expression::Run(run) => run_pieces(run),
-        Expression::Dot(binary) => {
-            let value = expression_node(&binary.left);
-            fill(value, expression_pieces(&binary.right), Side::Front)
-        }
-        Expression::Colon(binary) => {
-            let value = expression_node(&binary.right);
-            fill(value, expression_pieces(&binary.left), Side::Back)
-        }
+        Expression::Dot(binary) => fill(
+            argument(expression_pieces(&binary.left)),
+            expression_pieces(&binary.right),
+            Side::Front,
+        ),
+        Expression::Colon(binary) => fill(
+            argument(expression_pieces(&binary.right)),
+            expression_pieces(&binary.left),
+            Side::Back,
+        ),
     }
 }
 
@@ -147,20 +158,29 @@ enum Side {
 
 /// Puts `value` in a slot of `receiver`: in place of its first top-level `_`,
 /// else at the `side`. A `_` inside brackets belongs to those brackets.
-fn fill(value: Node, receiver: Pieces, side: Side) -> Pieces {
-    let span = cover(value.span, receiver.span);
+fn fill(value: Piece, receiver: Pieces, side: Side) -> Pieces {
+    let span = cover(value.span(), receiver.span);
     let mut items = receiver.items;
     match items
         .iter()
         .position(|item| matches!(item, Piece::Underscore(_)))
     {
-        Some(index) => items[index] = Piece::Argument(value),
+        Some(index) => items[index] = value,
         None => match side {
-            Side::Front => items.insert(0, Piece::Argument(value)),
-            Side::Back => items.push(Piece::Argument(value)),
+            Side::Front => items.insert(0, value),
+            Side::Back => items.push(value),
         },
     }
     Pieces { items, span }
+}
+
+/// The node `pieces` become, as an argument covering all of their source.
+fn argument(pieces: Pieces) -> Piece {
+    let extent = pieces.span;
+    Piece::Argument {
+        node: pieces_node(pieces),
+        extent,
+    }
 }
 
 fn cover(a: Span, b: Span) -> Span {
@@ -216,10 +236,10 @@ fn split_at(items: Vec<Piece>, splits: fn(&Piece) -> bool) -> Call {
 /// The items between two splitting words, as the one argument they become.
 fn gather(stretch: Vec<Piece>) -> Option<Piece> {
     let span = stretch.first()?.span().to(stretch.last()?.span());
-    Some(Piece::Argument(pieces_node(Pieces {
+    Some(argument(Pieces {
         items: stretch,
         span,
-    })))
+    }))
 }
 
 fn call(items: Vec<Piece>) -> Call {
@@ -238,7 +258,7 @@ fn call(items: Vec<Piece>) -> Call {
 
 fn piece_argument(piece: Piece) -> Node {
     match piece {
-        Piece::Argument(node) => node,
+        Piece::Argument { node, .. } => node,
         Piece::Underscore(span) => Node {
             kind: NodeKind::Underscore,
             span,
@@ -264,19 +284,35 @@ fn item_piece(item: &Item) -> Option<Piece> {
                     text: token.text.clone(),
                     span,
                 },
-                TokenKind::Number => Piece::Argument(Node {
-                    kind: NodeKind::Number(token.text.clone()),
-                    span,
-                }),
-                TokenKind::String(literal) => Piece::Argument(Node {
-                    kind: NodeKind::String(literal.as_ref().clone()),
-                    span,
-                }),
+                TokenKind::Number => Piece::Argument {
+                    node: Node {
+                        kind: NodeKind::Number(token.text.clone()),
+                        span,
+                    },
+                    extent: span,
+                },
+                TokenKind::String(literal) => Piece::Argument {
+                    node: Node {
+                        kind: NodeKind::String(literal.as_ref().clone()),
+                        span,
+                    },
+                    extent: span,
+                },
                 other => unreachable!("an atom is a word, number or string, not {other:?}"),
             };
             Some(piece)
         }
-        Item::Group(group) => Some(Piece::Argument(group_node(group))),
+        Item::Group(group) => {
+            let node = group_node(group);
+            let end = group
+                .close
+                .as_ref()
+                .map_or(node.span.end, |close| close.span.end);
+            Some(Piece::Argument {
+                extent: Span::new(group.open.span.start, end),
+                node,
+            })
+        }
     }
 }
 
