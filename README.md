@@ -237,7 +237,9 @@ A run becomes a call in three steps:
   unambiguous even though words like `x_` may contain `_`.
 - A name word mixing symbol and name characters is impossible: `null?` is the
   call `_ ?` of `null`.
-- Every node and name word carries a byte `Span { start, end }`.
+- Every node and name word carries a byte `Span { start, end }`. A run's span
+  covers all of its source, including parens that only group: `(y)` is the
+  node `y` with `y`'s span, but `f (y)` spans the closing `)` too.
   `line_column(source, offset)` converts an offset to a 1-based line and
   column (counted in characters).
 - `Missing` stands for an empty operand or element. It appears only when
