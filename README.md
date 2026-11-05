@@ -237,7 +237,9 @@ A run becomes a call in three steps:
   unambiguous even though words like `x_` may contain `_`.
 - A name word mixing symbol and name characters is impossible: `null?` is the
   call `_ ?` of `null`.
-- Every node and name word carries a byte `Span { start, end }`.
+- Every node and name word carries a byte `Span { start, end }`. A run's span
+  covers all of its source, including parens that only group: `(y)` is the
+  node `y` with `y`'s span, but `f (y)` spans the closing `)` too.
   `line_column(source, offset)` converts an offset to a 1-based line and
   column (counted in characters).
 - `Missing` stands for an empty operand or element. It appears only when
@@ -373,6 +375,32 @@ order mark all parse.
 whitespace character JSON allows, parses each with no errors, and reads its
 tree back as the same JSON value. As with any input, folding the tree into
 values is the consumer's job; `read` in that test shows how.
+
+## Formatting
+
+`format(source)` returns the document in canonical form, or its parse errors.
+The result has the same tree as the input and keeps every comment, and
+formatting it again changes nothing.
+
+- **Only redundant syntax goes.** A `.`, `:` or pair of grouping `( )` is
+  removed when the tree stays the same without it, and nothing is ever
+  rewritten into another form: `1 . f` becomes `1 f`, `f : [a]` becomes
+  `f [a]`, `f ((x))` becomes `f (x)` and `a .+ b .+ c` becomes `a + b .+ c`,
+  but `x . f`, `f : x` and `f (x)` stay, since `x f` and `f x` are other
+  calls. `(x,)` keeps its comma and `(_)` its parens.
+- **Layout.** Lines aim for 100 columns, indented by 4 spaces. A bracket that
+  doesn't fit puts each element on its own line and ends with a comma, and a
+  `.` chain that doesn't fit breaks before each `.`. Top-level elements get
+  a line each, with commas when there is more than one.
+- **Spacing.** One space between items. `:` hugs its left (`a: b`). `.` has a
+  space on both sides (`x . f`), except that it hugs a symbol word after it
+  (`1 .+ 2`). Braces pad their contents (`{ a }`); parens and brackets don't.
+- **Comments and blank lines.** A comment stays after the token it followed
+  on the same line, or on its own line before the next one, moving to a
+  neighbour when its token is removed. A trailing comment inside a run ends
+  the line, and the run continues one level in. Blank lines collapse to one.
+- **Raw strings** are re-indented one level past the line they open on. Their
+  values are unchanged.
 
 ## Usage
 

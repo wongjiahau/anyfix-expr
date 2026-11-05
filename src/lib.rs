@@ -16,6 +16,7 @@
 //! derives the abstract [`Node`] view from it, where every run is a [`Call`].
 
 mod error;
+mod format;
 mod lexer;
 mod node;
 mod parser;
@@ -24,6 +25,7 @@ mod string;
 mod syntax;
 
 pub use error::{Error, ErrorCode};
+pub use format::{WIDTH, format};
 pub use node::{Call, NamePart, Node, NodeKind};
 pub use parser::{MAX_DEPTH, Parsed, parse};
 pub use span::{LineColumn, Span, line_column};
