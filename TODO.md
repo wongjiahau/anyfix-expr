@@ -73,9 +73,11 @@ the tree from `SyntaxTree::nodes()` into that AST.
 
 ## 9. Skill for AI agents
 
-- [ ] A SKILL that teaches an agent to write a grammar and run the generator
-- [ ] Worked examples: JSON, a config format, a keyword language
-- [ ] Common mistakes and how to read the generator's warnings
+- [x] A SKILL that teaches an agent to write a grammar and run the generator
+      (`skills/anyfix-grammar/SKILL.md`), with `anyfix-generate --tree` to
+      see how anyfix groups a sample before writing rules for it
+- [x] Worked examples: JSON, a config format, a keyword language
+- [x] Common mistakes and how to read the generator's warnings
 
 ## Related changes in anyfix-expr
 

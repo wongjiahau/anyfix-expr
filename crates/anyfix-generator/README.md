@@ -231,6 +231,17 @@ grammar.anyfix:2:30: error: found a reference to `lsit`, which is not a rule; ex
                                ^^^^
 ```
 
+To see what a grammar has to describe, print the tree of a sample source:
+
+```text
+$ anyfix-generate --tree sample.conf
+the call `server _`
+  `{...}`
+    the call `port _`
+      the number `8080`
+    the call `verbose logging`
+```
+
 ## Using the generated parser
 
 ```rust

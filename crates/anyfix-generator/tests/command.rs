@@ -86,6 +86,32 @@ fn warnings_are_shown_and_the_parser_is_still_printed() {
 }
 
 #[test]
+fn the_tree_of_a_source_shows_how_it_is_grouped() {
+    let path = grammar_file(
+        "source.anyfix",
+        "server { port: 8080, verbose logging },\nLET x = (1 + 2)",
+    );
+    let output = run(&["--tree", &path]);
+    assert!(output.status.success());
+    assert_eq!(text(&output.stderr), "");
+    assert_eq!(
+        text(&output.stdout),
+        "the call `server _`
+  `{...}`
+    the call `port _`
+      the number `8080`
+    the call `verbose logging`
+the call `LET _`
+  the call `_ = _`
+    the word `x`
+    the call `_ + _`
+      the number `1`
+      the number `2`
+"
+    );
+}
+
+#[test]
 fn a_missing_file_or_argument_is_explained() {
     let output = run(&["no-such-file.anyfix"]);
     assert_eq!(output.status.code(), Some(1));

@@ -4,6 +4,8 @@
 
 mod common;
 
+#[path = "generated/config.rs"]
+mod config;
 #[path = "generated/corners.rs"]
 mod corners;
 #[path = "generated/json.rs"]
@@ -68,6 +70,73 @@ fn the_keyword_language_is_generated() {
         "tests/generated/language.rs",
     );
     assert_eq!(warnings, Vec::<String>::new());
+}
+
+#[test]
+fn the_config_format_is_generated() {
+    let warnings = assert_generated("tests/fixtures/config.anyfix", "tests/generated/config.rs");
+    assert_eq!(warnings, Vec::<String>::new());
+}
+
+#[test]
+fn the_config_format_decodes() {
+    use config::{Setting, Value};
+
+    let source = "server {
+  host: \"localhost\",
+  port: 8080,
+  allowed origins: [\"a\", \"b\"],
+  verbose logging,
+  tls { certificate: \"cert.pem\" },
+}";
+    let document = config::decode_document(&parse(source)).unwrap();
+    let [server] = &document.section[..] else {
+        panic!("{:?}", document.section);
+    };
+    assert_eq!(server.name.value, "server _");
+    let settings: Vec<(&str, &str)> = server
+        .arguments
+        .value
+        .iter()
+        .map(|setting| match setting {
+            Setting::Flag { name, .. } => (name.value.as_str(), "flag"),
+            Setting::Pair {
+                name, arguments, ..
+            } => (
+                name.value.as_str(),
+                match arguments {
+                    Value::Text(_) => "text",
+                    Value::Number(_) => "number",
+                    Value::List(_) => "list",
+                    Value::Section(_) => "section",
+                },
+            ),
+        })
+        .collect();
+    assert_eq!(
+        settings,
+        [
+            ("host _", "text"),
+            ("port _", "number"),
+            ("allowed origins _", "list"),
+            ("verbose logging", "flag"),
+            ("tls _", "section")
+        ]
+    );
+}
+
+/// The skill for agents carries its own copies of the example grammars.
+#[test]
+fn the_examples_of_the_skill_are_the_tested_grammars() {
+    for name in ["json", "config", "language"] {
+        assert_eq!(
+            fixture(&format!(
+                "../../skills/anyfix-grammar/examples/{name}.anyfix"
+            )),
+            fixture(&format!("tests/fixtures/{name}.anyfix")),
+            "{name}"
+        );
+    }
 }
 
 #[test]

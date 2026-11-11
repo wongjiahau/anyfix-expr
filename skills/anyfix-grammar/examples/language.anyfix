@@ -1,0 +1,33 @@
+# A small language of keywords, with calls of the user's own.
+
+ENTRY [ZERO OR MORE: statement],
+
+statement: ONE OF [
+  let: SPECIFIC ANYFIX CALL [WORD "LET", binding],
+  return: SPECIFIC ANYFIX CALL [WORD "RETURN", OPTIONAL: expression],
+  expression,
+],
+
+# `total = 1` is the call `_ = _` of the name and the value.
+binding: SPECIFIC ANYFIX CALL [name: ANY WORD [NAME], WORD "=", value: expression],
+
+expression: ONE OF [
+  if: SPECIFIC ANYFIX CALL [
+    WORD "IF", condition: expression,
+    WORD "THEN", then: expression,
+    WORD "ELSE", else: expression,
+  ],
+  not: SPECIFIC ANYFIX CALL [WORD "NOT", expression],
+  less: SPECIFIC ANYFIX CALL [left: expression, WORD "<", right: expression],
+  sum: SPECIFIC ANYFIX CALL [left: expression, WORD "+", right: expression],
+  variable: ANY WORD [NAME],
+  number: NUMBER,
+  text: STRING,
+  block: CURLY BRACE: ZERO OR MORE: statement,
+  # Any other call that starts with a name and takes arguments is the
+  # user's own: `print _`, `move _ to _`.
+  call: ANYFIX CALL [
+    NAME [MATCHING REGEX "^[a-z].* _"],
+    ARGUMENTS: ONE OR MORE: expression,
+  ],
+],

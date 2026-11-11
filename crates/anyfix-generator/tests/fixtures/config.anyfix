@@ -1,0 +1,27 @@
+# A config file: sections of settings.
+
+ENTRY [ZERO OR MORE: section],
+
+# `server { ... }` is the call `server _` of the braces.
+section: ANYFIX CALL [
+  NAME [MATCHING REGEX "^[a-z][a-z0-9 ]* _$"],
+  ARGUMENTS: CURLY BRACE: ZERO OR MORE: setting,
+],
+
+setting: ONE OF [
+  # `port: 8080` is the call `port _` of the value, and so is
+  # `tls { ... }`. The key may be several words: `max depth: 3`.
+  pair: ANYFIX CALL [
+    NAME [MATCHING REGEX "^[a-z][a-z0-9 ]* _$"],
+    ARGUMENTS: value,
+  ],
+  # `verbose logging` alone is a flag: a call of only words.
+  flag: ANYFIX CALL [NAME [MATCHING REGEX "^[a-z][a-z0-9 ]*$"]],
+],
+
+value: ONE OF [
+  text: STRING,
+  number: NUMBER,
+  list: SQUARE BRACKET: ZERO OR MORE: value,
+  section: CURLY BRACE: ZERO OR MORE: setting,
+],
