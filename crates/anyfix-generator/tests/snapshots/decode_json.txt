@@ -34,5 +34,5 @@ decodes
 ## [1, f(2)]
 input:1:5: found the call `f _`; expected the word `null`, `true`, `false`, `{...}`, `[...]`, a string, a number or the closing `]`
   [1, f(2)]
-      ^^^
+      ^^^^
 
