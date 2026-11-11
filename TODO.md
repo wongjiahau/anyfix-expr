@@ -44,32 +44,32 @@ the tree from `SyntaxTree::nodes()` into that AST.
 
 ## 5. Generating Rust
 
-- [ ] Struct per sequence or call, enum per `ONE OF`, `Vec` for repetition, `Option` for `OPTIONAL`
-- [ ] Spans everywhere: `span: Span` on structs, `span()` on enums, `Spanned<T>` for built-ins
-- [ ] `STRING` → `Spanned<String>`, keeping the `StringLiteral` pieces
-- [ ] `NUMBER` → type chosen by its conditions (`u8`, `i64`, `f64`), with errors when out of range
-- [ ] `ANYFIX CALL` without `ARGUMENTS` → raw `anyfix_expr::Node` arguments
-- [ ] Recursive types boxed where needed
-- [ ] Decoder functions, one per rule, with errors pointing at the source
-- [ ] Generated code is formatted (rustfmt) and passes clippy
+- [x] Struct per sequence or call, enum per `ONE OF`, `Vec` for repetition, `Option` for `OPTIONAL`
+- [x] Spans everywhere: `span: Span` on structs, `span()` on enums, `Spanned<T>` for built-ins
+- [x] `STRING` → `Spanned<String>`, keeping the `StringLiteral` pieces
+- [x] `NUMBER` → type chosen by its conditions (`u8`, `i64`, `f64`), with errors when out of range
+- [x] `ANYFIX CALL` without `ARGUMENTS` → raw `anyfix_expr::Node` arguments
+- [x] Recursive types boxed where needed
+- [x] Decoder functions, one per rule, with errors pointing at the source
+- [x] Generated code is formatted (rustfmt) and passes clippy
 
 ## 6. Command line
 
-- [ ] `anyfix-generate grammar.anyfix > src/parser.rs`
-- [ ] Errors and warnings show line:column and the source line
-- [ ] Output is deterministic, so committed files diff cleanly
+- [x] `anyfix-generate grammar.anyfix > src/parser.rs`
+- [x] Errors and warnings show line:column and the source line
+- [x] Output is deterministic, so committed files diff cleanly
 
 ## 7. Bootstrapping
 
-- [ ] Generate the grammar language's decoder from `grammar.anyfix`
-- [ ] Replace the handwritten decoder (step 3) with the generated one
-- [ ] Test: regenerating from `grammar.anyfix` gives the committed file byte for byte
+- [x] Generate the grammar language's decoder from `grammar.anyfix`
+- [x] Replace the handwritten decoder (step 3) with the generated one
+- [x] Test: regenerating from `grammar.anyfix` gives the committed file byte for byte
 
 ## 8. Examples and tests
 
-- [ ] JSON: decode `tests/fixtures/json.anyfix` (the anyfix crate's) into the generated AST
-- [ ] A keyword language example (`IF _ THEN _ ELSE _`, user-defined calls via `ANYFIX CALL`)
-- [ ] Error snapshot tests for decode failures
+- [x] JSON: decode `tests/fixtures/json.anyfix` (the anyfix crate's) into the generated AST
+- [x] A keyword language example (`IF _ THEN _ ELSE _`, user-defined calls via `ANYFIX CALL`)
+- [x] Error snapshot tests for decode failures
 
 ## 9. Skill for AI agents
 

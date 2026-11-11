@@ -208,3 +208,149 @@ Anything else must be named: `STRING`, `NUMBER`, a symbol word such as
 `WORD "-"`, a nested bracket or call, and the same rule used twice. The
 generator reports a missing name, and two fields or choices with the same
 name.
+
+## Running the generator
+
+```sh
+anyfix-generate grammar.anyfix > src/parser.rs
+```
+
+The output is one Rust file. It needs `anyfix-expr` as a dependency, and
+`regex` when the grammar uses `MATCHING REGEX`. Commit it: the same grammar
+always gives the same text, so it only changes when the grammar does.
+
+The file is laid out with `rustfmt`, so `cargo fmt` leaves it alone.
+`--unformatted` prints it as generated, where `rustfmt` is not installed.
+
+Errors and warnings about the grammar go to the terminal, with the line
+they are about. An error stops the output; a warning does not:
+
+```text
+grammar.anyfix:2:30: error: found a reference to `lsit`, which is not a rule; expected the name of a rule of this grammar; write `list`, or define `lsit: ...`
+  value: ONE OF [text: STRING, lsit],
+                               ^^^^
+```
+
+## Using the generated parser
+
+```rust
+mod parser;
+
+let parsed = anyfix_expr::parse(source);
+// Report `parsed.errors` first: they are about the anyfix syntax itself.
+match parser::decode_document(&parsed.syntax.nodes()) {
+    Ok(document) => { /* a `parser::Document` */ }
+    Err(error) => eprintln!("{}", error.render(source, "input.json")),
+}
+```
+
+`decode_document` decodes what `ENTRY` describes. Each rule also has a
+decoder of its own, `decode_<rule>`, from one node.
+
+### The types
+
+For the JSON grammar at the top, the generator writes:
+
+```rust
+pub struct Document { pub value: Value, pub span: Span }
+
+pub enum Value {
+    Object(Object),
+    Array(Array),
+    String(Spanned<StringLiteral>),
+    Number(Spanned<f64>),
+    Null(Span),
+    True(Span),
+    False(Span),
+}
+
+pub struct Object { pub member: Vec<Member>, pub span: Span }
+pub struct Member { pub key: Spanned<StringLiteral>, pub value: Value, pub span: Span }
+pub struct Array { pub value: Vec<Value>, pub span: Span }
+```
+
+| In the grammar | In Rust |
+|---|---|
+| `ENTRY` | `struct Document` |
+| a rule that is a call or a bracket | a `struct`, with a field for each named part |
+| a rule that is a `ONE OF` | an `enum`, with a variant for each choice |
+| a rule that is another rule or a built-in | a type alias |
+| a choice that is a call | a variant with fields: `If { condition, then, r#else, span }` |
+| a choice that is a `WORD` | a variant holding the word's `Span` |
+| `ZERO OR MORE:`, `ONE OR MORE:` | `Vec<T>` |
+| `OPTIONAL:` | `Option<T>` |
+| `STRING` | `Spanned<StringLiteral>`: the value, and its pieces as written |
+| `NUMBER` | `Spanned<f64>`, or an integer type (see below) |
+| `ANY WORD` | `Spanned<String>` |
+| a named `WORD` | `Span` |
+| `ANYFIX CALL` | a struct of `name: Spanned<String>` and `arguments` |
+| a bracket that is a field or a choice, around one unnamed value | `Spanned<T>`: the value, and the bracket's span |
+
+A rule `key value` is the type `KeyValue`, decoded by `decode_key_value`.
+A call or `ONE OF` written inside a rule gets a type named after the way to
+it: the choices of the field `kind` of the rule `entry` are `EntryKind`.
+
+**Spans are everywhere.** Every struct has a `span` field, every enum a
+`span()` method, and every built-in value is `Spanned`. A span is a range
+of bytes of the source, as in `anyfix_expr`.
+
+**Numbers** get the type their conditions allow. `NUMBER [INTEGER, AT LEAST
+0, AT MOST 255]` is a `u8`: with both bounds, an integer gets the smallest
+type that holds them. `INTEGER` alone is an `i64`, with only `AT LEAST 0` a
+`u64`. Without `INTEGER` a number is an `f64`.
+
+**`ANYFIX CALL`** keeps the name as text with `_` for each argument, such
+as `move _ to _`. With `ARGUMENTS: pattern` its `arguments` are decoded:
+one value, or a `Vec` or `Option` for a repetition. Without it they stay
+`Vec<anyfix_expr::Node>`, for you to decode.
+
+**Recursion** is boxed where a type would otherwise contain itself.
+
+A rule may be named like a type the output uses itself, such as `string`
+or `node`. The rule gets the short name, and the output writes the other
+by its full path (`std::string::String`, `anyfix_expr::Node`).
+
+### How a node is matched
+
+- The choices of a `ONE OF` are tried in order, and the first that matches
+  wins. The generator warns when two choices can match the same input,
+  since the later one then never gets it.
+- The elements of a list are matched from left to right. A repetition takes
+  every node that fits and gives none back, so in `[ZERO OR MORE: value,
+  last: value]` nothing is left for `last`.
+- A call matches `SPECIFIC ANYFIX CALL` only with exactly its words and
+  arguments, and a bracket only when no element is left over.
+
+### Decode errors
+
+A `DecodeError` says what was found and what the grammar allows there:
+
+```text
+input.json:1:5: found the word `yes`; expected the word `null`, `true`, `false`, `{...}`, `[...]`, a string, a number or the closing `]`
+  [1, yes]
+      ^^^
+```
+
+It has the `span`, `found` and `expected` as fields, `message()` for the
+one line, and `render(source, file)` for the line with its source. When
+several choices fail, the error is the one that got furthest into the
+source, with every expectation that was possible there.
+
+## What the generator checks
+
+Errors, which stop the generation:
+
+- a reference to a rule that does not exist, and a rule defined twice
+- a field or choice with no name, or two with the same name
+- a name that cannot be a Rust identifier (`self`, `super`, `crate`), a
+  field named `span`, a rule named `document`
+- a repetition where exactly one node is matched, such as a whole rule or
+  a choice
+- conditions nothing can meet, and a regex that does not compile
+- a rule that refers to itself with no call or bracket in between
+
+Warnings:
+
+- two choices of a `ONE OF` that can match the same input
+- a rule that nothing reachable from `ENTRY` refers to
+- a `PARENTHESIS` around exactly one element, which only `(x,)` matches

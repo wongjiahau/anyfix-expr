@@ -439,6 +439,16 @@ assert_eq!(call.name_text(), "search _");
 assert_eq!(parsed.syntax.to_source(), "search { max depth : 3 }");
 ```
 
+## Parser generator
+
+[`anyfix-generator`](crates/anyfix-generator/README.md) turns a grammar,
+itself written in anyfix, into a typed Rust AST and a decoder from the tree
+above into it:
+
+```sh
+anyfix-generate grammar.anyfix > src/parser.rs
+```
+
 ## License
 
 Licensed under either of [Apache License, Version 2.0](LICENSE-APACHE) or
