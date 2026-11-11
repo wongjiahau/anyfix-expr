@@ -1,0 +1,112 @@
+# The grammar of anyfix grammars, written as one.
+
+# A grammar is its entry, then its rules.
+ENTRY [entry, ZERO OR MORE: rule],
+
+entry: SPECIFIC ANYFIX CALL [WORD "ENTRY", contents],
+
+rule: named,
+
+# `key value: pattern` defines a rule; inside a list, `key: pattern` names a
+# field or a choice.
+named: ANYFIX CALL [
+  NAME [MATCHING REGEX "^[a-z][a-z0-9]*( [a-z][a-z0-9]*)* _$"],
+  ARGUMENTS: pattern,
+],
+
+# What a container or the entry holds: one element, or a list of them in order.
+contents: ONE OF [list: SQUARE BRACKET [ZERO OR MORE: element], element],
+
+element: ONE OF [field: named, pattern],
+
+pattern: ONE OF [
+  reference,
+  one of,
+  repetition,
+  container,
+  specific call,
+  any call,
+  word,
+  any word,
+  string,
+  number,
+],
+
+# A rule's name: lowercase words, no arguments.
+reference: ANYFIX CALL [NAME [MATCHING REGEX "^[a-z][a-z0-9]*( [a-z][a-z0-9]*)*$"]],
+
+one of: SPECIFIC ANYFIX CALL [
+  WORD "ONE", WORD "OF",
+  choices: SQUARE BRACKET [ONE OR MORE: element],
+],
+
+repetition: ONE OF [
+  zero or more: SPECIFIC ANYFIX CALL [WORD "ZERO", WORD "OR", WORD "MORE", pattern],
+  one or more: SPECIFIC ANYFIX CALL [WORD "ONE", WORD "OR", WORD "MORE", pattern],
+  optional: SPECIFIC ANYFIX CALL [WORD "OPTIONAL", pattern],
+],
+
+container: ONE OF [
+  curly brace: SPECIFIC ANYFIX CALL [WORD "CURLY", WORD "BRACE", contents],
+  square bracket: SPECIFIC ANYFIX CALL [WORD "SQUARE", WORD "BRACKET", contents],
+  parenthesis: SPECIFIC ANYFIX CALL [WORD "PARENTHESIS", contents],
+],
+
+# Words in the list name the call; every other element fills a slot.
+specific call: SPECIFIC ANYFIX CALL [
+  WORD "SPECIFIC", WORD "ANYFIX", WORD "CALL",
+  parts: SQUARE BRACKET [ONE OR MORE: element],
+],
+
+any call: SPECIFIC ANYFIX CALL [
+  WORD "ANYFIX", WORD "CALL",
+  conditions: OPTIONAL: SQUARE BRACKET [ONE OR MORE: call condition],
+],
+
+call condition: ONE OF [
+  name: SPECIFIC ANYFIX CALL [
+    WORD "NAME",
+    conditions: SQUARE BRACKET [ONE OR MORE: string condition],
+  ],
+  arguments: SPECIFIC ANYFIX CALL [WORD "ARGUMENTS", pattern],
+],
+
+word: SPECIFIC ANYFIX CALL [WORD "WORD", text: STRING],
+
+any word: SPECIFIC ANYFIX CALL [
+  WORD "ANY", WORD "WORD",
+  conditions: OPTIONAL: SQUARE BRACKET [ONE OR MORE: word condition],
+],
+
+word condition: ONE OF [WORD "KEYWORD", WORD "NAME", WORD "SYMBOL", string condition],
+
+string: ONE OF [
+  any: WORD "STRING",
+  exact: SPECIFIC ANYFIX CALL [WORD "STRING", text: STRING],
+  conditions: SPECIFIC ANYFIX CALL [
+    WORD "STRING",
+    conditions: SQUARE BRACKET [ONE OR MORE: string condition],
+  ],
+],
+
+string condition: ONE OF [
+  starts with: SPECIFIC ANYFIX CALL [WORD "STARTS", WORD "WITH", text: STRING],
+  ends with: SPECIFIC ANYFIX CALL [WORD "ENDS", WORD "WITH", text: STRING],
+  contains: SPECIFIC ANYFIX CALL [WORD "CONTAINS", text: STRING],
+  matching regex: SPECIFIC ANYFIX CALL [WORD "MATCHING", WORD "REGEX", regex: STRING],
+],
+
+number: ONE OF [
+  any: WORD "NUMBER",
+  exact: SPECIFIC ANYFIX CALL [WORD "NUMBER", value: NUMBER],
+  conditions: SPECIFIC ANYFIX CALL [
+    WORD "NUMBER",
+    conditions: SQUARE BRACKET [ONE OR MORE: number condition],
+  ],
+],
+
+number condition: ONE OF [
+  WORD "INTEGER",
+  at least: SPECIFIC ANYFIX CALL [WORD "AT", WORD "LEAST", bound: NUMBER],
+  at most: SPECIFIC ANYFIX CALL [WORD "AT", WORD "MOST", bound: NUMBER],
+],

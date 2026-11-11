@@ -12,20 +12,20 @@ the tree from `SyntaxTree::nodes()` into that AST.
 
 ## 2. The grammar language
 
-- [ ] Put the grammar of grammars in `crates/anyfix-generator/grammar.anyfix`
-- [ ] Put the JSON grammar in `crates/anyfix-generator/tests/fixtures/json.anyfix`
-- [ ] Write the grammar language reference (README), covering:
-  - [ ] `ENTRY` first, then rules: `name: pattern`, lowercase names
-  - [ ] Rule references: bare lowercase words
-  - [ ] `ONE OF [...]`: first match wins
-  - [ ] `ZERO OR MORE:`, `ONE OR MORE:`, `OPTIONAL:`
-  - [ ] `CURLY BRACE`, `SQUARE BRACKET`, `PARENTHESIS`, with `: pattern` or `[elements in order]`
-  - [ ] `SPECIFIC ANYFIX CALL [WORD "IF", condition: expression, ...]`
-  - [ ] `ANYFIX CALL [NAME [...], ARGUMENTS: pattern]`
-  - [ ] `WORD "x"`, `ANY WORD [KEYWORD | NAME | SYMBOL | string conditions]`
-  - [ ] `STRING`, `STRING "exact"`, `STRING [STARTS WITH, ENDS WITH, CONTAINS, MATCHING REGEX]`
-  - [ ] `NUMBER`, `NUMBER 2`, `NUMBER [INTEGER, AT LEAST n, AT MOST n]`
-  - [ ] Names: `name: pattern` names a field or a choice. A rule reference defaults to the rule's name, and `WORD "null"` defaults to `Null`
+- [x] Put the grammar of grammars in `crates/anyfix-generator/grammar.anyfix`
+- [x] Put the JSON grammar in `crates/anyfix-generator/tests/fixtures/json.anyfix`
+- [x] Write the grammar language reference (README), covering:
+  - [x] `ENTRY` first, then rules: `name: pattern`, lowercase names
+  - [x] Rule references: bare lowercase words
+  - [x] `ONE OF [...]`: first match wins
+  - [x] `ZERO OR MORE:`, `ONE OR MORE:`, `OPTIONAL:`
+  - [x] `CURLY BRACE`, `SQUARE BRACKET`, `PARENTHESIS`, with `: pattern` or `[elements in order]`
+  - [x] `SPECIFIC ANYFIX CALL [WORD "IF", condition: expression, ...]`
+  - [x] `ANYFIX CALL [NAME [...], ARGUMENTS: pattern]`
+  - [x] `WORD "x"`, `ANY WORD [KEYWORD | NAME | SYMBOL | string conditions]`
+  - [x] `STRING`, `STRING "exact"`, `STRING [STARTS WITH, ENDS WITH, CONTAINS, MATCHING REGEX]`
+  - [x] `NUMBER`, `NUMBER 2`, `NUMBER [INTEGER, AT LEAST n, AT MOST n]`
+  - [x] Names: `name: pattern` names a field or a choice. A rule reference defaults to the rule's name, and `WORD "null"` defaults to `Null`
 
 ## 3. Handwritten decoder for the grammar language
 

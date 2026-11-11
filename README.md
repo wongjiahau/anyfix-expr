@@ -337,10 +337,11 @@ odd place is the consumer's job.
 ## The grammar in anyfix expressions
 
 The grammar written in anyfix expressions
-(`crates/anyfix-expr/tests/fixtures/grammar.anyfix`). A grammar consumer would read each `name _` call as a rule, a `_ | _` call as
-alternation, any other call as a sequence of its words and arguments in order,
-`( )` as grouping, `[ ]` as optional and `{ }` as repetition. This crate only
-has to parse it.
+(`crates/anyfix-expr/tests/fixtures/grammar.anyfix`). A grammar consumer
+would read each `name _` call as a rule, a `_ | _` call as alternation, any
+other call as a sequence of its words and arguments in order, `( )` as
+grouping, `[ ]` as optional and `{ }` as repetition. This crate only has to
+parse it.
 
 ```text
 # Anyfix expressions — described in anyfix expressions.
