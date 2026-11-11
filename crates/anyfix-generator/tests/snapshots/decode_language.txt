@@ -1,0 +1,45 @@
+## LET 1 = 2
+input:1:5: found the number `1`; expected a name
+  LET 1 = 2
+      ^
+
+## LET x
+input:1:5: found the word `x`; expected the call `_ = _`
+  LET x
+      ^
+
+## IF a THEN b
+input:1:12: found the end of the call; expected the word `ELSE`
+  IF a THEN b
+             ^
+
+## IF a THEN b ELSE [c]
+input:1:18: found `[...]`; expected the call `IF _ THEN _ ELSE _`, `NOT _`, `_ < _`, `_ + _`, a name, a number, a string, `{...}` or a call whose name matches the regex `^[a-z].* _`
+  IF a THEN b ELSE [c]
+                   ^^^
+
+## RETURN 1 2
+input:1:8: found the call `_ _`; expected the call `IF _ THEN _ ELSE _`, `NOT _`, `_ < _`, `_ + _`, a name, a number, a string, `{...}`, a call whose name matches the regex `^[a-z].* _` or the end of the call
+  RETURN 1 2
+         ^^^
+
+## WHILE a
+input:1:1: found the word `WHILE`; expected the word `LET`, `RETURN`, `IF` or `NOT`
+  WHILE a
+  ^^^^^
+
+## print (1, 2)
+input:1:7: found `(...)`; expected the call `IF _ THEN _ ELSE _`, `NOT _`, `_ < _`, `_ + _`, a name, a number, a string, `{...}` or a call whose name matches the regex `^[a-z].* _`
+  print (1, 2)
+        ^^^^^^
+
+## { LET x = 1, LET y }
+input:1:18: found the word `y`; expected the call `_ = _`
+  { LET x = 1, LET y }
+                   ^
+
+## a + b + c
+input:1:7: found the word `+`; expected the end of the call
+  a + b + c
+        ^
+

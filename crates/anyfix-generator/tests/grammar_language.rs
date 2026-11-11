@@ -137,7 +137,7 @@ fn bad_grammars_say_what_was_found_and_what_was_expected() {
         ),
         (
             "ENTRY: value,\nvalue: STRING *",
-            "grammar:2:15: found the word `*`; expected the end of the call, a string or `[...]`
+            "grammar:2:15: found the word `*`; expected a string or `[...]`
   value: STRING *
                 ^",
         ),

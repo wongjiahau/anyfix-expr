@@ -248,8 +248,12 @@ impl NumberPattern {
     }
 }
 
-/// `a` or `an`, then the name: `an expression`, `a key value`.
+/// `a` or `an`, then the name: `an expression`, `a key value`. A plural
+/// name, such as `contents`, stands as it is.
 pub fn with_article(name: &str) -> String {
+    if name.ends_with('s') && !name.ends_with("ss") {
+        return name.to_string();
+    }
     let article = match name.chars().next() {
         Some('a' | 'e' | 'i' | 'o' | 'u') => "an",
         _ => "a",

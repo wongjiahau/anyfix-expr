@@ -1,0 +1,56 @@
+# The corners of the generator: rules named like the types its output uses,
+# every kind of number and word, fields named like Rust keywords, brackets
+# with and without fields, and recursion through an optional field.
+
+ENTRY [header: OPTIONAL: string, ZERO OR MORE: node],
+
+string: STRING [STARTS WITH "#", ENDS WITH "!", CONTAINS "a", MATCHING REGEX "^.{3,}$"],
+
+node: ONE OF [
+  option,
+  numbers,
+  words,
+  box,
+  vec: SQUARE BRACKET [ONE OR MORE: node],
+  nothing: PARENTHESIS [],
+  only words: PARENTHESIS [WORD "only", WORD "words"],
+  wrapped: PARENTHESIS [WORD "wrap", OPTIONAL: node, WORD "end"],
+  raw: ANYFIX CALL [NAME [STARTS WITH "raw "]],
+  exact: STRING "exact",
+  spanned: span,
+  WORD "type",
+  WORD "NOT_NULL",
+],
+
+span: WORD "span",
+
+option: SPECIFIC ANYFIX CALL [
+  WORD "OPTION", type: ANY WORD [SYMBOL], OPTIONAL: node,
+  WORD "THEN", match: OPTIONAL: string, WORD "END",
+],
+
+numbers: SQUARE BRACKET [
+  byte: NUMBER [INTEGER, AT LEAST 0, AT MOST 255],
+  offset: NUMBER [INTEGER, AT LEAST -1000, AT MOST 1000],
+  count: NUMBER [INTEGER, AT LEAST 0],
+  whole: NUMBER [INTEGER],
+  huge: NUMBER [INTEGER, AT MOST 1e30],
+  ratio: NUMBER [AT LEAST 0, AT MOST 1],
+  answer: NUMBER 42,
+  rest: ZERO OR MORE: NUMBER,
+],
+
+words: SPECIFIC ANYFIX CALL [
+  WORD "WORDS",
+  list: SQUARE BRACKET [
+    keyword: ANY WORD [KEYWORD],
+    name: ANY WORD [NAME, MATCHING REGEX "^[a-z]+$"],
+    symbol: ANY WORD [SYMBOL],
+    any: ANY WORD,
+    arrow: WORD "->",
+    bars: ZERO OR MORE: WORD "|",
+    WORD "end",
+  ],
+],
+
+box: CURLY BRACE [inner: node, result: OPTIONAL: node],

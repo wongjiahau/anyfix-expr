@@ -43,3 +43,11 @@ grammar:1:56: error: found a second `NAME`; expected one `NAME [...]` holding ev
   ENTRY: value, value: ANYFIX CALL [NAME [CONTAINS "a"], NAME [CONTAINS "b"]]
                                                          ^^^^^^^^^^^^^^^^^^^
 
+## ENTRY: value, value: ONE OF [x: STRING, group: PARENTHESIS: value]
+grammar:1:61: warning: found a `PARENTHESIS` around exactly one element; expected none or several, since `(x)` only groups and is the same node as `x`, which leaves this matching `(x,)` alone; remove the `PARENTHESIS`, as anything may be written in parentheses already
+  ENTRY: value, value: ONE OF [x: STRING, group: PARENTHESIS: value]
+                                                              ^^^^^
+
+## ENTRY: value, value: ONE OF [x: STRING, pair: PARENTHESIS [value, other: value]]
+nothing to report
+

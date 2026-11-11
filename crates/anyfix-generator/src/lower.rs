@@ -306,7 +306,9 @@ impl Lowerer<'_> {
             if element.is_bare_word() {
                 continue;
             }
-            if element.name.is_none() {
+            // The only value of an inline bracket stays unnamed: the bracket
+            // then decodes to that value, with no struct around it.
+            if element.name.is_none() && names == Names::Required {
                 element.name = match &element.pattern {
                     Pattern::Reference(rule) => Some(self.rule_names[*rule].clone()),
                     _ => None,

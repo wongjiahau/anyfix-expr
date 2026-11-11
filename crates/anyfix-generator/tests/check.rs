@@ -112,6 +112,8 @@ fn patterns_must_be_able_to_match() {
             "ENTRY: value, value: ANY WORD [KEYWORD, SYMBOL]",
             "ENTRY: value, value: SPECIFIC ANYFIX CALL [x: STRING]",
             "ENTRY: value, value: ANYFIX CALL [NAME [CONTAINS \"a\"], NAME [CONTAINS \"b\"]]",
+            "ENTRY: value, value: ONE OF [x: STRING, group: PARENTHESIS: value]",
+            "ENTRY: value, value: ONE OF [x: STRING, pair: PARENTHESIS [value, other: value]]",
         ]),
     );
 }

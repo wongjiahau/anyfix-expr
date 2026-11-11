@@ -161,6 +161,12 @@ pub struct Sequence<'a> {
     /// Why the last repetition stopped. When the sequence then fails at the
     /// same place, this is the better explanation.
     missed: Option<DecodeError>,
+    /// For a call: the error saying that the whole call is not the expected
+    /// one. It is given when a word stands where an argument should, or an
+    /// argument where a word should, since the call then has another shape.
+    /// Once a word has matched, the call is taken to be the expected one,
+    /// and what is wrong with it is said exactly.
+    other_call: Option<DecodeError>,
 }
 
 enum Item<'a> {
@@ -223,10 +229,12 @@ pub fn call<'a>(node: &'a Node, expected: &str) -> Result<Sequence<'a>, DecodeEr
             NamePart::Slot => arguments.next().map(Item::Node),
         })
         .collect();
-    Ok(Sequence::new(
+    let mut sequence = Sequence::new(
         items,
         ("the end of the call", Span::empty(node.span.end)),
-    ))
+    );
+    sequence.other_call = Some(mismatch(node, expected));
+    Ok(sequence)
 }
 
 /// Any call: its name text, such as `list file in _`, and its arguments.
@@ -270,6 +278,7 @@ impl<'a> Sequence<'a> {
             index: 0,
             end,
             missed: None,
+            other_call: None,
         }
     }
 
@@ -293,6 +302,13 @@ impl<'a> Sequence<'a> {
         self.fail(error)
     }
 
+    /// The error for a call whose words and arguments are not arranged as
+    /// expected.
+    fn is_other_call(&mut self) -> DecodeError {
+        let error = self.other_call.clone().expect("the sequence of a call");
+        self.fail(error)
+    }
+
     fn fail(&mut self, error: DecodeError) -> DecodeError {
         match self.missed.take() {
             Some(missed) => missed.merge(error),
@@ -312,9 +328,11 @@ impl<'a> Sequence<'a> {
         let span = match self.items.get(self.index) {
             Some(Item::Word(found, span)) if *found == text => *span,
             Some(Item::Node(node)) if is_word(node, text) => node.span,
+            Some(Item::Node(_)) if self.other_call.is_some() => return Err(self.is_other_call()),
             _ => return Err(self.unexpected(&format!("the word `{text}`"))),
         };
         self.index += 1;
+        self.other_call = None;
         Ok(span)
     }
 
@@ -324,8 +342,12 @@ impl<'a> Sequence<'a> {
         decode: impl FnOnce(&'a Node) -> Result<T, DecodeError>,
         expected: &str,
     ) -> Result<T, DecodeError> {
-        let Some(Item::Node(node)) = self.items.get(self.index) else {
-            return Err(self.unexpected(expected));
+        let node = match self.items.get(self.index) {
+            Some(Item::Node(node)) => *node,
+            Some(Item::Word(..)) if self.other_call.is_some() => {
+                return Err(self.is_other_call());
+            }
+            _ => return Err(self.unexpected(expected)),
         };
         match decode(node) {
             Ok(value) => {
@@ -399,9 +421,10 @@ fn is_word(node: &Node, expected: &str) -> bool {
 
 /// The word `text`, standing alone.
 pub fn word(node: &Node, text: &str) -> Result<Span, DecodeError> {
-    let mut parts = call(node, &format!("the word `{text}`"))?;
-    parts.word(text)?.finish()?;
-    Ok(node.span)
+    match is_word(node, text) {
+        true => Ok(node.span),
+        false => Err(mismatch(node, &format!("the word `{text}`"))),
+    }
 }
 
 /// Any word standing alone whose text passes `condition`.

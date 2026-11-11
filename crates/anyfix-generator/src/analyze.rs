@@ -2,7 +2,7 @@
 //! forever, and no two choices of a `ONE OF` compete for the same input.
 
 use crate::diagnostic::Diagnostic;
-use crate::model::{Element, Grammar, Pattern};
+use crate::model::{ContainerKind, Element, Grammar, Pattern, Repetition};
 use crate::overlap::Overlap;
 
 pub fn analyze(grammar: &Grammar) -> Vec<Diagnostic> {
@@ -17,6 +17,7 @@ pub fn analyze(grammar: &Grammar) -> Vec<Diagnostic> {
         .chain(grammar.rules.iter().map(|rule| &rule.pattern));
     for root in roots {
         competing_choices(root, &mut overlap, &mut diagnostics);
+        lone_parentheses(root, &mut diagnostics);
     }
     diagnostics
 }
@@ -170,5 +171,25 @@ fn competing_choices(pattern: &Pattern, overlap: &mut Overlap, diagnostics: &mut
     }
     for child in children(pattern) {
         competing_choices(child, overlap, diagnostics);
+    }
+}
+
+/// `(x)` only groups: it is the node `x`, with no parentheses left. So a
+/// `PARENTHESIS` around exactly one element fits only `(x,)`.
+fn lone_parentheses(pattern: &Pattern, diagnostics: &mut Vec<Diagnostic>) {
+    if let Pattern::Container {
+        kind: ContainerKind::Parenthesis,
+        elements,
+    } = pattern
+        && let [only] = &elements[..]
+        && only.repetition == Repetition::One
+    {
+        diagnostics.push(Diagnostic::warning(
+            only.span,
+            "found a `PARENTHESIS` around exactly one element; expected none or several, since `(x)` only groups and is the same node as `x`, which leaves this matching `(x,)` alone; remove the `PARENTHESIS`, as anything may be written in parentheses already",
+        ));
+    }
+    for child in children(pattern) {
+        lone_parentheses(child, diagnostics);
     }
 }
