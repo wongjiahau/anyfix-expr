@@ -336,8 +336,8 @@ odd place is the consumer's job.
 
 ## The grammar in anyfix expressions
 
-The grammar written in anyfix expressions (`tests/fixtures/grammar.anyfix`). A
-grammar consumer would read each `name _` call as a rule, a `_ | _` call as
+The grammar written in anyfix expressions
+(`crates/anyfix-expr/tests/fixtures/grammar.anyfix`). A grammar consumer would read each `name _` call as a rule, a `_ | _` call as
 alternation, any other call as a sequence of its words and arguments in order,
 `( )` as grouping, `[ ]` as optional and `{ }` as repetition. This crate only
 has to parse it.
@@ -396,7 +396,7 @@ numbers (negative ones included) are numbers. JSON's exponents (`1e-5`),
 escapes (`\/`, `\b`, `\f`, `\uXXXX` with surrogate pairs) and a leading byte
 order mark all parse.
 
-`tests/json.rs` generates documents covering every escape, number form and
+`crates/anyfix-expr/tests/json.rs` generates documents covering every escape, number form and
 whitespace character JSON allows, parses each with no errors, and reads its
 tree back as the same JSON value. As with any input, folding the tree into
 values is the consumer's job; `read` in that test shows how.

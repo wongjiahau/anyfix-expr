@@ -1,0 +1,18 @@
+[package]
+name = "anyfix-generator"
+version.workspace = true
+edition.workspace = true
+description = "A parser generator for anyfix expressions: reads a grammar written in anyfix and writes a typed Rust AST with its decoder"
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme = "README.md"
+keywords = ["parser", "generator", "grammar", "anyfix"]
+categories = ["parser-implementations", "command-line-utilities"]
+
+[[bin]]
+name = "anyfix-generate"
+path = "src/bin/anyfix-generate.rs"
+
+[dependencies]
+anyfix-expr = { path = "../anyfix-expr", version = "0.1.0" }
