@@ -88,3 +88,6 @@ grammar:1:50: warning: found the choices `other` and `null` able to match the sa
   ENTRY: value, value: ONE OF [other: ANYFIX CALL, null: WORD "null"]
                                                    ^^^^^^^^^^^^^^^^^
 
+## ENTRY: value, value: ONE OF [integer: integer, other: ANYFIX CALL], integer: ONE OF [number: NUMBER, minus: SPECIFIC ANYFIX CALL [WORD "-", n: NUMBER]]
+nothing to report
+

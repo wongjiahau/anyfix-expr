@@ -49,7 +49,8 @@ impl<'a> Overlap<'a> {
     }
 
     /// Whether `general` matches every node `specific` matches, which makes
-    /// `general` after `specific` a fallback rather than a competitor. The
+    /// `general` after `specific` a fallback rather than a competitor. Of
+    /// the choices `specific` has, only those `general` can match count. The
     /// answer leans towards no: when it can't tell, it says it doesn't.
     pub fn covers(&mut self, general: &Pattern, specific: &Pattern) -> bool {
         let key = (
@@ -72,9 +73,10 @@ impl<'a> Overlap<'a> {
         }
         match (general, specific) {
             (_, Pattern::Reference(rule)) => self.covers(general, &grammar.rules[*rule].pattern),
-            (_, Pattern::OneOf(choices)) => choices
-                .iter()
-                .all(|choice| self.covers(general, &choice.pattern)),
+            // A choice `general` can't match at all needs no covering.
+            (_, Pattern::OneOf(choices)) => choices.iter().all(|choice| {
+                !self.patterns(general, &choice.pattern) || self.covers(general, &choice.pattern)
+            }),
             (Pattern::Reference(rule), _) => self.covers(&grammar.rules[*rule].pattern, specific),
             (Pattern::OneOf(choices), _) => choices
                 .iter()

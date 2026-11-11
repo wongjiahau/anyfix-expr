@@ -149,6 +149,7 @@ fn choices_that_compete_get_a_warning() {
             "ENTRY: value, value: ONE OF [field: ANYFIX CALL [NAME [ENDS WITH \" _\"], ARGUMENTS: STRING], other: ANYFIX CALL [NAME [ENDS WITH \" _\"]]]",
             "ENTRY: value, value: ONE OF [a: SPECIFIC ANYFIX CALL [WORD \"f\", x: ZERO OR MORE: STRING], other: ANYFIX CALL [NAME [STARTS WITH \"f\"]]]",
             "ENTRY: value, value: ONE OF [other: ANYFIX CALL, null: WORD \"null\"]",
+            "ENTRY: value, value: ONE OF [integer: integer, other: ANYFIX CALL], integer: ONE OF [number: NUMBER, minus: SPECIFIC ANYFIX CALL [WORD \"-\", n: NUMBER]]",
         ]),
     );
 }
