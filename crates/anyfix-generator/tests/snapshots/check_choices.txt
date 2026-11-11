@@ -72,3 +72,19 @@ grammar:1:80: warning: found the choices `a` and `b` able to match the same inpu
   ENTRY: value, value: ONE OF [a: ANYFIX CALL [NAME [MATCHING REGEX "^[a-z]+"]], b: ANYFIX CALL [NAME [MATCHING REGEX "[a-z]+$"]]]
                                                                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+## ENTRY: value, value: ONE OF [null: WORD "null", minus: SPECIFIC ANYFIX CALL [WORD "-", n: NUMBER], words: ANYFIX CALL [NAME [MATCHING REGEX "^[a-z]+$"]], other: ANYFIX CALL]
+nothing to report
+
+## ENTRY: value, value: ONE OF [field: ANYFIX CALL [NAME [ENDS WITH " _"], ARGUMENTS: STRING], other: ANYFIX CALL [NAME [ENDS WITH " _"]]]
+nothing to report
+
+## ENTRY: value, value: ONE OF [a: SPECIFIC ANYFIX CALL [WORD "f", x: ZERO OR MORE: STRING], other: ANYFIX CALL [NAME [STARTS WITH "f"]]]
+grammar:1:91: warning: found the choices `a` and `other` able to match the same input; expected at most one choice to fit any input, since `a` comes first and always wins it; make one of them more specific, or put the more specific one first
+  ENTRY: value, value: ONE OF [a: SPECIFIC ANYFIX CALL [WORD "f", x: ZERO OR MORE: STRING], other: ANYFIX CALL [NAME [STARTS WITH "f"]]]
+                                                                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+## ENTRY: value, value: ONE OF [other: ANYFIX CALL, null: WORD "null"]
+grammar:1:50: warning: found the choices `other` and `null` able to match the same input; expected at most one choice to fit any input, since `other` comes first and always wins it; make one of them more specific, or put the more specific one first
+  ENTRY: value, value: ONE OF [other: ANYFIX CALL, null: WORD "null"]
+                                                   ^^^^^^^^^^^^^^^^^
+

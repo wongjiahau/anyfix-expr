@@ -145,6 +145,10 @@ fn choices_that_compete_get_a_warning() {
             "ENTRY: value, value: ONE OF [a: ANY WORD [NAME], b: ANY WORD [KEYWORD], WORD \"IF\"]",
             "ENTRY: value, value: ONE OF [a: ANYFIX CALL [NAME [MATCHING REGEX \"^[a-z]+ _$\"]], b: ANYFIX CALL [NAME [MATCHING REGEX \"^[a-z]+$\"]]]",
             "ENTRY: value, value: ONE OF [a: ANYFIX CALL [NAME [MATCHING REGEX \"^[a-z]+\"]], b: ANYFIX CALL [NAME [MATCHING REGEX \"[a-z]+$\"]]]",
+            "ENTRY: value, value: ONE OF [null: WORD \"null\", minus: SPECIFIC ANYFIX CALL [WORD \"-\", n: NUMBER], words: ANYFIX CALL [NAME [MATCHING REGEX \"^[a-z]+$\"]], other: ANYFIX CALL]",
+            "ENTRY: value, value: ONE OF [field: ANYFIX CALL [NAME [ENDS WITH \" _\"], ARGUMENTS: STRING], other: ANYFIX CALL [NAME [ENDS WITH \" _\"]]]",
+            "ENTRY: value, value: ONE OF [a: SPECIFIC ANYFIX CALL [WORD \"f\", x: ZERO OR MORE: STRING], other: ANYFIX CALL [NAME [STARTS WITH \"f\"]]]",
+            "ENTRY: value, value: ONE OF [other: ANYFIX CALL, null: WORD \"null\"]",
         ]),
     );
 }

@@ -75,7 +75,9 @@ value: ONE OF [object, array, string: STRING, WORD "null"],
 
 The choices are tried in the order written, and the first one that matches
 wins. The generator warns whenever two choices can match the same input,
-since the later one then never sees it.
+since the later one then never sees it, unless the later one matches
+everything the earlier one does: a fallback after the cases it catches,
+such as `[minus: SPECIFIC ANYFIX CALL [WORD "-", n: NUMBER], other: ANYFIX CALL]`.
 
 ### `ZERO OR MORE:`, `ONE OR MORE:`, `OPTIONAL:`, `EACH:`
 
@@ -339,7 +341,8 @@ by its full path (`std::string::String`, `anyfix_expr::Node`).
 
 - The choices of a `ONE OF` are tried in order, and the first that matches
   wins. The generator warns when two choices can match the same input,
-  since the later one then never gets it.
+  since the later one then never gets it, except when the later one
+  matches everything the earlier one does, which makes it a fallback.
 - The elements of a list are matched from left to right. A repetition takes
   every node that fits and gives none back, so in `[ZERO OR MORE: value,
   last: value]` nothing is left for `last`. `EACH` takes every node left,
@@ -378,6 +381,7 @@ Errors, which stop the generation:
 
 Warnings:
 
-- two choices of a `ONE OF` that can match the same input
+- two choices of a `ONE OF` that can match the same input, unless the
+  later one is a fallback that matches everything the earlier one does
 - a rule that nothing reachable from `ENTRY` refers to
 - a `PARENTHESIS` around exactly one element, which only `(x,)` matches

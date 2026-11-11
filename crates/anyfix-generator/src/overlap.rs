@@ -18,6 +18,8 @@ pub struct Overlap<'a> {
     /// The pairs being compared, to stop at recursive rules. A node is a
     /// finite tree, so a pair that only overlaps through itself does not.
     active: Vec<(usize, usize)>,
+    /// The same for [`Overlap::covers`].
+    covering: Vec<(usize, usize)>,
 }
 
 /// One step of a sequence: a name word of a call, or a node.
@@ -42,6 +44,49 @@ impl<'a> Overlap<'a> {
         Overlap {
             grammar,
             active: Vec::new(),
+            covering: Vec::new(),
+        }
+    }
+
+    /// Whether `general` matches every node `specific` matches, which makes
+    /// `general` after `specific` a fallback rather than a competitor. The
+    /// answer leans towards no: when it can't tell, it says it doesn't.
+    pub fn covers(&mut self, general: &Pattern, specific: &Pattern) -> bool {
+        let key = (
+            std::ptr::from_ref(general) as usize,
+            std::ptr::from_ref(specific) as usize,
+        );
+        if self.covering.contains(&key) {
+            return false;
+        }
+        self.covering.push(key);
+        let covers = self.compare_cover(general, specific);
+        self.covering.pop();
+        covers
+    }
+
+    fn compare_cover(&mut self, general: &Pattern, specific: &Pattern) -> bool {
+        let grammar = self.grammar;
+        if general == specific {
+            return true;
+        }
+        match (general, specific) {
+            (_, Pattern::Reference(rule)) => self.covers(general, &grammar.rules[*rule].pattern),
+            (_, Pattern::OneOf(choices)) => choices
+                .iter()
+                .all(|choice| self.covers(general, &choice.pattern)),
+            (Pattern::Reference(rule), _) => self.covers(&grammar.rules[*rule].pattern, specific),
+            (Pattern::OneOf(choices), _) => choices
+                .iter()
+                .any(|choice| self.covers(&choice.pattern, specific)),
+            (
+                Pattern::AnyCall {
+                    name,
+                    arguments: None,
+                },
+                _,
+            ) => call_name_covers(name, specific),
+            _ => false,
         }
     }
 
@@ -247,6 +292,33 @@ fn steps<'a>(elements: &'a [Element], atom: impl Fn(&'a Element) -> Atom<'a>) ->
         }
     }
     steps
+}
+
+/// Whether a call whose name meets every condition in `conditions`, with
+/// any arguments, takes every node `specific` matches.
+fn call_name_covers(conditions: &[StringCondition], specific: &Pattern) -> bool {
+    let all_hold = |text: &str| conditions.iter().all(|condition| condition.holds(text));
+    match specific {
+        Pattern::Word(text) => all_hold(text),
+        Pattern::AnyWord {
+            conditions: specific_conditions,
+            ..
+        }
+        | Pattern::AnyCall {
+            name: specific_conditions,
+            ..
+        } => conditions
+            .iter()
+            .all(|condition| specific_conditions.contains(condition)),
+        // The names tried stop at two of a repeated slot, so only a call
+        // without one is checked name by name.
+        Pattern::SpecificCall(parts) => {
+            conditions.is_empty()
+                || (!parts.iter().any(|part| part.repetition.may_repeat())
+                    && possible_names(parts).iter().all(|name| all_hold(name)))
+        }
+        _ => false,
+    }
 }
 
 /// The word a specific call is when it can be one word and nothing else.
