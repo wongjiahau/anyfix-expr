@@ -227,8 +227,9 @@ name.
 anyfix-generate grammar.anyfix > src/parser.rs
 ```
 
-The output is one Rust file. It needs `anyfix-expr` as a dependency, and
-`regex` when the grammar uses `MATCHING REGEX`. Commit it: the same grammar
+The output is one Rust file, which builds on Rust edition 2021 and later. It
+needs `anyfix-expr` as a dependency, and `regex` when the grammar uses
+`MATCHING REGEX`. Commit it: the same grammar
 always gives the same text, so it only changes when the grammar does.
 
 The file is laid out with `rustfmt`, so `cargo fmt` leaves it alone.

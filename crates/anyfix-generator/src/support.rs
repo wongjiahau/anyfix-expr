@@ -449,16 +449,20 @@ pub fn any_word(
     condition: impl Fn(&str) -> bool,
     expected: &str,
 ) -> Result<Spanned<String>, DecodeError> {
-    if let NodeKind::Call(call) = &node.kind
-        && let [NamePart::Word { text, .. }] = &call.name[..]
-        && condition(text)
-    {
-        return Ok(Spanned {
+    let text = match &node.kind {
+        NodeKind::Call(call) => match &call.name[..] {
+            [NamePart::Word { text, .. }] => Some(text),
+            _ => None,
+        },
+        _ => None,
+    };
+    match text {
+        Some(text) if condition(text) => Ok(Spanned {
             value: text.clone(),
             span: node.span,
-        });
+        }),
+        _ => Err(mismatch(node, expected)),
     }
-    Err(mismatch(node, expected))
 }
 
 /// A string whose value passes `condition`.
@@ -539,17 +543,22 @@ pub fn integer<T: TryFrom<i128>>(
     maximum: i128,
     expected: &str,
 ) -> Result<Spanned<T>, DecodeError> {
-    if let NodeKind::Number(text) = &node.kind
-        && let NumberValue::Integer(value) = number_value(text)
-        && (minimum..=maximum).contains(&value)
-        && let Ok(value) = T::try_from(value)
-    {
-        return Ok(Spanned {
+    let value = match &node.kind {
+        NodeKind::Number(text) => match number_value(text) {
+            NumberValue::Integer(value) if (minimum..=maximum).contains(&value) => {
+                T::try_from(value).ok()
+            }
+            _ => None,
+        },
+        _ => None,
+    };
+    match value {
+        Some(value) => Ok(Spanned {
             value,
             span: node.span,
-        });
+        }),
+        None => Err(mismatch(node, expected)),
     }
-    Err(mismatch(node, expected))
 }
 
 /// A number from `minimum` to `maximum`.
