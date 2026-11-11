@@ -29,10 +29,23 @@ fn colon_inside_braces() {
 }
 
 #[test]
-fn minus_five_is_a_prefix_call() {
-    assert_eq!(tree("-5"), "(`- _` 5)");
-    // The same tree as `- 5`.
-    assert_eq!(tree("-5"), tree("- 5"));
+fn negation_binds_hardest() {
+    assert_eq!(tree("-5"), "-5");
+    // A `-` with a space after it is a word.
+    assert_eq!(tree("- 5"), "(`- _` 5)");
+    assert_eq!(tree("x - 5"), "(`_ - _` x 5)");
+    assert_eq!(tree("x - y"), "(`_ - _` x y)");
+    assert_eq!(tree("x-y"), "(`_ - _` x y)");
+    // A `-` before a digit always starts a number.
+    assert_eq!(tree("x-5"), "(`x _` -5)");
+    assert_eq!(tree("x-5"), tree("x -5"));
+    assert_eq!(tree("5-3"), "(`_ _` 5 -3)");
+    assert_eq!(tree("f -5"), "(`f _` -5)");
+    assert_eq!(tree("[1, -2]"), "Brackets[1, -2]");
+    assert_eq!(tree("a<-5"), "(`_ < _` a -5)");
+    assert_eq!(tree("--5"), "(`- _` -5)");
+    assert_eq!(tree("1 .-5"), "(`_ _` 1 -5)");
+    assert_eq!(tree("1 .- 5"), "(`_ - _` 1 5)");
 }
 
 #[test]
@@ -58,8 +71,8 @@ fn dot_after_number_without_digit_is_an_operator() {
 }
 
 #[test]
-fn dotted_digits_are_one_number() {
-    assert_eq!(nodes("1.2.3")[0].kind, NodeKind::Number("1.2.3".into()));
+fn a_number_has_at_most_one_fraction() {
+    assert_eq!(tree("1.2.3"), "(`_ _` 1.2 3)");
 }
 
 #[test]

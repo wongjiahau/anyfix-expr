@@ -107,7 +107,7 @@ fn text(random: &mut Random) -> String {
 }
 
 fn space(random: &mut Random) -> &'static str {
-    *random.pick(&["", " ", "  ", "\n", "\r\n", "\t", "\n  "])
+    random.pick::<&str>(&["", " ", "  ", "\n", "\r\n", "\t", "\n  "])
 }
 
 fn write_string(random: &mut Random, text: &str, out: &mut String) {
@@ -206,10 +206,6 @@ fn read(node: &Node) -> Json {
             ("null", []) => Json::Null,
             ("true", []) => Json::Bool(true),
             ("false", []) => Json::Bool(false),
-            ("- _", [argument]) => match &argument.kind {
-                NodeKind::Number(text) => Json::Number(format!("-{text}")),
-                _ => panic!("expected a number after `-`, got {node:?}"),
-            },
             _ => panic!("expected a JSON value, got {node:?}"),
         },
         _ => panic!("expected a JSON value, got {node:?}"),

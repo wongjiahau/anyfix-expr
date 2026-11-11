@@ -20,8 +20,13 @@ word       : name | symbols,
 name       : (letter | "_") { alnum },
 symbols    : symbol { symbol },
 
-number     : digit { alnum | "." digit | exponent },
-exponent   : ("e" | "E") ("+" | "-") digit,
+number     : ["-"] (based | decimal),
+decimal    : digits ["." digits] [exponent],
+exponent   : ("e" | "E") ["+" | "-"] digits,
+based      : "0" ( ("x" | "X") hex { ["_"] hex }
+                 | ("b" | "B") bit { ["_"] bit }
+                 | ("o" | "O") octal { ["_"] octal } ),
+digits     : digit { ["_"] digit },
 
 string     : quoted | raw,
 quoted     : "\"" { any char except ("\"" | "\\") | escape } "\"",

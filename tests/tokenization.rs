@@ -95,11 +95,32 @@ fn unicode_names_and_symbols() {
 fn numbers_start_with_an_ascii_digit_and_keep_their_text() {
     assert_eq!(atoms("42"), [number("42")]);
     assert_eq!(atoms("1.5"), [number("1.5")]);
-    assert_eq!(atoms("1.2.3"), [number("1.2.3")]);
-    assert_eq!(atoms("0xFF"), [number("0xFF")]);
     assert_eq!(atoms("1_000"), [number("1_000")]);
     assert_eq!(atoms("2.5e3"), [number("2.5e3")]);
-    assert_eq!(atoms("1mb"), [number("1mb")]);
+    assert_eq!(atoms("1E5"), [number("1E5")]);
+    assert_eq!(atoms("0xFF"), [number("0xFF")]);
+    assert_eq!(atoms("0Xff_ff"), [number("0Xff_ff")]);
+    assert_eq!(atoms("0b1010"), [number("0b1010")]);
+    assert_eq!(atoms("0o17"), [number("0o17")]);
+}
+
+#[test]
+fn any_other_letter_ends_a_number() {
+    assert_eq!(atoms("1mb"), [number("1"), word("mb")]);
+    assert_eq!(atoms("3days"), [number("3"), word("days")]);
+    assert_eq!(atoms("2nd"), [number("2"), word("nd")]);
+    assert_eq!(atoms("1x2e-5"), [number("1"), word("x2e"), number("-5")]);
+    assert_eq!(atoms("0xFFmb"), [number("0xFF"), word("mb")]);
+    assert_eq!(atoms("0b102"), [number("0b10"), number("2")]);
+    assert_eq!(atoms("0o78"), [number("0o7"), number("8")]);
+    // A base prefix needs a digit of its base after it.
+    assert_eq!(atoms("0x"), [number("0"), word("x")]);
+    assert_eq!(atoms("0xg"), [number("0"), word("xg")]);
+    assert_eq!(atoms("1x10"), [number("1"), word("x10")]);
+    // `_` only separates digits.
+    assert_eq!(atoms("1_"), [number("1"), word("_")]);
+    assert_eq!(atoms("1__0"), [number("1"), word("__0")]);
+    assert_eq!(tree("3days"), "(`_ days` 3)");
 }
 
 #[test]
@@ -111,22 +132,41 @@ fn dot_in_a_number_needs_a_digit_after_it() {
 }
 
 #[test]
-fn numbers_have_no_sign_but_a_decimal_exponent_does() {
-    assert_eq!(atoms("-5"), [word("-"), number("5")]);
+fn a_minus_before_a_digit_starts_a_number() {
+    assert_eq!(atoms("-5"), [number("-5")]);
+    assert_eq!(atoms("- 5"), [word("-"), number("5")]);
+    assert_eq!(atoms("x-5"), [word("x"), number("-5")]);
+    assert_eq!(atoms("2-3"), [number("2"), number("-3")]);
+    assert_eq!(atoms("<-5"), [word("<"), number("-5")]);
+    assert_eq!(atoms("--5"), [word("-"), number("-5")]);
+    assert_eq!(atoms("->5"), [word("->"), number("5")]);
+    assert_eq!(atoms("-x"), [word("-"), word("x")]);
+    assert_eq!(atoms("-0xFF"), [number("-0xFF")]);
+}
+
+#[test]
+fn a_decimal_exponent_may_have_a_sign() {
     assert_eq!(atoms("1e-5"), [number("1e-5")]);
     assert_eq!(atoms("2.5E+3"), [number("2.5E+3")]);
     assert_eq!(atoms("1_000e-3"), [number("1_000e-3")]);
-    assert_eq!(atoms("-1.5e-10"), [word("-"), number("1.5e-10")]);
+    assert_eq!(atoms("-1.5e-10"), [number("-1.5e-10")]);
     assert_eq!(tree("1e-5"), "1e-5");
 }
 
 #[test]
-fn an_exponent_sign_needs_a_decimal_number_and_a_digit_after_it() {
-    assert_eq!(atoms("0xFE-1"), [number("0xFE"), word("-"), number("1")]);
-    assert_eq!(atoms("1e-x"), [number("1e"), word("-"), word("x")]);
-    assert_eq!(atoms("1e--5"), [number("1e"), word("--"), number("5")]);
-    assert_eq!(atoms("1x2e-5"), [number("1x2e"), word("-"), number("5")]);
-    assert_eq!(atoms("2-3"), [number("2"), word("-"), number("3")]);
+fn an_exponent_needs_a_decimal_number_and_a_digit() {
+    assert_eq!(atoms("0xFE-1"), [number("0xFE"), number("-1")]);
+    assert_eq!(atoms("0xE5"), [number("0xE5")]);
+    assert_eq!(atoms("1e"), [number("1"), word("e")]);
+    assert_eq!(
+        atoms("1e-x"),
+        [number("1"), word("e"), word("-"), word("x")]
+    );
+    assert_eq!(
+        atoms("1e--5"),
+        [number("1"), word("e"), word("-"), number("-5")]
+    );
+    assert_eq!(atoms("1e+"), [number("1"), word("e"), word("+")]);
 }
 
 #[test]

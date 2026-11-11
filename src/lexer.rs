@@ -136,7 +136,7 @@ impl Lexer<'_> {
                     '{' => TokenKind::OpenBrace,
                     '}' => TokenKind::CloseBrace,
                     '"' => self.string(start),
-                    c if c.is_ascii_digit() => {
+                    c if c.is_ascii_digit() || (c == '-' && self.at_digit()) => {
                         self.number(start);
                         TokenKind::Number
                     }
@@ -145,7 +145,14 @@ impl Lexer<'_> {
                         TokenKind::Word
                     }
                     _ => {
-                        self.bump_while(is_symbol);
+                        // A `-` before a digit starts a negative number, so it
+                        // ends the symbol word: `<-5` is `<` then `-5`.
+                        while self.peek().is_some_and(is_symbol)
+                            && !(self.peek() == Some('-')
+                                && self.peek_second().is_some_and(|c| c.is_ascii_digit()))
+                        {
+                            self.bump();
+                        }
                         TokenKind::Word
                     }
                 }
@@ -163,36 +170,68 @@ impl Lexer<'_> {
         }
     }
 
-    /// The rest of a number: alnum characters, `.` only before an ASCII digit,
-    /// and a sign only in a decimal exponent, as in `1e-5` or `2.5E+3`.
+    /// Whether an ASCII digit comes next.
+    fn at_digit(&self) -> bool {
+        self.peek().is_some_and(|c| c.is_ascii_digit())
+    }
+
+    /// The rest of a number after its first character (a digit, or the `-` of
+    /// a negative number). A number is `0x`, `0b` or `0o` and digits in that
+    /// base, or decimal digits with an optional fraction and exponent, as in
+    /// `2.5e-3`. `_` separates digits. Any other letter ends the number, so
+    /// `1mb` is `1` then `mb`, and every number has a value.
     fn number(&mut self, start: usize) {
+        if self.source[start..self.position] == *"-" {
+            self.bump();
+        }
+        let first = self.position - 1;
+        let base_digit: Option<fn(char) -> bool> = match self.peek() {
+            Some('x' | 'X') => Some(|c| c.is_ascii_hexdigit()),
+            Some('b' | 'B') => Some(|c| matches!(c, '0' | '1')),
+            Some('o' | 'O') => Some(|c| matches!(c, '0'..='7')),
+            _ => None,
+        };
+        if let Some(is_digit) = base_digit
+            && self.source[first..].starts_with('0')
+            && self.peek_nth(1).is_some_and(is_digit)
+        {
+            self.bump();
+            self.digits(is_digit);
+            return;
+        }
+        let is_digit = |c: char| c.is_ascii_digit();
+        self.digits(is_digit);
+        if self.peek() == Some('.') && self.peek_nth(1).is_some_and(is_digit) {
+            self.bump();
+            self.digits(is_digit);
+        }
+        if matches!(self.peek(), Some('e' | 'E')) {
+            let sign = usize::from(matches!(self.peek_nth(1), Some('+' | '-')));
+            if self.peek_nth(1 + sign).is_some_and(is_digit) {
+                self.bump();
+                if sign == 1 {
+                    self.bump();
+                }
+                self.digits(is_digit);
+            }
+        }
+    }
+
+    /// Digits, with `_` between them: `1_000`. A `_` with no digit after it
+    /// is not part of the number.
+    fn digits(&mut self, is_digit: impl Fn(char) -> bool) {
         loop {
             match self.peek() {
-                Some('e' | 'E') if self.at_signed_exponent(start) => {
-                    self.bump();
-                    self.bump();
-                    self.bump();
-                }
-                Some(c) if is_alnum(c) => self.bump(),
-                Some('.') if self.peek_second().is_some_and(|c| c.is_ascii_digit()) => {
-                    self.bump();
-                    self.bump();
-                }
+                Some(c) if is_digit(c) => self.bump(),
+                Some('_') if self.peek_nth(1).is_some_and(&is_digit) => self.bump(),
                 _ => return,
             }
         }
     }
 
-    /// Whether an `e` or `E`, then a sign, then an ASCII digit come next, in a
-    /// number that is decimal so far (digits, `_` and `.`), so `0xFE-1` still
-    /// splits at the `-`.
-    fn at_signed_exponent(&self, start: usize) -> bool {
-        let mut next = self.rest().chars().skip(1);
-        matches!(next.next(), Some('+' | '-'))
-            && next.next().is_some_and(|c| c.is_ascii_digit())
-            && self.source[start..self.position]
-                .chars()
-                .all(|c| c.is_ascii_digit() || c == '_' || c == '.')
+    /// The character `n` places after the next one.
+    fn peek_nth(&self, n: usize) -> Option<char> {
+        self.rest().chars().nth(n)
     }
 
     /// The rest of a string after its opening `"`. Three or more quotes open a

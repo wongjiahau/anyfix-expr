@@ -70,8 +70,13 @@ symbol     = ? any char that is not whitespace, special, or alnum ? ;
 word       = name | symbols ;
 name       = ( letter | "_" ) { alnum } ;
 symbols    = symbol { symbol } ;
-number     = digit { alnum | "." digit | exponent } ;  (* source text kept *)
-exponent   = ( "e" | "E" ) ( "+" | "-" ) digit ;  (* only while the number is decimal *)
+number     = [ "-" ] ( based | decimal ) ;        (* source text kept *)
+decimal    = digits [ "." digits ] [ exponent ] ;
+exponent   = ( "e" | "E" ) [ "+" | "-" ] digits ;
+based      = "0" ( ( "x" | "X" ) hex { [ "_" ] hex }
+                 | ( "b" | "B" ) bit { [ "_" ] bit }
+                 | ( "o" | "O" ) octal { [ "_" ] octal } ) ;
+digits     = digit { [ "_" ] digit } ;
 string     = quoted | raw ;
 quoted     = '"' { ? any char except '"' or "\" ? | escape } '"' ;
 escape     = "\" ( '"' | "\" | "/" | "b" | "f" | "n" | "t" | "r"
@@ -93,17 +98,26 @@ digit      = "0" … "9" ;                          (* ASCII only *)
 2. Each special character is its own token, except that `"` starts a string
    and `#` starts a comment.
 3. A word is as long as possible within its kind (name or symbols). Switching
-   kinds ends it, with or without a space.
-4. A token starting with an ASCII digit is a number. Inside a number, `.` is
-   consumed only when an ASCII digit follows: `1.5` and `1.2.3` are single
-   numbers, but `1.to` is `1`, `.`, `to`. Numbers keep their source text, so
-   `0xFF`, `1_000`, `2.5e3` and `1mb` are all numbers whose meaning the
-   consumer decides. A sign continues a number only in a decimal exponent:
-   `1e-5` and `2.5E+3` are single numbers, because the number so far is only
-   digits, `_` and `.`, and a digit follows the sign. `0xFE-1` is still `0xFE`,
-   `-`, `1`.
-5. Numbers have no sign. `-5` is `Word "-"` then `Number "5"`, the same tree as
-   `- 5`.
+   kinds ends it, with or without a space. A `-` before an ASCII digit also
+   ends a symbol word, because it starts a number (rule 5).
+4. A token starting with an ASCII digit, or with `-` then an ASCII digit, is a
+   number. Every number has a value: it is decimal, as in `42`, `1_000`,
+   `2.5`, `1e5` and `2.5E-3`, or based, as in `0xFF`, `0b1010` and `0o17`.
+   Numbers keep their source text, and reading the value is the consumer's
+   job.
+   - `.` continues a number only once and only before an ASCII digit: `1.to`
+     is `1`, `.`, `to`, and `1.2.3` is `1.2`, `.`, `3`.
+   - An exponent (`e` or `E`, an optional sign, then digits) only follows a
+     decimal number, so `0xFE-1` is `0xFE` then `-1`. `1e` is `1` then `e`.
+   - `_` continues a number only between two digits: `1_` is `1` then `_`.
+   - A prefix `0x`, `0b` or `0o` needs a digit of its base after it: `0x` is
+     `0` then `x`.
+   - Any other letter ends the number: `1mb` is `1` then `mb`, `3days` is
+     `3` then `days`, and `0xFFmb` is `0xFF` then `mb`.
+5. Negation binds hardest: a `-` directly before an ASCII digit always starts
+   a number, whatever comes before it. `x-5` is `x` then `-5`, `5-3` is `5`
+   then `-3`, `a<-5` is `a`, `<`, `-5`, and `--5` is `-` then `-5`. A `-`
+   followed by anything else is a word: `x - 5`, `- 5` and `x-y` subtract.
 6. A name starts with a `char::is_alphabetic` letter or `_`, and continues with
    `char::is_alphanumeric` or `_`. So `x٣` is one name, while `٣` on its own
    (alphanumeric but not alphabetic) is a symbol word.
@@ -172,7 +186,9 @@ receives a value may hold at most one bare `_`; a second is `ExtraUnderscore`.
 
 This lets a consumer define infix operators as plain functions:
 `1 .+ 1 .+ 2` is `((1) + 1) + 2`, the call `_ + _` of `_ + _` and `2`. There
-is no precedence: operators apply left to right.
+is no precedence: operators apply left to right. Since negation binds
+hardest, infix minus needs a space before a digit: `1 .- 5` is the call
+`_ - _` of `1` and `5`, but `1 .-5` hands `1` to the number `-5`.
 
 A consumer should not do recursive descent parsing. `.` and `:` already
 provide associative chaining, so the tree arrives fully grouped. The consumer
@@ -266,13 +282,17 @@ has spaces. A call with no arguments is just its name.
 | `_ f : x` | ``(`_ f` x)`` |
 | `x . f (_)` | ``(`_ f _` x Parens[_])`` |
 | `1 .+ 1 .+ 2` | ``(`_ + _` (`_ + _` 1 1) 2)`` |
-| `-5` | ``(`- _` 5)`` |
+| `-5` | `Number "-5"` |
+| `x-5` | ``(`x _` -5)`` |
+| `x - 5` | ``(`_ - _` x 5)`` |
+| `- 5` | ``(`- _` 5)`` |
 | `x+1` | ``(`_ + _` x 1)`` |
 | `a->b` | ``(`_ -> _` a b)`` |
 | `null?` | ``(`_ ?` null)`` |
 | `f(x)` | ``(`f _` x)`` |
 | `1.to` | ``(`_ to` 1)`` |
-| `1.2.3` | `Number "1.2.3"` |
+| `1.2.3` | ``(`_ _` 1.2 3)`` |
+| `3days` | ``(`_ days` 3)`` |
 | `rg.search "TODO" in "src"` | ``(`_ search _ in _` rg "TODO" "src")`` |
 | `fd.(option) argument` | ``(`_ _ argument` fd option)`` |
 | `("rg", x)` | `Parens["rg", x]` |
@@ -345,8 +365,13 @@ word       : name | symbols,
 name       : (letter | "_") { alnum },
 symbols    : symbol { symbol },
 
-number     : digit { alnum | "." digit | exponent },
-exponent   : ("e" | "E") ("+" | "-") digit,
+number     : ["-"] (based | decimal),
+decimal    : digits ["." digits] [exponent],
+exponent   : ("e" | "E") ["+" | "-"] digits,
+based      : "0" ( ("x" | "X") hex { ["_"] hex }
+                 | ("b" | "B") bit { ["_"] bit }
+                 | ("o" | "O") octal { ["_"] octal } ),
+digits     : digit { ["_"] digit },
 
 string     : quoted | raw,
 quoted     : "\"" { any char except ("\"" | "\\") | escape } "\"",
@@ -366,8 +391,8 @@ digit      : "0" to "9",
 
 Every JSON document is an anyfix document. Objects are braces of `_ _`
 calls (`"key" : value` is the call `_ _` of the key and the value), arrays are
-brackets, `true`, `false` and `null` are calls with no arguments, and a
-negative number is the call `- _` of a number. JSON's exponents (`1e-5`),
+brackets, `true`, `false` and `null` are calls with no arguments, and
+numbers (negative ones included) are numbers. JSON's exponents (`1e-5`),
 escapes (`\/`, `\b`, `\f`, `\uXXXX` with surrogate pairs) and a leading byte
 order mark all parse.
 
