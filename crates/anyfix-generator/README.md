@@ -77,12 +77,13 @@ The choices are tried in the order written, and the first one that matches
 wins. The generator warns whenever two choices can match the same input,
 since the later one then never sees it.
 
-### `ZERO OR MORE:`, `ONE OR MORE:`, `OPTIONAL:`
+### `ZERO OR MORE:`, `ONE OR MORE:`, `OPTIONAL:`, `EACH:`
 
 ```text
 ZERO OR MORE: member
 ONE OR MORE: digit
 OPTIONAL: label
+EACH: setting
 ```
 
 A repetition is written as a prefix, and stands where a sequence of nodes is
@@ -90,6 +91,17 @@ described: in `ENTRY`, in a bracket, among the parts of a
 `SPECIFIC ANYFIX CALL`, or after `ARGUMENTS:`. It takes as many nodes as
 match, and never gives one back: in `[ZERO OR MORE: STRING, STRING]` the
 repetition takes every string, so the last `STRING` never matches.
+
+`EACH:` is for lists where one mistake should not hide the rest, such as
+the settings of a config file or the statements of a program. It takes
+every element that is left and decodes each one on its own. An element that
+does not fit is kept as its `DecodeError`, in its place, and the elements
+after it still decode. So `EACH` comes last in its list, and the list it is
+in matches whatever its elements are.
+
+```text
+section: SPECIFIC ANYFIX CALL [WORD "server", settings: CURLY BRACE: EACH: setting],
+```
 
 ### `CURLY BRACE`, `SQUARE BRACKET`, `PARENTHESIS`
 
@@ -289,6 +301,7 @@ pub struct Array { pub value: Vec<Value>, pub span: Span }
 | a choice that is a call | a variant with fields: `If { condition, then, r#else, span }` |
 | a choice that is a `WORD` | a variant holding the word's `Span` |
 | `ZERO OR MORE:`, `ONE OR MORE:` | `Vec<T>` |
+| `EACH:` | `Vec<Result<T, DecodeError>>` |
 | `OPTIONAL:` | `Option<T>` |
 | `STRING` | `Spanned<StringLiteral>`: the value, and its pieces as written |
 | `NUMBER` | `Spanned<f64>`, or an integer type (see below) |
@@ -328,7 +341,8 @@ by its full path (`std::string::String`, `anyfix_expr::Node`).
   since the later one then never gets it.
 - The elements of a list are matched from left to right. A repetition takes
   every node that fits and gives none back, so in `[ZERO OR MORE: value,
-  last: value]` nothing is left for `last`.
+  last: value]` nothing is left for `last`. `EACH` takes every node left,
+  whether it fits or not.
 - A call matches `SPECIFIC ANYFIX CALL` only with exactly its words and
   arguments, and a bracket only when no element is left over.
 
@@ -357,6 +371,7 @@ Errors, which stop the generation:
   field named `span`, a rule named `document`
 - a repetition where exactly one node is matched, such as a whole rule or
   a choice
+- anything after `EACH` in its list, which `EACH` would have taken
 - conditions nothing can meet, and a regex that does not compile
 - a rule that refers to itself with no call or bracket in between
 

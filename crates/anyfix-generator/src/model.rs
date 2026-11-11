@@ -87,17 +87,26 @@ pub enum Repetition {
     Optional,
     ZeroOrMore,
     OneOrMore,
+    /// Every element left, each decoded on its own, so that one that does
+    /// not fit is kept as its error and the rest still decode.
+    Each,
 }
 
 impl Repetition {
     /// Whether no node at all satisfies it.
     pub fn may_be_empty(self) -> bool {
-        matches!(self, Repetition::Optional | Repetition::ZeroOrMore)
+        matches!(
+            self,
+            Repetition::Optional | Repetition::ZeroOrMore | Repetition::Each
+        )
     }
 
     /// Whether it takes more than one node.
     pub fn may_repeat(self) -> bool {
-        matches!(self, Repetition::ZeroOrMore | Repetition::OneOrMore)
+        matches!(
+            self,
+            Repetition::ZeroOrMore | Repetition::OneOrMore | Repetition::Each
+        )
     }
 }
 
@@ -376,7 +385,7 @@ pub fn call_picture(parts: &[Element]) -> String {
             (Pattern::Word(text), _) => text.clone(),
             (_, Repetition::One) => "_".to_string(),
             (_, Repetition::Optional) => "_?".to_string(),
-            (_, Repetition::ZeroOrMore) => "_*".to_string(),
+            (_, Repetition::ZeroOrMore | Repetition::Each) => "_*".to_string(),
             (_, Repetition::OneOrMore) => "_+".to_string(),
         })
         .collect::<Vec<_>>()

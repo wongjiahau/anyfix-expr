@@ -776,6 +776,12 @@ impl Printer<'_> {
             Repetition::ZeroOrMore | Repetition::OneOrMore => {
                 format!("{}<{inner}>", self.names.get("Vec"))
             }
+            Repetition::Each => format!(
+                "{}<{}<{inner}, {}>>",
+                self.names.get("Vec"),
+                self.names.get("Result"),
+                self.names.get("DecodeError")
+            ),
         }
     }
 
@@ -950,6 +956,7 @@ impl Printer<'_> {
                 (_, Repetition::Optional) => format!(".optional({decoder})"),
                 (_, Repetition::ZeroOrMore) => format!(".zero_or_more({decoder})"),
                 (_, Repetition::OneOrMore) => format!(".one_or_more({decoder}, {expected:?})?"),
+                (_, Repetition::Each) => format!(".each({decoder})"),
             };
             fields.push((field.name.clone(), format!("{variable}{words}{matched}")));
             words.clear();

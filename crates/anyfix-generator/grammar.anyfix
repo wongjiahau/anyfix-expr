@@ -44,6 +44,7 @@ repetition: ONE OF [
   zero or more: SPECIFIC ANYFIX CALL [WORD "ZERO", WORD "OR", WORD "MORE", pattern],
   one or more: SPECIFIC ANYFIX CALL [WORD "ONE", WORD "OR", WORD "MORE", pattern],
   optional: SPECIFIC ANYFIX CALL [WORD "OPTIONAL", pattern],
+  each: SPECIFIC ANYFIX CALL [WORD "EACH", pattern],
 ],
 
 container: ONE OF [

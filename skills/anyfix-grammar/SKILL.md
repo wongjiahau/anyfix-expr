@@ -101,6 +101,7 @@ choice: ONE OF [first: pattern, second: pattern],   # first match wins
 | `CURLY BRACE: pattern` / `SQUARE BRACKET: pattern` / `PARENTHESIS: pattern` | a bracket of one element | |
 | `CURLY BRACE [a: x, b: y]` | a bracket of these elements in order | a struct |
 | `ZERO OR MORE:`, `ONE OR MORE:`, `OPTIONAL:` | inside a bracket, `ENTRY`, a call or `ARGUMENTS:` | `Vec`, `Option` |
+| `EACH:` | every element left, each decoded on its own | `Vec<Result<T, DecodeError>>` |
 | `SPECIFIC ANYFIX CALL [WORD "IF", condition: x, WORD "THEN", then: y]` | the call `IF _ THEN _` | a struct |
 | `ANYFIX CALL [NAME [MATCHING REGEX "^[a-z]+ _$"], ARGUMENTS: x]` | any call whose name fits | a struct with `name` and `arguments` |
 
@@ -159,10 +160,11 @@ server {
 ```anyfix
 ENTRY [ZERO OR MORE: section],
 
-# `server { ... }` is the call `server _` of the braces.
+# `server { ... }` is the call `server _` of the braces. `EACH` decodes
+# every setting on its own, so one mistake does not hide the others.
 section: ANYFIX CALL [
   NAME [MATCHING REGEX "^[a-z][a-z0-9 ]* _$"],
-  ARGUMENTS: CURLY BRACE: ZERO OR MORE: setting,
+  ARGUMENTS: CURLY BRACE: EACH: setting,
 ],
 
 setting: ONE OF [
@@ -180,14 +182,17 @@ value: ONE OF [
   text: STRING,
   number: NUMBER,
   list: SQUARE BRACKET: ZERO OR MORE: value,
-  section: CURLY BRACE: ZERO OR MORE: setting,
+  section: CURLY BRACE: EACH: setting,
 ],
 ```
 
 What to notice: the keys are not known in advance, so they are matched by
 `ANYFIX CALL` with a regex over the call's name (`port _`), and the key is
 read back from `name`. The `pair` regex ends in ` _$` and the `flag` regex
-allows no `_`, so the two never compete. When the keys *are* known, prefer one
+allows no `_`, so the two never compete. `EACH` keeps a setting that does not fit as its
+`DecodeError`, so a config with two typos reports both, and the settings
+around them still decode. Use it wherever a user edits a list by hand.
+When the keys *are* known, prefer one
 `SPECIFIC ANYFIX CALL [WORD "port", port: NUMBER [INTEGER, AT LEAST 1, AT MOST 65535]]`
 per key: the types and the errors get better.
 

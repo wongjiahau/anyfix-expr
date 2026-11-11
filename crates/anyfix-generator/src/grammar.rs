@@ -79,6 +79,7 @@ pub enum Repetition {
     ZeroOrMore { pattern: Box<Pattern>, span: Span },
     OneOrMore { pattern: Box<Pattern>, span: Span },
     Optional { pattern: Box<Pattern>, span: Span },
+    Each { pattern: Box<Pattern>, span: Span },
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -225,7 +226,8 @@ impl Repetition {
         match self {
             Repetition::ZeroOrMore { span, .. }
             | Repetition::OneOrMore { span, .. }
-            | Repetition::Optional { span, .. } => *span,
+            | Repetition::Optional { span, .. }
+            | Repetition::Each { span, .. } => *span,
         }
     }
 }
@@ -417,6 +419,7 @@ pub fn decode_repetition(node: &Node) -> Result<Repetition, DecodeError> {
     decode_repetition_zero_or_more(node)
         .or_else(|error| error.or(decode_repetition_one_or_more(node)))
         .or_else(|error| error.or(decode_repetition_optional(node)))
+        .or_else(|error| error.or(decode_repetition_each(node)))
 }
 
 fn decode_repetition_zero_or_more(node: &Node) -> Result<Repetition, DecodeError> {
@@ -452,6 +455,18 @@ fn decode_repetition_optional(node: &Node) -> Result<Repetition, DecodeError> {
     let decoded = Repetition::Optional {
         pattern: parts
             .word("OPTIONAL")?
+            .one(|node| decode_pattern(node).map(Box::new), "a pattern")?,
+        span: node.span,
+    };
+    parts.finish()?;
+    Ok(decoded)
+}
+
+fn decode_repetition_each(node: &Node) -> Result<Repetition, DecodeError> {
+    let mut parts = support::call(node, "the call `EACH _`")?;
+    let decoded = Repetition::Each {
+        pattern: parts
+            .word("EACH")?
             .one(|node| decode_pattern(node).map(Box::new), "a pattern")?,
         span: node.span,
     };
@@ -1204,6 +1219,22 @@ pub mod support {
             let mut values = Vec::new();
             while let Some(value) = self.optional(&decode) {
                 values.push(value);
+            }
+            values
+        }
+
+        /// Decodes every node left, each on its own. A node that does not fit is
+        /// kept as its error, and the nodes after it still decode, so one
+        /// mistake in a list does not hide the rest. A word stops it: in a call,
+        /// a name word after the nodes is matched next.
+        pub fn each<T>(
+            &mut self,
+            decode: impl Fn(&'a Node) -> Result<T, DecodeError>,
+        ) -> Vec<Result<T, DecodeError>> {
+            let mut values = Vec::new();
+            while let Some(Item::Node(node)) = self.items.get(self.index) {
+                values.push(decode(node));
+                self.index += 1;
             }
             values
         }

@@ -25,6 +25,9 @@ pub struct Overlap<'a> {
 enum Atom<'a> {
     NameWord(&'a str),
     Node(&'a Pattern),
+    /// Any node: an element of `EACH`, which keeps a node that does not fit
+    /// as its error.
+    AnyNode,
 }
 
 #[derive(Clone, Copy)]
@@ -191,6 +194,9 @@ impl<'a> Overlap<'a> {
             let both = match (x.atom, y.atom) {
                 (Atom::NameWord(x), Atom::NameWord(y)) => x == y,
                 (Atom::Node(x), Atom::Node(y)) => self.patterns(x, y),
+                (Atom::AnyNode, Atom::Node(_) | Atom::AnyNode) | (Atom::Node(_), Atom::AnyNode) => {
+                    true
+                }
                 _ => false,
             };
             if both {
@@ -224,7 +230,10 @@ fn part_steps(parts: &[Element]) -> Vec<Step<'_>> {
 fn steps<'a>(elements: &'a [Element], atom: impl Fn(&'a Element) -> Atom<'a>) -> Vec<Step<'a>> {
     let mut steps = Vec::new();
     for element in elements {
-        let atom = atom(element);
+        let atom = match element.repetition {
+            Repetition::Each => Atom::AnyNode,
+            _ => atom(element),
+        };
         let step = |optional, repeats| Step {
             atom,
             optional,
@@ -233,7 +242,7 @@ fn steps<'a>(elements: &'a [Element], atom: impl Fn(&'a Element) -> Atom<'a>) ->
         match element.repetition {
             Repetition::One => steps.push(step(false, false)),
             Repetition::Optional => steps.push(step(true, false)),
-            Repetition::ZeroOrMore => steps.push(step(true, true)),
+            Repetition::ZeroOrMore | Repetition::Each => steps.push(step(true, true)),
             Repetition::OneOrMore => steps.extend([step(false, false), step(true, true)]),
         }
     }
@@ -262,7 +271,7 @@ fn possible_names(parts: &[Element]) -> Vec<String> {
         let counts: &[usize] = match (&part.pattern, part.repetition) {
             (Pattern::Word(_), _) | (_, Repetition::One) => &[1],
             (_, Repetition::Optional) => &[0, 1],
-            (_, Repetition::ZeroOrMore) => &[0, 1, 2],
+            (_, Repetition::ZeroOrMore | Repetition::Each) => &[0, 1, 2],
             (_, Repetition::OneOrMore) => &[1, 2],
         };
         let text = match &part.pattern {

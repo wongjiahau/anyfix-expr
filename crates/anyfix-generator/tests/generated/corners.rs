@@ -30,6 +30,10 @@ pub enum Node {
     Nothing(anyfix_expr::Span),
     OnlyWords(anyfix_expr::Span),
     Wrapped(std::boxed::Box<Spanned<std::option::Option<Node>>>),
+    Each {
+        node: Vec<Result<Node, DecodeError>>,
+        span: anyfix_expr::Span,
+    },
     Raw {
         name: Spanned<std::string::String>,
         arguments: Vec<anyfix_expr::Node>,
@@ -93,6 +97,7 @@ impl Node {
         match self {
             Node::Nothing(span)
             | Node::OnlyWords(span)
+            | Node::Each { span, .. }
             | Node::Raw { span, .. }
             | Node::Spanned(span)
             | Node::Type(span)
@@ -146,6 +151,7 @@ pub fn decode_node(node: &anyfix_expr::Node) -> Result<Node, DecodeError> {
                 .map(std::boxed::Box::new)
                 .map(Node::Wrapped))
         })
+        .or_else(|error| error.or(decode_node_each(node)))
         .or_else(|error| error.or(decode_node_raw(node)))
         .or_else(|error| {
             error.or(
@@ -192,6 +198,16 @@ fn decode_node_wrapped(
         value,
         span: node.span,
     })
+}
+
+fn decode_node_each(node: &anyfix_expr::Node) -> Result<Node, DecodeError> {
+    let mut parts = support::call(node, "the call `EACH _*`")?;
+    let decoded = Node::Each {
+        node: parts.word("EACH")?.each(decode_node),
+        span: node.span,
+    };
+    parts.finish()?;
+    Ok(decoded)
 }
 
 fn decode_node_raw(node: &anyfix_expr::Node) -> Result<Node, DecodeError> {
@@ -728,6 +744,22 @@ pub mod support {
             let mut values = Vec::new();
             while let Some(value) = self.optional(&decode) {
                 values.push(value);
+            }
+            values
+        }
+
+        /// Decodes every node left, each on its own. A node that does not fit is
+        /// kept as its error, and the nodes after it still decode, so one
+        /// mistake in a list does not hide the rest. A word stops it: in a call,
+        /// a name word after the nodes is matched next.
+        pub fn each<T>(
+            &mut self,
+            decode: impl Fn(&'a Node) -> Result<T, DecodeError>,
+        ) -> Vec<Result<T, DecodeError>> {
+            let mut values = Vec::new();
+            while let Some(Item::Node(node)) = self.items.get(self.index) {
+                values.push(decode(node));
+                self.index += 1;
             }
             values
         }

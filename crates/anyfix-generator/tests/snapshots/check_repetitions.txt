@@ -1,5 +1,5 @@
 ## ENTRY: value, value: ZERO OR MORE: STRING
-grammar:1:22: error: found a repetition where exactly one node is matched; expected `ZERO OR MORE`, `ONE OR MORE` and `OPTIONAL` only on an element of `ENTRY`, of a bracket or of a `SPECIFIC ANYFIX CALL`, or after `ARGUMENTS:`; move it into a list, as in `SQUARE BRACKET [ZERO OR MORE: value]`
+grammar:1:22: error: found a repetition where exactly one node is matched; expected `ZERO OR MORE`, `ONE OR MORE`, `OPTIONAL` and `EACH` only on an element of `ENTRY`, of a bracket or of a `SPECIFIC ANYFIX CALL`, or after `ARGUMENTS:`; move it into a list, as in `SQUARE BRACKET [ZERO OR MORE: value]`
   ENTRY: value, value: ZERO OR MORE: STRING
                        ^^^^^^^^^^^^^^^^^^^^
 
@@ -9,7 +9,7 @@ grammar:1:41: error: found a repetition as a choice of `ONE OF`; expected each c
                                           ^^^^^^^^^^^^^^^^^^^
 
 ## ENTRY: value, value: SQUARE BRACKET [ZERO OR MORE: OPTIONAL: value]
-grammar:1:52: error: found a repetition where exactly one node is matched; expected `ZERO OR MORE`, `ONE OR MORE` and `OPTIONAL` only on an element of `ENTRY`, of a bracket or of a `SPECIFIC ANYFIX CALL`, or after `ARGUMENTS:`; move it into a list, as in `SQUARE BRACKET [ZERO OR MORE: value]`
+grammar:1:52: error: found a repetition where exactly one node is matched; expected `ZERO OR MORE`, `ONE OR MORE`, `OPTIONAL` and `EACH` only on an element of `ENTRY`, of a bracket or of a `SPECIFIC ANYFIX CALL`, or after `ARGUMENTS:`; move it into a list, as in `SQUARE BRACKET [ZERO OR MORE: value]`
   ENTRY: value, value: SQUARE BRACKET [ZERO OR MORE: OPTIONAL: value]
                                                      ^^^^^^^^^^^^^^^
 
@@ -19,5 +19,23 @@ grammar:1:44: error: found a repeated `WORD` among the parts of a call; expected
                                              ^^^^^^^^^^^^^^^^^^
 
 ## ENTRY [ZERO OR MORE: value], value: SQUARE BRACKET [text: OPTIONAL: STRING]
+nothing to report
+
+## ENTRY: value, value: EACH: STRING
+grammar:1:22: error: found a repetition where exactly one node is matched; expected `ZERO OR MORE`, `ONE OR MORE`, `OPTIONAL` and `EACH` only on an element of `ENTRY`, of a bracket or of a `SPECIFIC ANYFIX CALL`, or after `ARGUMENTS:`; move it into a list, as in `SQUARE BRACKET [ZERO OR MORE: value]`
+  ENTRY: value, value: EACH: STRING
+                       ^^^^^^^^^^^^
+
+## ENTRY [EACH: value, last: value], value: STRING
+grammar:1:21: error: found an element after `EACH`; expected `EACH` last, since it takes every element that is left; move it to the end, or use `ZERO OR MORE`, which stops at the first element that does not fit
+  ENTRY [EACH: value, last: value], value: STRING
+                      ^^^^^^^^^^^
+
+## ENTRY: value, value: SPECIFIC ANYFIX CALL [WORD "f", items: EACH: STRING, WORD "end"]
+grammar:1:75: error: found an element after `EACH`; expected `EACH` last, since it takes every element that is left; move it to the end, or use `ZERO OR MORE`, which stops at the first element that does not fit
+  ENTRY: value, value: SPECIFIC ANYFIX CALL [WORD "f", items: EACH: STRING, WORD "end"]
+                                                                            ^^^^^^^^^^
+
+## ENTRY [EACH: value], value: SQUARE BRACKET [first: STRING, rest: EACH: NUMBER]
 nothing to report
 

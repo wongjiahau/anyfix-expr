@@ -1,5 +1,5 @@
 ## [256, 0, 0, 0, 0, 0.5, 42]
-input:1:2: found the number `256`; expected the word `span`, `type`, `NOT_NULL`, the call `OPTION _ _? THEN _? END`, `WORDS _`, an integer from 0 to 255, `[...]`, `{...}`, `(...)`, a call whose name starts with "raw " or the string "exact"
+input:1:2: found the number `256`; expected the word `span`, `type`, `NOT_NULL`, the call `OPTION _ _? THEN _? END`, `WORDS _`, `EACH _*`, an integer from 0 to 255, `[...]`, `{...}`, `(...)`, a call whose name starts with "raw " or the string "exact"
   [256, 0, 0, 0, 0, 0.5, 42]
    ^^^
 
@@ -34,12 +34,12 @@ input:1:26: found the string "x"; expected a number or the closing `]`
                            ^^^
 
 ## "#a", [x]
-input:1:1: found the string "#a"; expected the word `span`, `type`, `NOT_NULL`, the call `OPTION _ _? THEN _? END`, `WORDS _`, a string that starts with "#", ends with "!", contains "a" and matches the regex `^.{3,}$`, `[...]`, `{...}`, `(...)`, a call whose name starts with "raw ", the string "exact" or the end of the document
+input:1:1: found the string "#a"; expected the word `span`, `type`, `NOT_NULL`, the call `OPTION _ _? THEN _? END`, `WORDS _`, `EACH _*`, a string that starts with "#", ends with "!", contains "a" and matches the regex `^.{3,}$`, `[...]`, `{...}`, `(...)`, a call whose name starts with "raw ", the string "exact" or the end of the document
   "#a", [x]
   ^^^^
 
 ## "#a!", "exact", "other"
-input:1:17: found the string "other"; expected the word `span`, `type`, `NOT_NULL`, the call `OPTION _ _? THEN _? END`, `WORDS _`, `[...]`, `{...}`, `(...)`, a call whose name starts with "raw ", the string "exact" or the end of the document
+input:1:17: found the string "other"; expected the word `span`, `type`, `NOT_NULL`, the call `OPTION _ _? THEN _? END`, `WORDS _`, `EACH _*`, `[...]`, `{...}`, `(...)`, a call whose name starts with "raw ", the string "exact" or the end of the document
   "#a!", "exact", "other"
                   ^^^^^^^
 
@@ -72,7 +72,7 @@ input:1:8: found the word `word`; expected the word `words`
          ^^^^
 
 ## raw 1 2, rawer 1
-input:1:10: found the word `rawer`; expected the word `OPTION` or `WORDS`
+input:1:10: found the word `rawer`; expected the word `OPTION`, `WORDS` or `EACH`
   raw 1 2, rawer 1
            ^^^^^
 

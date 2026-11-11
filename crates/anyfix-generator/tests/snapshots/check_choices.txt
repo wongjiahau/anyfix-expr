@@ -46,6 +46,11 @@ grammar:1:72: warning: found the choices `a` and `b` able to match the same inpu
 ## ENTRY: value, value: ONE OF [a: SQUARE BRACKET [ONE OR MORE: STRING], b: SQUARE BRACKET [ONE OR MORE: NUMBER]]
 nothing to report
 
+## ENTRY: value, value: ONE OF [a: SQUARE BRACKET [EACH: STRING], b: SQUARE BRACKET [ONE OR MORE: NUMBER]]
+grammar:1:64: warning: found the choices `a` and `b` able to match the same input; expected at most one choice to fit any input, since `a` comes first and always wins it; make one of them more specific, or put the more specific one first
+  ENTRY: value, value: ONE OF [a: SQUARE BRACKET [EACH: STRING], b: SQUARE BRACKET [ONE OR MORE: NUMBER]]
+                                                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
 ## ENTRY: value, value: ONE OF [a: ANYFIX CALL [NAME [STARTS WITH "get "]], b: SPECIFIC ANYFIX CALL [WORD "set", value]]
 nothing to report
 

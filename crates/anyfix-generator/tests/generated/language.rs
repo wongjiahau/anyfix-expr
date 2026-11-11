@@ -661,6 +661,22 @@ pub mod support {
             values
         }
 
+        /// Decodes every node left, each on its own. A node that does not fit is
+        /// kept as its error, and the nodes after it still decode, so one
+        /// mistake in a list does not hide the rest. A word stops it: in a call,
+        /// a name word after the nodes is matched next.
+        pub fn each<T>(
+            &mut self,
+            decode: impl Fn(&'a Node) -> Result<T, DecodeError>,
+        ) -> Vec<Result<T, DecodeError>> {
+            let mut values = Vec::new();
+            while let Some(Item::Node(node)) = self.items.get(self.index) {
+                values.push(decode(node));
+                self.index += 1;
+            }
+            values
+        }
+
         /// Matches one node, then more for as long as they fit.
         pub fn one_or_more<T>(
             &mut self,

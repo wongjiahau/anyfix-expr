@@ -82,6 +82,10 @@ fn repetitions_belong_to_sequences() {
             "ENTRY: value, value: SQUARE BRACKET [ZERO OR MORE: OPTIONAL: value]",
             "ENTRY: value, value: SPECIFIC ANYFIX CALL [OPTIONAL: WORD \"a\", x: STRING]",
             "ENTRY [ZERO OR MORE: value], value: SQUARE BRACKET [text: OPTIONAL: STRING]",
+            "ENTRY: value, value: EACH: STRING",
+            "ENTRY [EACH: value, last: value], value: STRING",
+            "ENTRY: value, value: SPECIFIC ANYFIX CALL [WORD \"f\", items: EACH: STRING, WORD \"end\"]",
+            "ENTRY [EACH: value], value: SQUARE BRACKET [first: STRING, rest: EACH: NUMBER]",
         ]),
     );
 }
@@ -135,6 +139,7 @@ fn choices_that_compete_get_a_warning() {
             "ENTRY: value, value: ONE OF [a: SPECIFIC ANYFIX CALL [WORD \"f\", x: STRING], b: SPECIFIC ANYFIX CALL [WORD \"f\", ZERO OR MORE: text]], text: STRING",
             "ENTRY: value, value: ONE OF [a: SQUARE BRACKET [ZERO OR MORE: STRING], b: SQUARE BRACKET [ZERO OR MORE: NUMBER]]",
             "ENTRY: value, value: ONE OF [a: SQUARE BRACKET [ONE OR MORE: STRING], b: SQUARE BRACKET [ONE OR MORE: NUMBER]]",
+            "ENTRY: value, value: ONE OF [a: SQUARE BRACKET [EACH: STRING], b: SQUARE BRACKET [ONE OR MORE: NUMBER]]",
             "ENTRY: value, value: ONE OF [a: ANYFIX CALL [NAME [STARTS WITH \"get \"]], b: SPECIFIC ANYFIX CALL [WORD \"set\", value]]",
             "ENTRY: value, value: ONE OF [a: ANYFIX CALL [NAME [STARTS WITH \"get \"]], b: SPECIFIC ANYFIX CALL [WORD \"get\", value]]",
             "ENTRY: value, value: ONE OF [a: ANY WORD [NAME], b: ANY WORD [KEYWORD], WORD \"IF\"]",
