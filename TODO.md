@@ -29,10 +29,10 @@ the tree from `SyntaxTree::nodes()` into that AST.
 
 ## 3. Handwritten decoder for the grammar language
 
-- [ ] Typed AST for `grammar.anyfix`, with a span on every node
-- [ ] Decoder from `anyfix_expr::Node` to that AST
-- [ ] Decode errors with spans: "expected `ONE OF [...]`, found ..."
-- [ ] Tests: `grammar.anyfix` and `json.anyfix` decode, and bad grammars give good errors
+- [x] Typed AST for `grammar.anyfix`, with a span on every node
+- [x] Decoder from `anyfix_expr::Node` to that AST
+- [x] Decode errors with spans: "expected `ONE OF [...]`, found ..."
+- [x] Tests: `grammar.anyfix` and `json.anyfix` decode, and bad grammars give good errors
 
 ## 4. Checking a grammar
 
