@@ -1,0 +1,45 @@
+## ENTRY: value, value: ONE OF [STRING, NUMBER]
+grammar:1:30: error: found the choice `STRING` with no name; expected `name: pattern`, since only a rule reference or a `WORD` of letters names itself; add a name, as in `name: STRING`
+  ENTRY: value, value: ONE OF [STRING, NUMBER]
+                               ^^^^^^
+grammar:1:38: error: found the choice `NUMBER` with no name; expected `name: pattern`, since only a rule reference or a `WORD` of letters names itself; add a name, as in `name: NUMBER`
+  ENTRY: value, value: ONE OF [STRING, NUMBER]
+                                       ^^^^^^
+
+## ENTRY: value, value: ONE OF [a: STRING, a: NUMBER]
+grammar:1:41: error: found a second choice named `a`; expected each choice of a `ONE OF` to have its own name; name this one, as in `other a: ...`
+  ENTRY: value, value: ONE OF [a: STRING, a: NUMBER]
+                                          ^^^^^^^^^
+
+## ENTRY: value, value: ONE OF [WORD "-", WORD "null", WORD "IF"]
+grammar:1:30: error: found the choice `WORD "-"` with no name; expected `name: pattern`, since only a rule reference or a `WORD` of letters names itself; add a name, as in `name: WORD "-"`
+  ENTRY: value, value: ONE OF [WORD "-", WORD "null", WORD "IF"]
+                               ^^^^^^^^
+
+## ENTRY: value, value: SQUARE BRACKET [STRING, value, value]
+grammar:1:38: error: found `STRING` with no name; expected `name: pattern`, since only a rule reference or a `WORD` can go unnamed here; add a name, as in `name: STRING`
+  ENTRY: value, value: SQUARE BRACKET [STRING, value, value]
+                                       ^^^^^^
+grammar:1:53: error: found a second field named `value`; expected each field to have its own name; name this one, as in `other value: ...`
+  ENTRY: value, value: SQUARE BRACKET [STRING, value, value]
+                                                      ^^^^^
+
+## ENTRY: value, value: CURLY BRACE [a: SQUARE BRACKET [STRING, NUMBER]]
+grammar:1:54: error: found `STRING` with no name; expected `name: pattern`, since only a rule reference or a `WORD` can go unnamed here; add a name, as in `name: STRING`
+  ENTRY: value, value: CURLY BRACE [a: SQUARE BRACKET [STRING, NUMBER]]
+                                                       ^^^^^^
+grammar:1:62: error: found `NUMBER` with no name; expected `name: pattern`, since only a rule reference or a `WORD` can go unnamed here; add a name, as in `name: NUMBER`
+  ENTRY: value, value: CURLY BRACE [a: SQUARE BRACKET [STRING, NUMBER]]
+                                                               ^^^^^^
+
+## ENTRY: value, value: CURLY BRACE [a: SQUARE BRACKET [STRING]]
+nothing to report
+
+## ENTRY: value, value: SPECIFIC ANYFIX CALL [WORD "a", span: STRING, self: STRING]
+grammar:1:54: error: found a field named `span`; expected another name, since every struct already has a `span`; rename the field
+  ENTRY: value, value: SPECIFIC ANYFIX CALL [WORD "a", span: STRING, self: STRING]
+                                                       ^^^^^^^^^^^^
+grammar:1:68: error: found the name `self`; expected a name that can be a Rust identifier, which `self` can't; choose another name
+  ENTRY: value, value: SPECIFIC ANYFIX CALL [WORD "a", span: STRING, self: STRING]
+                                                                     ^^^^^^^^^^^^
+

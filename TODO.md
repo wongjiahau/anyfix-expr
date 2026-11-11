@@ -36,11 +36,11 @@ the tree from `SyntaxTree::nodes()` into that AST.
 
 ## 4. Checking a grammar
 
-- [ ] Every referenced rule exists, and every rule is reachable from `ENTRY`
-- [ ] Every built-in part has a name (`key: STRING`), and no two fields or choices share a name
-- [ ] Names are valid as Rust identifiers once converted
-- [ ] Warn when two `ONE OF` choices can match the same input
-- [ ] Reject left recursion that can't terminate (a rule that only refers to itself)
+- [x] Every referenced rule exists, and every rule is reachable from `ENTRY`
+- [x] Every built-in part has a name (`key: STRING`), and no two fields or choices share a name
+- [x] Names are valid as Rust identifiers once converted
+- [x] Warn when two `ONE OF` choices can match the same input
+- [x] Reject left recursion that can't terminate (a rule that only refers to itself)
 
 ## 5. Generating Rust
 

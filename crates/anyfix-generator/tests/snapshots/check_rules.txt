@@ -1,0 +1,25 @@
+## ENTRY: valeu, value: STRING
+grammar:1:8: error: found a reference to `valeu`, which is not a rule; expected the name of a rule of this grammar; write `value`, or define `valeu: ...`
+  ENTRY: valeu, value: STRING
+         ^^^^^
+
+## ENTRY: thing, value: STRING
+grammar:1:8: error: found a reference to `thing`, which is not a rule; expected the name of a rule of this grammar; define `thing: ...`
+  ENTRY: thing, value: STRING
+         ^^^^^
+
+## ENTRY: value, value: STRING, value: NUMBER
+grammar:1:30: error: found a second rule named `value`; expected each rule to be defined once; rename or remove one of them
+  ENTRY: value, value: STRING, value: NUMBER
+                               ^^^^^
+
+## ENTRY: value, value: STRING, other: NUMBER
+grammar:1:30: warning: found the rule `other`, which nothing reachable from `ENTRY` refers to; expected every rule to be used; refer to it or remove it
+  ENTRY: value, value: STRING, other: NUMBER
+                               ^^^^^
+
+## ENTRY: document, document: STRING
+grammar:1:18: error: found a rule named `document`; expected another name, since `Document` is the type of what `ENTRY` describes; rename the rule
+  ENTRY: document, document: STRING
+                   ^^^^^^^^
+

@@ -1,0 +1,10 @@
+## ENTRY: (
+grammar:1:8: error: found `(` at 1:8 with no matching `)` before the end of input; expected `)`; add `)` where the group ends
+  ENTRY: (
+         ^
+
+## ENTRY: value,, value: STRING
+grammar:1:14: error: found `,` with no element before it; expected an element between commas (only a trailing comma may follow nothing); remove the extra `,`
+  ENTRY: value,, value: STRING
+               ^
+

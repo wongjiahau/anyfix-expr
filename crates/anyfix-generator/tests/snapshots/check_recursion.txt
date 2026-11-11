@@ -1,0 +1,16 @@
+## ENTRY: value, value: value
+grammar:1:15: error: found the rule `value` referring to itself with nothing matched in between (value → value); expected a call or a bracket on the way, so that each step looks at a smaller node; put the reference inside one, or remove it
+  ENTRY: value, value: value
+                ^^^^^
+
+## ENTRY: a, a: b, b: ONE OF [x: STRING, a]
+grammar:1:11: error: found the rule `a` referring to itself with nothing matched in between (a → b → a); expected a call or a bracket on the way, so that each step looks at a smaller node; put the reference inside one, or remove it
+  ENTRY: a, a: b, b: ONE OF [x: STRING, a]
+            ^
+grammar:1:39: warning: found the choices `x` and `a` able to match the same input; expected at most one choice to fit any input, since `x` comes first and always wins it; make one of them more specific, or put the more specific one first
+  ENTRY: a, a: b, b: ONE OF [x: STRING, a]
+                                        ^
+
+## ENTRY: value, value: ONE OF [x: STRING, list: SQUARE BRACKET [ZERO OR MORE: value]]
+nothing to report
+

@@ -1,0 +1,45 @@
+## ENTRY: value, value: STRING [MATCHING REGEX "("]
+grammar:1:45: error: found a regex that does not compile (error: unclosed group); expected the syntax of Rust's `regex` crate; fix the regex, writing each backslash twice
+  ENTRY: value, value: STRING [MATCHING REGEX "("]
+                                              ^^^
+
+## ENTRY: value, value: NUMBER [AT LEAST 5, AT MOST 1]
+grammar:1:22: error: found conditions that no number meets; expected `AT LEAST` to be no more than `AT MOST`, with an integer between them when `INTEGER` is given; fix the bounds
+  ENTRY: value, value: NUMBER [AT LEAST 5, AT MOST 1]
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+## ENTRY: value, value: NUMBER [INTEGER, AT LEAST 0.2, AT MOST 0.8]
+grammar:1:22: error: found conditions that no number meets; expected `AT LEAST` to be no more than `AT MOST`, with an integer between them when `INTEGER` is given; fix the bounds
+  ENTRY: value, value: NUMBER [INTEGER, AT LEAST 0.2, AT MOST 0.8]
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+## ENTRY: value, value: NUMBER [INTEGER, INTEGER]
+grammar:1:39: error: found a second `INTEGER`; expected each condition at most once; remove one of them
+  ENTRY: value, value: NUMBER [INTEGER, INTEGER]
+                                        ^^^^^^^
+
+## ENTRY: value, value: WORD "a b"
+grammar:1:27: error: found `WORD "a b"`, which is not one word; expected a single word, made of only name characters or only symbol characters; write one `WORD` for each word
+  ENTRY: value, value: WORD "a b"
+                            ^^^^^
+
+## ENTRY: value, value: WORD ""
+grammar:1:27: error: found `WORD ""`, which is not one word; expected a single word, made of only name characters or only symbol characters; write one `WORD` for each word
+  ENTRY: value, value: WORD ""
+                            ^^
+
+## ENTRY: value, value: ANY WORD [KEYWORD, SYMBOL]
+grammar:1:41: error: found a second kind of word; expected at most one of `KEYWORD`, `NAME` and `SYMBOL`, since a word is only one of them; use `ONE OF` to allow several kinds
+  ENTRY: value, value: ANY WORD [KEYWORD, SYMBOL]
+                                          ^^^^^^
+
+## ENTRY: value, value: SPECIFIC ANYFIX CALL [x: STRING]
+grammar:1:22: error: found a call of one slot and no word; expected a `WORD`, or at least two parts, since one item alone is never a call; write the part's pattern on its own
+  ENTRY: value, value: SPECIFIC ANYFIX CALL [x: STRING]
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+## ENTRY: value, value: ANYFIX CALL [NAME [CONTAINS "a"], NAME [CONTAINS "b"]]
+grammar:1:56: error: found a second `NAME`; expected one `NAME [...]` holding every condition on the name; merge the two lists
+  ENTRY: value, value: ANYFIX CALL [NAME [CONTAINS "a"], NAME [CONTAINS "b"]]
+                                                         ^^^^^^^^^^^^^^^^^^^
+
