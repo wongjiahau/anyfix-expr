@@ -20,7 +20,7 @@ fn rule_names(document: &Document) -> Vec<&str> {
     document
         .rule
         .iter()
-        .map(|rule| rule.name.value.as_str())
+        .map(|rule| rule.name.text.as_str())
         .collect()
 }
 
@@ -73,8 +73,8 @@ fn the_json_grammar_decodes() {
         .choices
         .iter()
         .map(|choice| match choice {
-            Element::Field(field) => field.name.value.as_str(),
-            Element::Pattern(Pattern::Reference(reference)) => reference.name.value.as_str(),
+            Element::Field(field) => field.name.text.as_str(),
+            Element::Pattern(Pattern::Reference(reference)) => reference.name.text.as_str(),
             Element::Pattern(Pattern::Word(word)) => word.text.value.value.as_str(),
             other => panic!("unexpected choice {other:?}"),
         })

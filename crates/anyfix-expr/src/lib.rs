@@ -27,7 +27,7 @@ mod syntax;
 pub use error::{Error, ErrorCode};
 pub use format::{WIDTH, format};
 pub use lexer::{is_keyword, is_symbol_word};
-pub use node::{Call, NamePart, Node, NodeKind};
+pub use node::{Call, FlatWord, FlatWordKind, NamePart, Node, NodeKind, flat_words};
 pub use parser::{MAX_DEPTH, Parsed, parse};
 pub use span::{LineColumn, Span, line_column};
 pub use string::{StringLiteral, StringPiece};

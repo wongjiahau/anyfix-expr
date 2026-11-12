@@ -3,7 +3,9 @@
 //! generated parser depends only on `anyfix_expr` (and on `regex`, when its
 //! grammar uses `MATCHING REGEX`).
 
-use anyfix_expr::{LineColumn, NamePart, Node, NodeKind, Span, StringLiteral, line_column};
+use anyfix_expr::{
+    FlatWord, LineColumn, NamePart, Node, NodeKind, Span, StringLiteral, line_column,
+};
 
 /// A value and where it was written.
 #[derive(Clone, Debug, PartialEq)]
@@ -17,6 +19,34 @@ impl<T> std::ops::Deref for Spanned<T> {
 
     fn deref(&self) -> &T {
         &self.value
+    }
+}
+
+/// The name of a call matched by `ANYFIX CALL`: its text, such as
+/// `max size _`, its words and slots, and where its words are.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CallName {
+    /// The words with `_` for each slot, joined by spaces.
+    pub text: String,
+    pub parts: Vec<NamePart>,
+    /// From the first word to the last.
+    pub span: Span,
+}
+
+impl CallName {
+    /// The words alone, without the slots: `max size _` is `max` and `size`.
+    pub fn words(&self) -> impl Iterator<Item = &str> {
+        self.parts.iter().filter_map(|part| match part {
+            NamePart::Word { text, .. } => Some(text.as_str()),
+            NamePart::Slot => None,
+        })
+    }
+
+    /// The words with the call's `arguments` written out flat in their
+    /// slots (see [`Node::flat_words`]), or the first argument that is not
+    /// words, numbers and strings.
+    pub fn flat_words<'a>(&self, arguments: &'a [Node]) -> Result<Vec<FlatWord>, &'a Node> {
+        anyfix_expr::flat_words(&self.parts, arguments)
     }
 }
 
@@ -237,18 +267,18 @@ pub fn call<'a>(node: &'a Node, expected: &str) -> Result<Sequence<'a>, DecodeEr
     Ok(sequence)
 }
 
-/// Any call: its name text, such as `list file in _`, and its arguments.
-/// The name must pass `condition`.
+/// Any call: its name, such as `list file in _`, and its arguments. The
+/// name's text must pass `condition`.
 pub fn any_call<'a>(
     node: &'a Node,
     condition: impl Fn(&str) -> bool,
     expected: &str,
-) -> Result<(Spanned<String>, &'a [Node]), DecodeError> {
+) -> Result<(CallName, &'a [Node]), DecodeError> {
     let NodeKind::Call(call) = &node.kind else {
         return Err(mismatch(node, expected));
     };
-    let name = call.name_text();
-    if !condition(&name) {
+    let text = call.name_text();
+    if !condition(&text) {
         return Err(mismatch(node, expected));
     }
     let mut words = call.name.iter().filter_map(|part| match part {
@@ -260,7 +290,12 @@ pub fn any_call<'a>(
         (Some(only), None) => only,
         _ => node.span,
     };
-    Ok((Spanned { value: name, span }, &call.arguments))
+    let name = CallName {
+        text,
+        parts: call.name.clone(),
+        span,
+    };
+    Ok((name, &call.arguments))
 }
 
 /// The arguments of the call `node`, as a sequence.

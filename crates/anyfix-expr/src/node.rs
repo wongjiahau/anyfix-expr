@@ -64,6 +64,89 @@ impl Call {
             .collect::<Vec<_>>()
             .join(" ")
     }
+
+    /// See [`Node::flat_words`].
+    pub fn flat_words(&self) -> Result<Vec<FlatWord>, &Node> {
+        flat_words(&self.name, &self.arguments)
+    }
+}
+
+/// One word, number or string of a node written out flat: what a reader
+/// sees in the source, in order, whatever calls anyfix nested them in.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FlatWord {
+    /// The word or number as written, or a string's value.
+    pub text: String,
+    /// Where the text is: for a string, between its quotes.
+    pub span: Span,
+    pub kind: FlatWordKind,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FlatWordKind {
+    /// A name word that is not a keyword: `to`, `sans`.
+    Name,
+    Keyword,
+    Symbol,
+    Number,
+    String,
+}
+
+impl FlatWord {
+    /// Whether it is a word of letters: a name word or a keyword.
+    pub fn is_name_or_keyword(&self) -> bool {
+        matches!(self.kind, FlatWordKind::Name | FlatWordKind::Keyword)
+    }
+}
+
+impl Node {
+    /// The node's words, numbers and strings in source order, or the first
+    /// node inside it that is none of them, such as a bracket. `C3 to G4`,
+    /// which anyfix reads as the call `C3 _ G4` around `to`, is `C3`, `to`
+    /// and `G4`.
+    pub fn flat_words(&self) -> Result<Vec<FlatWord>, &Node> {
+        match &self.kind {
+            NodeKind::Number(text) => Ok(vec![FlatWord {
+                text: text.clone(),
+                span: self.span,
+                kind: FlatWordKind::Number,
+            }]),
+            NodeKind::String(literal) => Ok(vec![FlatWord {
+                text: literal.value.clone(),
+                span: literal.content,
+                kind: FlatWordKind::String,
+            }]),
+            NodeKind::Call(call) => call.flat_words(),
+            _ => Err(self),
+        }
+    }
+}
+
+/// The words of a call's `name` with `arguments` flattened into its slots.
+pub fn flat_words<'a>(name: &[NamePart], arguments: &'a [Node]) -> Result<Vec<FlatWord>, &'a Node> {
+    let mut arguments = arguments.iter();
+    let mut words = Vec::new();
+    for part in name {
+        match part {
+            NamePart::Word { text, span } => words.push(FlatWord {
+                text: text.clone(),
+                span: *span,
+                kind: if is_keyword(text) {
+                    FlatWordKind::Keyword
+                } else if is_symbol_word(text) {
+                    FlatWordKind::Symbol
+                } else {
+                    FlatWordKind::Name
+                },
+            }),
+            NamePart::Slot => {
+                if let Some(argument) = arguments.next() {
+                    words.extend(argument.flat_words()?);
+                }
+            }
+        }
+    }
+    Ok(words)
 }
 
 impl SyntaxTree {

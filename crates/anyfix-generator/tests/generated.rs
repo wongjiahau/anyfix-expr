@@ -93,17 +93,17 @@ fn the_config_format_decodes() {
     let [server] = &document.section[..] else {
         panic!("{:?}", document.section);
     };
-    assert_eq!(server.name.value, "server _");
+    assert_eq!(server.name.text, "server _");
     let settings: Vec<(&str, &str)> = server
         .arguments
         .value
         .iter()
         .map(|setting| match setting.as_ref().unwrap() {
-            Setting::Flag { name, .. } => (name.value.as_str(), "flag"),
+            Setting::Flag { name, .. } => (name.text.as_str(), "flag"),
             Setting::Pair {
                 name, arguments, ..
             } => (
-                name.value.as_str(),
+                name.text.as_str(),
                 match arguments {
                     Value::Text(_) => "text",
                     Value::Number(_) => "number",
@@ -138,7 +138,7 @@ fn each_keeps_a_setting_that_does_not_fit_as_its_error() {
         .iter()
         .map(|setting| match setting {
             Ok(config::Setting::Pair { name, .. } | config::Setting::Flag { name, .. }) => {
-                Ok(name.value.as_str())
+                Ok(name.text.as_str())
             }
             Err(error) => Err(error.render(source, "input")),
         })
@@ -292,7 +292,7 @@ RETURN";
     else {
         panic!("{then:?}");
     };
-    assert_eq!(name.value, "print _");
+    assert_eq!(name.text, "print _");
     assert!(matches!(&arguments[..], [Expression::Text(text)] if text.value.value == "small"));
     let Expression::Block(block) = &**r#else else {
         panic!("{:?}", r#else);
@@ -310,7 +310,7 @@ RETURN";
     else {
         panic!("{third:?}");
     };
-    assert_eq!(name.value, "move _ to _");
+    assert_eq!(name.text, "move _ to _");
     assert!(matches!(
         &arguments[..],
         [Expression::Number(_), Expression::Sum { .. }]
@@ -457,4 +457,26 @@ fn conditions_are_checked_where_the_value_is() {
         |nodes| Ok(corners::decode_document(nodes)?),
     );
     common::assert_snapshot("decode_corners.txt", &report);
+}
+
+#[test]
+fn a_call_name_gives_its_words_and_the_call_written_out_flat() {
+    let source = "raw thing (5) \"x\"";
+    let document = corners::decode_document(&parse(source)).unwrap();
+    let corners::Node::Raw {
+        name, arguments, ..
+    } = &document.node[0]
+    else {
+        panic!("{:?}", document.node);
+    };
+    assert_eq!(name.text, "raw thing _ _");
+    assert_eq!(name.words().collect::<Vec<_>>(), ["raw", "thing"]);
+    let flat: Vec<String> = name
+        .flat_words(arguments)
+        .unwrap()
+        .into_iter()
+        .map(|word| word.text)
+        .collect();
+    assert_eq!(flat, ["raw", "thing", "5", "x"]);
+    assert_eq!(&source[name.span.start..name.span.end], "raw thing");
 }

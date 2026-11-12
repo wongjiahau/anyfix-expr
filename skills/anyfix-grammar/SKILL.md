@@ -104,8 +104,8 @@ choice: ONE OF [first: pattern, second: pattern],   # first match wins
 | `ZERO OR MORE:`, `ONE OR MORE:`, `OPTIONAL:` | inside a bracket, `ENTRY`, a call or `ARGUMENTS:` | `Vec`, `Option` |
 | `EACH:` | every element left, each decoded on its own | `Vec<Result<T, DecodeError>>` |
 | `SPECIFIC ANYFIX CALL [WORD "IF", condition: x, WORD "THEN", then: y]` | the call `IF _ THEN _` | a struct |
-| `ANYFIX CALL [NAME [MATCHING REGEX "^[a-z]+ _$"], ARGUMENTS: x]` | any call whose name fits | a struct with `name` and `arguments` |
-| `ANYFIX CALL [NO ARGUMENTS]` | a call of words alone: `sans serif` | a struct with `name` |
+| `ANYFIX CALL [NAME [MATCHING REGEX "^[a-z]+ _$"], ARGUMENTS: x]` | any call whose name fits | a struct with `name: CallName` and `arguments` |
+| `ANYFIX CALL [NO ARGUMENTS]` | a call of words alone: `sans serif` | a struct with `name: CallName` |
 | `ANY NODE` | any one node, for your own code to decode | `anyfix_expr::Node` |
 
 Every built-in part needs a name: `key: STRING`, not `STRING`. A rule

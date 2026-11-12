@@ -325,7 +325,7 @@ pub struct Array { pub value: Vec<Value>, pub span: Span }
 | `NUMBER` | `Spanned<f64>`, or an integer type (see below) |
 | `ANY WORD` | `Spanned<String>` |
 | a named `WORD` | `Span` |
-| `ANYFIX CALL` | a struct of `name: Spanned<String>` and `arguments` |
+| `ANYFIX CALL` | a struct of `name: CallName` and `arguments` |
 | a bracket that is a field or a choice, around one unnamed value | `Spanned<T>`: the value, and the bracket's span |
 
 A rule `key value` is the type `KeyValue`, decoded by `decode_key_value`.
@@ -341,10 +341,14 @@ of bytes of the source, as in `anyfix_expr`.
 type that holds them. `INTEGER` alone is an `i64`, with only `AT LEAST 0` a
 `u64`. Without `INTEGER` a number is an `f64`.
 
-**`ANYFIX CALL`** keeps the name as text with `_` for each argument, such
-as `move _ to _`. With `ARGUMENTS: pattern` its `arguments` are decoded:
+**`ANYFIX CALL`** keeps the name as a `CallName`: its `text` with `_` for
+each argument, such as `move _ to _`, its `parts` (words with their spans,
+and slots), and the `span` of its words. `name.words()` gives the words
+without the slots. With `ARGUMENTS: pattern` its `arguments` are decoded:
 one value, or a `Vec` or `Option` for a repetition. Without it they stay
-`Vec<anyfix_expr::Node>`, for you to decode.
+`Vec<anyfix_expr::Node>`, for you to decode, and `name.flat_words(&arguments)`
+reads the whole call back as the words, numbers and strings written, in
+order (see `Node::flat_words` in `anyfix_expr`).
 
 **`ANY NODE`** is the `anyfix_expr::Node` itself, which has its own `span`.
 

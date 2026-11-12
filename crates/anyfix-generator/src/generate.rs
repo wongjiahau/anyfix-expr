@@ -635,7 +635,7 @@ struct Names {
 }
 
 /// The short name, the full path, and whether the short name needs a `use`.
-const KNOWN_NAMES: [(&str, &str, bool); 10] = [
+const KNOWN_NAMES: [(&str, &str, bool); 11] = [
     ("Box", "std::boxed::Box", false),
     ("Option", "std::option::Option", false),
     ("Result", "std::result::Result", false),
@@ -646,6 +646,7 @@ const KNOWN_NAMES: [(&str, &str, bool); 10] = [
     ("StringLiteral", "anyfix_expr::StringLiteral", true),
     ("DecodeError", "support::DecodeError", false),
     ("Spanned", "support::Spanned", false),
+    ("CallName", "support::CallName", false),
 ];
 
 impl Names {
@@ -718,9 +719,11 @@ impl Printer<'_> {
         if !imported.is_empty() {
             writeln!(output, "use anyfix_expr::{{{}}};", imported.join(", ")).unwrap();
         }
-        let exported: Vec<&str> = ["DecodeError", "Spanned"]
+        // `CallName` only appears with `ANYFIX CALL`.
+        let exported: Vec<&str> = ["CallName", "DecodeError", "Spanned"]
             .into_iter()
             .filter(|short| !self.names.shadowed.contains(short))
+            .filter(|short| *short != "CallName" || used.contains(short))
             .collect();
         if !exported.is_empty() {
             writeln!(output, "pub use support::{{{}}};", exported.join(", ")).unwrap();
@@ -856,12 +859,7 @@ impl Printer<'_> {
     fn record_fields(&self, record: &Record) -> Vec<(String, String)> {
         let mut fields = Vec::new();
         if let Source::AnyCall { decoded, .. } = &record.source {
-            let name = format!(
-                "{}<{}>",
-                self.names.get("Spanned"),
-                self.names.get("String")
-            );
-            fields.push(("name".to_string(), name));
+            fields.push(("name".to_string(), self.names.get("CallName").to_string()));
             if !decoded {
                 let arguments = format!("{}<{}>", self.names.get("Vec"), self.names.get("Node"));
                 fields.push(("arguments".to_string(), arguments));

@@ -43,7 +43,7 @@ pub fn lower(document: &ast::Document, source: &str) -> (Grammar, Vec<Diagnostic
 /// `key value _`, the call that defines a rule or names a field, is the
 /// name `key value`.
 fn rule_name(named: &ast::Named) -> String {
-    let name = &named.name.value;
+    let name = &named.name.text;
     name.strip_suffix(" _").unwrap_or(name).to_string()
 }
 
@@ -177,7 +177,7 @@ impl Lowerer<'_> {
     }
 
     fn reference(&mut self, reference: &ast::Reference) -> Pattern {
-        let name = &reference.name.value;
+        let name = &reference.name.text;
         if let Some(index) = self.rule_names.iter().position(|rule| rule == name) {
             return Pattern::Reference(index);
         }
