@@ -12,7 +12,7 @@ fn fixture(name: &str) -> String {
 #[test]
 fn grammar_parses_as_one_rule_per_element() {
     let nodes = nodes(&fixture("grammar.anyx"));
-    assert_eq!(nodes.len(), 26);
+    assert_eq!(nodes.len(), 28);
     assert_eq!(show(&nodes[0]), "(`document _` sequence)");
     assert_eq!(
         show(&nodes[2]),

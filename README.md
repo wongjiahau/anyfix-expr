@@ -45,8 +45,9 @@ and `y` (see [Tree](#tree)).
    but have no precedence or associativity among themselves.
 6. **One separator, `,`**, at the top level and inside every bracket. Trailing
    commas are allowed. `;` is an ordinary symbol word.
-7. **Newlines are plain whitespace.** They never end anything. The one place
-   lines matter is inside a [raw string](#raw-strings), whose lines are its
+7. **Newlines are plain whitespace.** They never end anything, except the
+   ones that end a [line string](#line-strings) or a comment, which run to
+   the end of their line. Inside a [raw string](#raw-strings), lines are its
    content.
 
 ## Grammar
@@ -77,13 +78,15 @@ based      = "0" ( ( "x" | "X" ) hex { [ "_" ] hex }
                  | ( "b" | "B" ) bit { [ "_" ] bit }
                  | ( "o" | "O" ) octal { [ "_" ] octal } ) ;
 digits     = digit { [ "_" ] digit } ;
-string     = quoted | raw ;
+string     = quoted | raw | line ;
 quoted     = '"' { ? any char except '"' or "\" ? | escape } '"' ;
 escape     = "\" ( '"' | "\" | "/" | "b" | "f" | "n" | "t" | "r"
                   | "u{" hex { hex } "}" | "u" hex hex hex hex ) ;
 raw        = quotes newline { line newline } indent quotes ;  (* see Raw strings *)
 quotes     = '"' '"' '"' { '"' } ;               (* closed by as many as opened *)
-comment    = "#" { ? any char except newline ? } ;
+line       = "#" [ " " ] rest { newline indent "#" [ " " ] rest } ;  (* see Line strings *)
+rest       = { ? any char except newline ? } ;   (* not starting with "#" *)
+comment    = "##" { ? any char except newline ? } ;
 whitespace = ? char::is_whitespace ? ;
 letter     = ? char::is_alphabetic ? ;
 digit      = "0" … "9" ;                          (* ASCII only *)
@@ -91,12 +94,12 @@ digit      = "0" … "9" ;                          (* ASCII only *)
 
 ## Tokenization rules
 
-1. Comments and whitespace separate tokens and are kept as trivia. `#` always
-   starts a comment, even mid-token: `a#b` is the word `a` followed by a
-   comment. A shebang line is just a comment. A byte order mark (U+FEFF) at
-   the very start is whitespace.
-2. Each special character is its own token, except that `"` starts a string
-   and `#` starts a comment.
+1. Comments and whitespace separate tokens and are kept as trivia. `##`
+   always starts a comment, even mid-token: `a##b` is the word `a` followed
+   by a comment. Write a shebang line as `##!`, a comment. A byte order mark
+   (U+FEFF) at the very start is whitespace.
+2. Each special character is its own token, except that `"` starts a string,
+   `#` a [line string](#line-strings), and `##` a comment.
 3. A word is as long as possible within its kind (name or symbols). Switching
    kinds ends it, with or without a space. A `-` before an ASCII digit also
    ends a symbol word, because it starts a number (rule 5).
@@ -158,6 +161,38 @@ content` and `[S1] 3 3 2_1_`, on two lines.
 - **No escapes:** `\`, `"` and `#` are content. A run of quotes is only a
   closer at the start of a line, after the indentation. Content with a line
   starting with `"""` opens with `""""` instead.
+
+## Line strings
+
+A line string is text to the end of the line, after a `#`:
+
+```text
+# A record of where the server listens.
+server {
+    # The port, from 1 to 65535.
+    port: 8080,  ## a comment: not part of the tree
+},
+```
+
+The first `#` line is a string before the call `server _`, so the run is the
+call `_ server _` of that string and the braces. The notation gives it no
+meaning: a consumer may read a string there as documentation, or reject it.
+
+- **Value:** the text after the `#`, without one space right after it. So
+  `#  x` is ` x` and `#` alone is the empty string. A `\r` before the line
+  break is not part of the value. There are no escapes.
+- **Several lines:** when a line string starts its line (only spaces or tabs
+  before the `#`), each line right below it that also holds only indentation
+  before a `#` continues it, as a line of the value. A blank line, a line of
+  other text, or a `##` comment ends it. A line string after other text on
+  its line is that one line: in `x # a` followed by a `# b` line, `a` and `b`
+  are two strings.
+- **Comments:** `##` starts a comment instead, so a line string's first line
+  can't start with `#`. Use a quoted or raw string for that.
+
+`migrate_comments(source)` rewrites a source written when `#` started a
+comment, turning each of those comments into `##`.
+`cargo run --bin anyx-migrate-comments -- <file>…` rewrites files in place.
 
 A consumer that parses a string's content can point its own errors back into
 the file. A `String` node holds a `StringLiteral`: its `value`, and the
@@ -344,7 +379,7 @@ grouping, `[ ]` as optional and `{ }` as repetition. This crate only has to
 parse it.
 
 ```text
-# Anyx expressions — described in anyx expressions.
+## Anyx expressions — described in anyx expressions.
 
 document : sequence,
 
@@ -374,14 +409,16 @@ based      : "0" ( ("x" | "X") hex { ["_"] hex }
                  | ("o" | "O") octal { ["_"] octal } ),
 digits     : digit { ["_"] digit },
 
-string     : quoted | raw,
+string     : quoted | raw | line,
 quoted     : "\"" { any char except ("\"" | "\\") | escape } "\"",
 escape     : "\\" ("\"" | "\\" | "/" | "b" | "f" | "n" | "t" | "r"
                   | "u{" hex { hex } "}" | "u" hex hex hex hex),
 raw        : quotes newline { line newline } indent quotes,
 quotes     : "\"\"\"" { "\"" },
+line       : "#" [" "] rest { newline indent "#" [" "] rest },
+rest       : { any char except newline },
 
-comment    : "#" { any char except newline },
+comment    : "##" { any char except newline },
 whitespace : unicode whitespace,
 
 letter     : unicode letter,
@@ -425,6 +462,11 @@ formatting it again changes nothing.
   on the same line, or on its own line before the next one, moving to a
   neighbour when its token is removed. A trailing comment inside a run ends
   the line, and the run continues one level in. Blank lines collapse to one.
+- **Line strings** end their line too. What follows goes on the next line, at
+  the same level when the string starts its line, and one level in when it
+  follows other text. A line string of several lines always starts its line,
+  and two in a row keep a blank line between them, so neither joins the
+  other.
 - **Raw strings** are re-indented one level past the line they open on. Their
   values are unchanged.
 

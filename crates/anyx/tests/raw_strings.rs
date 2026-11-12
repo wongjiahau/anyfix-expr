@@ -70,7 +70,7 @@ fn trailing_whitespace_after_the_opening_quotes_is_fine() {
 
 #[test]
 fn tokens_continue_after_the_closing_quotes() {
-    let source = "a \"\"\"\n  x\n  \"\"\", b # done\n";
+    let source = "a \"\"\"\n  x\n  \"\"\", b ## done\n";
     assert_eq!(tree(source), r#"(`a _` "x"), b"#);
     assert_eq!(
         tree("f : \"\"\"\n  x\n  \"\"\" . g"),

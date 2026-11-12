@@ -1,21 +1,21 @@
-# The grammar of anyx grammars, written as one.
+## The grammar of anyx grammars, written as one.
 
-# A grammar is its entry, then its rules.
+## A grammar is its entry, then its rules.
 ENTRY [entry, ZERO OR MORE: rule],
 
 entry: ANYFIX CALL [WORD "ENTRY", contents],
 
 rule: named,
 
-# `key value: pattern` defines a rule; inside a list, `key: pattern` names a
-# field or a choice.
+## `key value: pattern` defines a rule; inside a list, `key: pattern` names a
+## field or a choice.
 named: ANYFIX CALL [
   NAME [MATCHING REGEX "^[a-z][a-z0-9]*( [a-z][a-z0-9]*)* _$"],
   ARGUMENTS: pattern,
 ],
 
-# What a container or the entry holds: one element, a list of them in order,
-# or a list of them in any order.
+## What a container or the entry holds: one element, a list of them in order,
+## or a list of them in any order.
 contents: ONE OF [list: SQUARE BRACKET [ZERO OR MORE: element], any order, element],
 
 any order: ANYFIX CALL [
@@ -39,7 +39,7 @@ pattern: ONE OF [
   any node,
 ],
 
-# A rule's name: lowercase words, no arguments.
+## A rule's name: lowercase words, no arguments.
 reference: ANYFIX CALL [NAME [MATCHING REGEX "^[a-z][a-z0-9]*( [a-z][a-z0-9]*)*$"]],
 
 one of: ANYFIX CALL [
@@ -60,7 +60,7 @@ container: ONE OF [
   parenthesis: ANYFIX CALL [WORD "PARENTHESIS", contents],
 ],
 
-# Words in the list name the call; every other element fills a slot.
+## Words in the list name the call; every other element fills a slot.
 specific call: ANYFIX CALL [
   WORD "ANYFIX", WORD "CALL",
   parts: SQUARE BRACKET [ONE OR MORE: element],
@@ -82,7 +82,7 @@ call condition: ONE OF [
 
 word: ANYFIX CALL [WORD "WORD", text: STRING],
 
-# Any one node, kept as it is for the caller to decode.
+## Any one node, kept as it is for the caller to decode.
 any node: ANYFIX CALL [WORD "ANY", WORD "NODE"],
 
 any word: ANYFIX CALL [
@@ -119,7 +119,7 @@ number: ONE OF [
 
 number condition: ONE OF [
   WORD "INTEGER",
-  # Also `+ 4` and `- 4`, a sign written apart from its number.
+  ## Also `+ 4` and `- 4`, a sign written apart from its number.
   WORD "SIGNED",
   at least: ANYFIX CALL [WORD "AT", WORD "LEAST", bound: NUMBER],
   at most: ANYFIX CALL [WORD "AT", WORD "MOST", bound: NUMBER],

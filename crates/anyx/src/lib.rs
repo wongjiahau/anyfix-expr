@@ -18,6 +18,7 @@
 mod error;
 mod format;
 mod lexer;
+mod migrate;
 mod node;
 mod parser;
 mod span;
@@ -27,6 +28,7 @@ mod syntax;
 pub use error::{Error, ErrorCode};
 pub use format::{WIDTH, format};
 pub use lexer::{is_keyword, is_symbol_word};
+pub use migrate::migrate_comments;
 pub use node::{Call, FlatWord, FlatWordKind, NamePart, Node, NodeKind, flat_words};
 pub use parser::{MAX_DEPTH, Parsed, parse};
 pub use span::{LineColumn, Span, line_column};

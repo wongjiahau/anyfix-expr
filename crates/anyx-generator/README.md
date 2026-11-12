@@ -10,7 +10,7 @@ never describes characters or precedence. It describes shapes of the tree:
 which calls, words, strings, numbers and brackets may stand where.
 
 ```text
-# JSON, as an anyx grammar.
+## JSON, as an anyx grammar.
 
 ENTRY: value,
 
@@ -26,7 +26,7 @@ value: ONE OF [
 
 object: CURLY BRACE: ZERO OR MORE: member,
 
-# `"key": value` is the call `_ _` of the key and the value.
+## `"key": value` is the call `_ _` of the key and the value.
 member: ANYFIX CALL [key: STRING, value],
 
 array: SQUARE BRACKET: ZERO OR MORE: value,
@@ -51,8 +51,8 @@ matches several nodes in a row.
 A grammar is `ENTRY` first, then its rules, separated by commas.
 
 ```text
-ENTRY: value,                       # the document is one value
-ENTRY [header, ZERO OR MORE: rule], # the document is a header, then rules
+ENTRY: value,                       ## the document is one value
+ENTRY [header, ZERO OR MORE: rule], ## the document is a header, then rules
 ```
 
 `ENTRY` describes the document's top-level sequence: the elements between
@@ -131,9 +131,9 @@ named, none is an unnamed `WORD`, none is `EACH`, and none is called
 ### `CURLY BRACE`, `SQUARE BRACKET`, `PARENTHESIS`
 
 ```text
-CURLY BRACE: ZERO OR MORE: member    # { ... }: any number of members
-SQUARE BRACKET [x: NUMBER, y: NUMBER] # [1, 2]: exactly these, in order
-PARENTHESIS []                        # (): nothing inside
+CURLY BRACE: ZERO OR MORE: member    ## { ... }: any number of members
+SQUARE BRACKET [x: NUMBER, y: NUMBER] ## [1, 2]: exactly these, in order
+PARENTHESIS []                        ## (): nothing inside
 ```
 
 After the bracket's name comes what it holds: `[elements]` in order,
@@ -155,7 +155,7 @@ The parts of one call, in order:
 
 ```text
 ANYFIX CALL [WORD "IF", condition: expression, WORD "THEN", then: expression]
-ANYFIX CALL [key: STRING, value]      # the call `_ _`
+ANYFIX CALL [key: STRING, value]      ## the call `_ _`
 ANYFIX CALL [WORD "print", ZERO OR MORE: expression]
 ```
 
@@ -166,10 +166,10 @@ matches `print`, `print _`, `print _ _` and so on.
 Or conditions on any call:
 
 ```text
-ANYFIX CALL [NAME [STARTS WITH "get "]]                 # by its name
-ANYFIX CALL [ARGUMENTS: ZERO OR MORE: expression]       # with typed arguments
+ANYFIX CALL [NAME [STARTS WITH "get "]]                 ## by its name
+ANYFIX CALL [ARGUMENTS: ZERO OR MORE: expression]       ## with typed arguments
 ANYFIX CALL [NAME [ENDS WITH " _"], ARGUMENTS: expression]
-ANYFIX CALL [NO ARGUMENTS]                              # words alone: `sans serif`
+ANYFIX CALL [NO ARGUMENTS]                              ## words alone: `sans serif`
 ```
 
 Without parts, the AST keeps the call's name text, with `_` for each slot:
@@ -187,10 +187,10 @@ A word is a call with no arguments, so `ANYFIX CALL` matches words too.
 ### `WORD "x"` and `ANY WORD`
 
 ```text
-WORD "null"                        # exactly this word
-ANY WORD                           # any word
-ANY WORD [NAME]                    # any word that is not all-caps or a symbol
-ANY WORD [SYMBOL, STARTS WITH "<"] # `<`, `<=`, `<-`
+WORD "null"                        ## exactly this word
+ANY WORD                           ## any word
+ANY WORD [NAME]                    ## any word that is not all-caps or a symbol
+ANY WORD [SYMBOL, STARTS WITH "<"] ## `<`, `<=`, `<-`
 ```
 
 `WORD "x"` matches the word `x` standing alone: a keyword, a name or a
@@ -205,8 +205,8 @@ must all hold:
 ### `STRING`
 
 ```text
-STRING                                  # any string
-STRING "version"                        # exactly this string
+STRING                                  ## any string
+STRING "version"                        ## exactly this string
 STRING [STARTS WITH "v", ENDS WITH "x", CONTAINS "-", MATCHING REGEX "^[a-z]+$"]
 ```
 
@@ -220,10 +220,10 @@ backslash twice: `"^\\d+$"`.
 ### `NUMBER`
 
 ```text
-NUMBER                                    # any number
-NUMBER 2                                  # exactly this number
-NUMBER [INTEGER, AT LEAST 0, AT MOST 255] # an integer from 0 to 255
-NUMBER [INTEGER, SIGNED]                  # also `+ 4` and `- 4`
+NUMBER                                    ## any number
+NUMBER 2                                  ## exactly this number
+NUMBER [INTEGER, AT LEAST 0, AT MOST 255] ## an integer from 0 to 255
+NUMBER [INTEGER, SIGNED]                  ## also `+ 4` and `- 4`
 ```
 
 The conditions are on the number's value, not its text: `0xFF`, `255`,

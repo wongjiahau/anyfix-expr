@@ -1,4 +1,4 @@
-# Anyx expressions — described in anyx expressions.
+## Anyx expressions — described in anyx expressions.
 
 document : sequence,
 
@@ -28,14 +28,16 @@ based      : "0" ( ("x" | "X") hex { ["_"] hex }
                  | ("o" | "O") octal { ["_"] octal } ),
 digits     : digit { ["_"] digit },
 
-string     : quoted | raw,
+string     : quoted | raw | line,
 quoted     : "\"" { any char except ("\"" | "\\") | escape } "\"",
 escape     : "\\" ("\"" | "\\" | "/" | "b" | "f" | "n" | "t" | "r"
                   | "u{" hex { hex } "}" | "u" hex hex hex hex),
 raw        : quotes newline { line newline } indent quotes,
 quotes     : "\"\"\"" { "\"" },
+line       : "#" [" "] rest { newline indent "#" [" "] rest },
+rest       : { any char except newline },
 
-comment    : "#" { any char except newline },
+comment    : "##" { any char except newline },
 whitespace : unicode whitespace,
 
 letter     : unicode letter,

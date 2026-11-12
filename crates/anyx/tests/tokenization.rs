@@ -170,18 +170,52 @@ fn an_exponent_needs_a_decimal_number_and_a_digit() {
 }
 
 #[test]
-fn hash_starts_a_comment_even_mid_token() {
-    assert_eq!(tree("a#b"), "a");
-    assert_eq!(tree("a # b c\nd"), "`a d`");
-    assert_eq!(tree("+#-\n-"), "`+ -`");
-    assert_eq!(tree("12#3"), "12");
-    assert_eq!(tree("#!/usr/bin/env resh\nx"), "x");
+fn two_hashes_start_a_comment_even_mid_token() {
+    assert_eq!(tree("a##b"), "a");
+    assert_eq!(tree("a ## b c\nd"), "`a d`");
+    assert_eq!(tree("+##-\n-"), "`+ -`");
+    assert_eq!(tree("12##3"), "12");
+    assert_eq!(tree("##!/usr/bin/env resh\nx"), "x");
+    assert_eq!(string(r##""a##b""##), "a##b");
+}
+
+#[test]
+fn hash_starts_a_line_string_even_mid_token() {
+    assert_eq!(tree("a#b"), r#"(`a _` "b")"#);
+    assert_eq!(tree("a # b c\nd"), r#"(`a _ d` "b c")"#);
+    assert_eq!(tree("12#3"), r#"(`_ _` 12 "3")"#);
+    // One space after the `#` is dropped, and a `\r` before the line break.
+    assert_eq!(string("#  two"), " two");
+    assert_eq!(string("# a\r\n"), "a");
+    assert_eq!(string("#"), "");
     assert_eq!(string(r##""a#b""##), "a#b");
 }
 
 #[test]
+fn line_strings_starting_their_line_continue_on_the_next() {
+    assert_eq!(string("# a\n  # b\n#\n#c"), "a\nb\n\nc");
+    assert_eq!(string("  # a\r\n  # b"), "a\nb");
+    // A blank line, a `##` comment or other text ends it.
+    assert_eq!(tree("# a\n\n# b"), r#"(`_ _` "a" "b")"#);
+    assert_eq!(tree("# a\n## c\n# b"), r#"(`_ _` "a" "b")"#);
+    // One after other text is a line of its own.
+    assert_eq!(tree("x # a\n# b"), r#"(`x _ _` "a" "b")"#);
+}
+
+#[test]
+fn a_line_string_value_offset_maps_back_to_the_source() {
+    let source = "# ab\n  # cd";
+    let nodes = parse(source).syntax.nodes();
+    let anyx::NodeKind::String(literal) = &nodes[0].kind else {
+        panic!("expected a string")
+    };
+    let offset = literal.source_offset(literal.value.find("cd").unwrap());
+    assert_eq!(&source[offset..offset + 2], "cd");
+}
+
+#[test]
 fn comments_and_whitespace_are_trivia() {
-    let parsed = parse("a # note\n  b");
+    let parsed = parse("a ## note\n  b");
     let anyx::Expression::Run(run) = &parsed.syntax.sequence.elements[0].expression else {
         panic!("expected a run")
     };
@@ -197,7 +231,7 @@ fn comments_and_whitespace_are_trivia() {
         trailing,
         [
             (TriviaKind::Whitespace, " "),
-            (TriviaKind::Comment, "# note")
+            (TriviaKind::Comment, "## note")
         ]
     );
     let leading: Vec<_> = b

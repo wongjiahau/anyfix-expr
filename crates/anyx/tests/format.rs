@@ -182,24 +182,24 @@ fn blank_lines_collapse_to_one() {
 #[test]
 fn comments_are_kept_in_place() {
     assert_eq!(
-        fmt("# head\n\na, # after a\nb"),
-        "# head\n\na, # after a\nb,\n"
+        fmt("## head\n\na, ## after a\nb"),
+        "## head\n\na, ## after a\nb,\n"
     );
     assert_eq!(
-        fmt("{ a, # one\n  # own line\n  b,\n  # before close\n}"),
-        "{\n    a, # one\n    # own line\n    b,\n    # before close\n}\n"
+        fmt("{ a, ## one\n  ## own line\n  b,\n  ## before close\n}"),
+        "{\n    a, ## one\n    ## own line\n    b,\n    ## before close\n}\n"
     );
-    assert_eq!(fmt("a\n# the end\n"), "a\n# the end\n");
-    assert_eq!(fmt("{ # open\n a }"), "{ # open\n    a,\n}\n");
+    assert_eq!(fmt("a\n## the end\n"), "a\n## the end\n");
+    assert_eq!(fmt("{ ## open\n a }"), "{ ## open\n    a,\n}\n");
 }
 
 #[test]
 fn comments_on_removed_tokens_move_to_a_neighbour() {
-    assert_eq!(fmt("f ( # note\n 1 )"), "f # note\n    1\n");
-    assert_eq!(fmt("1 # one\n . f"), "1 # one\n    f\n");
+    assert_eq!(fmt("f ( ## note\n 1 )"), "f ## note\n    1\n");
+    assert_eq!(fmt("1 ## one\n . f"), "1 ## one\n    f\n");
     assert_eq!(
-        fmt("[a # one\n # two\n , b]"),
-        "[\n    a, # one\n    # two\n    b,\n]\n"
+        fmt("[a ## one\n ## two\n , b]"),
+        "[\n    a, ## one\n    ## two\n    b,\n]\n"
     );
 }
 
@@ -207,12 +207,12 @@ fn comments_on_removed_tokens_move_to_a_neighbour() {
 fn comments_never_swallow_code() {
     // A comment in the middle of a run ends its line, and the run continues
     // one level in. So does one before a raw string, which must open a line's end.
-    assert_eq!(fmt("f # c\n x"), "f # c\n    x\n");
-    assert_eq!(fmt("x . f # c\n . g"), "x . f # c\n    . g\n");
-    let formatted = fmt("f # c\n \"\"\"\n  raw\n  \"\"\"");
+    assert_eq!(fmt("f ## c\n x"), "f ## c\n    x\n");
+    assert_eq!(fmt("x . f ## c\n . g"), "x . f ## c\n    . g\n");
+    let formatted = fmt("f ## c\n \"\"\"\n  raw\n  \"\"\"");
     assert_eq!(
         formatted,
-        "f # c\n    \"\"\"\n        raw\n        \"\"\"\n"
+        "f ## c\n    \"\"\"\n        raw\n        \"\"\"\n"
     );
 }
 
@@ -253,7 +253,7 @@ fn fixtures_format_stably() {
 /// included. Those that parse without errors must format to the same tree.
 #[test]
 fn random_documents_format_to_the_same_tree() {
-    const PIECES: [&str; 32] = [
+    const PIECES: [&str; 34] = [
         "x",
         "y z",
         "IF",
@@ -282,7 +282,9 @@ fn random_documents_format_to_the_same_tree() {
         " ",
         "\n",
         "\n\n",
-        "# c\n",
+        "## c\n",
+        "# s\n",
+        "# s\n  # t\n",
         "( _ )",
         "\"\"\"\n  raw\n  \"\"\"",
         "(a,)",
@@ -309,4 +311,23 @@ fn random_documents_format_to_the_same_tree() {
         formatted > 500,
         "only {formatted} random documents were valid"
     );
+}
+
+#[test]
+fn line_strings_end_their_line() {
+    // The text after a line string goes on the next line: at the same level
+    // when the string starts its line, one level in when it follows text.
+    assert_eq!(
+        fmt("# A record.\nRECORD x { # The path.\n path: TEXT }"),
+        "# A record.\nRECORD x {\n    # The path.\n    path: TEXT,\n}\n"
+    );
+    assert_eq!(fmt("f # s\n x"), "f # s\n    x\n");
+    assert_eq!(fmt("#\n# two\n#\nx"), "#\n# two\n#\nx\n");
+}
+
+#[test]
+fn line_strings_in_a_row_stay_apart() {
+    // Without the blank line, the second would continue the first.
+    assert_eq!(fmt("# a\n\n# b\nx"), "# a\n\n# b\nx\n");
+    assert_eq!(fmt("y # a\n# b\nx"), "y # a\n\n    # b\n    x\n");
 }

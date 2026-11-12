@@ -102,7 +102,8 @@ impl Lexer<'_> {
                     self.bump();
                     TriviaKind::Whitespace
                 }
-                Some('#') => {
+                // `##` starts a comment; a single `#` starts a line string.
+                Some('#') if self.peek_second() == Some('#') => {
                     self.bump_while(|c| c != '\n');
                     TriviaKind::Comment
                 }
@@ -137,6 +138,7 @@ impl Lexer<'_> {
                     '{' => TokenKind::OpenBrace,
                     '}' => TokenKind::CloseBrace,
                     '"' => self.string(start),
+                    '#' => TokenKind::String(Box::new(self.line_string(start))),
                     c if c.is_ascii_digit() || (c == '-' && self.at_digit()) => {
                         self.number(start);
                         TokenKind::Number
@@ -465,6 +467,49 @@ impl Lexer<'_> {
         literal
     }
 
+    /// The rest of a line string after its `#`: the line, without one space
+    /// after the `#`. When the string starts its line, the `#` lines right
+    /// below it (not `##`) continue it, each on a line of the value.
+    fn line_string(&mut self, start: usize) -> StringLiteral {
+        let joins = starts_line(self.source, start);
+        let mut literal = StringLiteral::new(self.position);
+        self.line_string_line(&mut literal);
+        while joins && let Some(next) = self.line_string_continuation() {
+            let newline = self.source[self.position..next]
+                .find('\n')
+                .map(|offset| self.position + offset)
+                .expect("a continuation line follows a line break");
+            literal.push_verbatim("\n", Span::new(newline, newline + 1));
+            self.position = next + 1;
+            self.line_string_line(&mut literal);
+        }
+        literal.content.end = self.position;
+        literal
+    }
+
+    /// One line of a line string after its `#`. A `\r` before the line break
+    /// is not part of the value.
+    fn line_string_line(&mut self, literal: &mut StringLiteral) {
+        if self.peek() == Some(' ') {
+            self.bump();
+        }
+        let line_start = self.position;
+        self.bump_while(|c| c != '\n');
+        let text = self.source[line_start..self.position].trim_end_matches('\r');
+        self.position = line_start + text.len();
+        literal.push_verbatim(text, Span::new(line_start, self.position));
+    }
+
+    /// Where the `#` of the next line is, when that line holds only
+    /// indentation before a `#` that does not start a `##` comment.
+    fn line_string_continuation(&self) -> Option<usize> {
+        let rest = self.rest();
+        let after_break = rest.strip_prefix('\r').unwrap_or(rest).strip_prefix('\n')?;
+        let line = after_break.trim_start_matches(is_indentation);
+        (line.starts_with('#') && !line.starts_with("##"))
+            .then(|| self.position + rest.len() - line.len())
+    }
+
     /// The value of a raw string's content `lines`, each stripped of the
     /// closing line's `indentation`.
     fn raw_value(&mut self, lines: &[Span], indentation: Span) -> StringLiteral {
@@ -505,6 +550,16 @@ impl Lexer<'_> {
         }
         literal
     }
+}
+
+/// Whether only indentation (or the byte order mark) comes before `offset`
+/// on its line.
+fn starts_line(source: &str, offset: usize) -> bool {
+    source[..offset].rsplit('\n').next().is_some_and(|line| {
+        line.trim_start_matches('\u{FEFF}')
+            .chars()
+            .all(is_indentation)
+    })
 }
 
 /// The whitespace a raw string's indentation is made of.

@@ -1,22 +1,22 @@
-# A config file: sections of settings.
+## A config file: sections of settings.
 
 ENTRY [ZERO OR MORE: section],
 
-# `server { ... }` is the call `server _` of the braces. `EACH` decodes
-# every setting on its own, so one mistake does not hide the others.
+## `server { ... }` is the call `server _` of the braces. `EACH` decodes
+## every setting on its own, so one mistake does not hide the others.
 section: ANYFIX CALL [
   NAME [MATCHING REGEX "^[a-z][a-z0-9 ]* _$"],
   ARGUMENTS: CURLY BRACE: EACH: setting,
 ],
 
 setting: ONE OF [
-  # `port: 8080` is the call `port _` of the value, and so is
-  # `tls { ... }`. The key may be several words: `max depth: 3`.
+  ## `port: 8080` is the call `port _` of the value, and so is
+  ## `tls { ... }`. The key may be several words: `max depth: 3`.
   pair: ANYFIX CALL [
     NAME [MATCHING REGEX "^[a-z][a-z0-9 ]* _$"],
     ARGUMENTS: value,
   ],
-  # `verbose logging` alone is a flag: a call of only words.
+  ## `verbose logging` alone is a flag: a call of only words.
   flag: ANYFIX CALL [NAME [MATCHING REGEX "^[a-z][a-z0-9 ]*$"]],
 ],
 

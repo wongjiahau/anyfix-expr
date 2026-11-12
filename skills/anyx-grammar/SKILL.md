@@ -85,11 +85,11 @@ one name.
 ## The grammar language in brief
 
 ```anyx
-ENTRY [ZERO OR MORE: statement],        # the whole source: a list of nodes
-ENTRY: value,                           # or exactly one node
+ENTRY [ZERO OR MORE: statement],        ## the whole source: a list of nodes
+ENTRY: value,                           ## or exactly one node
 
-rule: pattern,                          # rules are lowercase
-choice: ONE OF [first: pattern, second: pattern],   # first match wins
+rule: pattern,                          ## rules are lowercase
+choice: ONE OF [first: pattern, second: pattern],   ## first match wins
 ```
 
 | Pattern | Matches | Rust |
@@ -140,7 +140,7 @@ value: ONE OF [
 
 object: CURLY BRACE: ZERO OR MORE: member,
 
-# `"key": value` is the call `_ _` of the key and the value.
+## `"key": value` is the call `_ _` of the key and the value.
 member: ANYFIX CALL [key: STRING, value],
 
 array: SQUARE BRACKET: ZERO OR MORE: value,
@@ -165,21 +165,21 @@ server {
 ```anyx
 ENTRY [ZERO OR MORE: section],
 
-# `server { ... }` is the call `server _` of the braces. `EACH` decodes
-# every setting on its own, so one mistake does not hide the others.
+## `server { ... }` is the call `server _` of the braces. `EACH` decodes
+## every setting on its own, so one mistake does not hide the others.
 section: ANYFIX CALL [
   NAME [MATCHING REGEX "^[a-z][a-z0-9 ]* _$"],
   ARGUMENTS: CURLY BRACE: EACH: setting,
 ],
 
 setting: ONE OF [
-  # `port: 8080` is the call `port _` of the value, and so is
-  # `tls { ... }`. The key may be several words: `max depth: 3`.
+  ## `port: 8080` is the call `port _` of the value, and so is
+  ## `tls { ... }`. The key may be several words: `max depth: 3`.
   pair: ANYFIX CALL [
     NAME [MATCHING REGEX "^[a-z][a-z0-9 ]* _$"],
     ARGUMENTS: value,
   ],
-  # `verbose logging` alone is a flag: a call of only words.
+  ## `verbose logging` alone is a flag: a call of only words.
   flag: ANYFIX CALL [NAME [MATCHING REGEX "^[a-z][a-z0-9 ]*$"]],
 ],
 
@@ -212,7 +212,7 @@ statement: ONE OF [
   expression,
 ],
 
-# `total = 1` is the call `_ = _` of the name and the value.
+## `total = 1` is the call `_ = _` of the name and the value.
 binding: ANYFIX CALL [name: ANY WORD [NAME], WORD "=", value: expression],
 
 expression: ONE OF [
@@ -228,8 +228,8 @@ expression: ONE OF [
   number: NUMBER,
   text: STRING,
   block: CURLY BRACE: ZERO OR MORE: statement,
-  # Any other call that starts with a name and takes arguments is the
-  # user's own: `print _`, `move _ to _`.
+  ## Any other call that starts with a name and takes arguments is the
+  ## user's own: `print _`, `move _ to _`.
   call: ANYFIX CALL [
     NAME [MATCHING REGEX "^[a-z].* _"],
     ARGUMENTS: ONE OR MORE: expression,

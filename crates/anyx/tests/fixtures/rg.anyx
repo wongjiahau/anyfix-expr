@@ -1,4 +1,4 @@
-#!/usr/bin/env resh
+##!/usr/bin/env resh
 
 namespace (rg) {
     record (Match) { path : String, line : Int, column : Int, text : String },

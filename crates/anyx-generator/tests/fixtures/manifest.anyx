@@ -1,5 +1,5 @@
-# A package manifest: its sections may come in any order, and each that
-# is not repeated may be written once.
+## A package manifest: its sections may come in any order, and each that
+## is not repeated may be written once.
 
 ENTRY: ANY ORDER [
   package: ANYFIX CALL [WORD "package", fields: package fields],

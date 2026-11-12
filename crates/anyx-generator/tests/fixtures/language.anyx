@@ -1,4 +1,4 @@
-# A small language of keywords, with calls of the user's own.
+## A small language of keywords, with calls of the user's own.
 
 ENTRY [ZERO OR MORE: statement],
 
@@ -8,7 +8,7 @@ statement: ONE OF [
   expression,
 ],
 
-# `total = 1` is the call `_ = _` of the name and the value.
+## `total = 1` is the call `_ = _` of the name and the value.
 binding: ANYFIX CALL [name: ANY WORD [NAME], WORD "=", value: expression],
 
 expression: ONE OF [
@@ -24,8 +24,8 @@ expression: ONE OF [
   number: NUMBER,
   text: STRING,
   block: CURLY BRACE: ZERO OR MORE: statement,
-  # Any other call that starts with a name and takes arguments is the
-  # user's own: `print _`, `move _ to _`.
+  ## Any other call that starts with a name and takes arguments is the
+  ## user's own: `print _`, `move _ to _`.
   call: ANYFIX CALL [
     NAME [MATCHING REGEX "^[a-z].* _"],
     ARGUMENTS: ONE OR MORE: expression,

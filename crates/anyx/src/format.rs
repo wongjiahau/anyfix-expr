@@ -71,11 +71,27 @@ pub fn format(source: &str) -> Result<String, Vec<Error>> {
 
 /// Token texts joined by single spaces: a source with the same tokens, since
 /// whitespace never merges or splits them.
+/// The tokens' text, separated by spaces. A line string ends its line, and
+/// starts one so that its continuation lines still join it. Two in a row get
+/// a blank line between them, or they would read back as one.
 fn join<'a>(tokens: impl Iterator<Item = &'a Token>) -> String {
-    tokens
-        .map(|token| token.text.as_str())
-        .collect::<Vec<_>>()
-        .join(" ")
+    let mut joined = String::new();
+    let mut after_line_string = false;
+    for token in tokens {
+        let line_string = is_line_string(token);
+        joined.push_str(match (after_line_string, line_string) {
+            (true, true) => "\n\n",
+            (true, false) | (false, true) => "\n",
+            (false, false) => " ",
+        });
+        joined.push_str(&token.text);
+        after_line_string = line_string;
+    }
+    joined
+}
+
+fn is_line_string(token: &Token) -> bool {
+    matches!(token.kind, TokenKind::String(_)) && token.text.starts_with('#')
 }
 
 // ---------------------------------------------------------------------------
@@ -358,6 +374,9 @@ enum Doc {
         quotes: String,
         lines: Vec<String>,
     },
+    /// A line string: the lines of its value, each after a `#`. It ends its
+    /// line, so what follows goes on the next one.
+    LineString(Vec<String>),
 }
 
 fn indent(doc: Doc) -> Doc {
@@ -370,7 +389,7 @@ fn holds(doc: &Doc) -> (bool, bool) {
     match doc {
         Doc::HardLine => (true, false),
         // A raw string breaks the brackets around it, like a trailing comment.
-        Doc::LineSuffix(_) | Doc::Raw { .. } => (false, true),
+        Doc::LineSuffix(_) | Doc::Raw { .. } | Doc::LineString(_) => (false, true),
         Doc::Indent(doc) => holds(doc),
         Doc::Concat(docs) => docs
             .iter()
@@ -629,6 +648,9 @@ fn token_text(token: &Token) -> Doc {
                 literal.value.split('\n').map(str::to_string).collect()
             },
         },
+        TokenKind::String(literal) if is_line_string(token) => {
+            Doc::LineString(literal.value.split('\n').map(str::to_string).collect())
+        }
         _ => Doc::Text(token.text.clone()),
     }
 }
@@ -649,6 +671,7 @@ fn print(doc: &Doc) -> String {
         line_indent: 0,
         continuation: false,
         suffix: Vec::new(),
+        after_line_string: None,
     };
     let mut stack = vec![(0, Mode::Break, doc)];
     while let Some((level, mode, doc)) = stack.pop() {
@@ -678,6 +701,7 @@ fn print(doc: &Doc) -> String {
             }
             Doc::LineSuffix(text) => printer.suffix.push(text.clone()),
             Doc::Raw { quotes, lines } => printer.raw(quotes, lines),
+            Doc::LineString(lines) => printer.line_string(lines),
         }
     }
     printer.finish()
@@ -717,6 +741,9 @@ fn fits(doc: &Doc, mut width: isize, rest: &[(usize, Mode, &Doc)]) -> bool {
             }
             Doc::LineSuffix(_) => {}
             Doc::Raw { quotes, .. } => return width >= quotes.len() as isize,
+            Doc::LineString(lines) => {
+                return width >= 2 + lines[0].chars().count() as isize;
+            }
         }
         if width < 0 {
             return false;
@@ -733,12 +760,30 @@ struct Printer {
     continuation: bool,
     /// Trailing comments waiting for the end of the line.
     suffix: Vec<String>,
+    /// A line string ended the current line, so the next text goes on a new
+    /// one.
+    after_line_string: Option<LineStringEnd>,
+}
+
+/// Where a line string stood, which decides where the text after it goes.
+#[derive(Clone, Copy)]
+enum LineStringEnd {
+    /// It started its line: the text after it starts a line at that level.
+    OwnLine,
+    /// It followed other text: the text after it continues that line.
+    AfterText,
 }
 
 impl Printer {
     /// Text after a trailing comment would be swallowed by it, so the comment
     /// ends its line first and the text continues one level in.
     fn text(&mut self, text: &str) {
+        if self.after_line_string.is_some() {
+            if text.trim().is_empty() {
+                return;
+            }
+            self.leave_line_string();
+        }
         if !self.suffix.is_empty() && !text.trim().is_empty() {
             self.continue_line();
         }
@@ -750,6 +795,9 @@ impl Printer {
     }
 
     fn punct(&mut self, text: &str) {
+        if self.after_line_string.is_some() {
+            self.leave_line_string();
+        }
         self.out.push_str(text);
         self.column += text.len();
     }
@@ -761,6 +809,57 @@ impl Printer {
         self.column = level;
         self.line_indent = level;
         self.continuation = false;
+        self.after_line_string = None;
+    }
+
+    /// Starts the line after a line string.
+    fn leave_line_string(&mut self) {
+        match self.after_line_string {
+            Some(LineStringEnd::OwnLine) => self.newline(self.line_indent),
+            Some(LineStringEnd::AfterText) => self.continue_line(),
+            None => {}
+        }
+    }
+
+    /// Each line of the value after a `#`, the later ones at the column of the
+    /// first `#`. Two line strings in a row get a blank line between them, or
+    /// they would read back as one.
+    fn line_string(&mut self, lines: &[String]) {
+        if self.after_line_string.is_some() {
+            self.trim();
+            self.out.push('\n');
+            self.leave_line_string();
+        }
+        // Only a line string that starts its line continues on the next, so
+        // one of several lines must start a line.
+        if !self.suffix.is_empty() || (lines.len() > 1 && self.column != self.line_indent) {
+            self.continue_line();
+        }
+        let own_line = self.column == self.line_indent;
+        let column = self.column;
+        for (index, line) in lines.iter().enumerate() {
+            if index > 0 {
+                self.out.push('\n');
+                self.out.push_str(&" ".repeat(column));
+            }
+            self.out.push('#');
+            if !line.is_empty() {
+                self.out.push(' ');
+                self.out.push_str(line);
+            }
+            self.column = column
+                + 1
+                + if line.is_empty() {
+                    0
+                } else {
+                    1 + line.chars().count()
+                };
+        }
+        self.after_line_string = Some(if own_line {
+            LineStringEnd::OwnLine
+        } else {
+            LineStringEnd::AfterText
+        });
     }
 
     /// Breaks the line one level past the line it continues.
@@ -791,6 +890,9 @@ impl Printer {
     /// the string opens on. Nothing may follow the opening quotes, so a
     /// waiting comment goes first.
     fn raw(&mut self, quotes: &str, lines: &[String]) {
+        if self.after_line_string.is_some() {
+            self.leave_line_string();
+        }
         if !self.suffix.is_empty() {
             self.continue_line();
         }
