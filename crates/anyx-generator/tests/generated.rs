@@ -452,10 +452,43 @@ fn conditions_are_checked_where_the_value_is() {
             "(only, word)",
             "raw 1 2, rawer 1",
             "{ type, NOT_NULL, span }",
+            "SET: MAX 1",
+            "SET: 1 2",
+            "SET: x \"y\"",
+            "UNSET: OLD",
+            "UNSET: old (1)",
         ],
         |nodes| Ok(corners::decode_document(nodes)?),
     );
     common::assert_snapshot("decode_corners.txt", &report);
+}
+
+#[test]
+fn words_decode_to_their_text_after_an_optional_leading_part() {
+    let source =
+        "SET:\n  # The highest port.\n  max port 8080,\nSET: min port 1,\nUNSET: old thing";
+    let document = corners::decode_document(&parse(source)).unwrap();
+    let [
+        corners::Node::Set { field: first, .. },
+        corners::Node::Set { field: second, .. },
+        corners::Node::Unset { name, .. },
+    ] = &document.node[..]
+    else {
+        panic!("{:?}", document.node);
+    };
+    assert_eq!(
+        first.doc.as_ref().map(|doc| doc.value.value.as_str()),
+        Some("The highest port.")
+    );
+    assert_eq!(first.name.value, "max port");
+    assert_eq!(
+        &source[first.name.span.start..first.name.span.end],
+        "max port"
+    );
+    assert_eq!(first.value.value, 8080.0);
+    assert_eq!(second.doc, None);
+    assert_eq!(second.name.value, "min port");
+    assert_eq!(name.name.text, "old thing");
 }
 
 #[test]

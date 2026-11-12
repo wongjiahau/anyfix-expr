@@ -34,6 +34,7 @@ pattern: ONE OF [
   any call,
   word,
   any word,
+  words,
   string,
   number,
   any node,
@@ -74,13 +75,22 @@ any call: ANYFIX CALL [
 call condition: ONE OF [
   name: ANYFIX CALL [
     WORD "NAME",
-    conditions: SQUARE BRACKET [ONE OR MORE: string condition],
+    conditions: SQUARE BRACKET [ONE OR MORE: name condition],
   ],
   arguments: ANYFIX CALL [WORD "ARGUMENTS", pattern],
   no arguments: ANYFIX CALL [WORD "NO", WORD "ARGUMENTS"],
 ],
 
+## A condition on a call's name, or on the words `WORDS` takes.
+name condition: ONE OF [no keyword: ANYFIX CALL [WORD "NO", WORD "KEYWORD"], string condition],
+
 word: ANYFIX CALL [WORD "WORD", text: STRING],
+
+## Among the parts of a call: one or more of its name words in a row.
+words: ANYFIX CALL [
+  WORD "WORDS",
+  conditions: OPTIONAL: SQUARE BRACKET [ONE OR MORE: name condition],
+],
 
 ## Any one node, kept as it is for the caller to decode.
 any node: ANYFIX CALL [WORD "ANY", WORD "NODE"],

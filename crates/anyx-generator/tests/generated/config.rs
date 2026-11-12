@@ -535,10 +535,11 @@ pub mod support {
         }
 
         /// The error for a call whose words and arguments are not arranged as
-        /// expected.
+        /// expected. It replaces why an optional part before them did not fit,
+        /// since the call is another shape altogether.
         fn is_other_call(&mut self) -> DecodeError {
-            let error = self.other_call.clone().expect("the sequence of a call");
-            self.fail(error)
+            self.missed = None;
+            self.other_call.clone().expect("the sequence of a call")
         }
 
         fn fail(&mut self, error: DecodeError) -> DecodeError {
@@ -568,6 +569,47 @@ pub mod support {
             self.index += 1;
             self.other_call = None;
             Ok(span)
+        }
+
+        /// Matches every name word in a row, at least one, whose text, the
+        /// words joined by spaces, must pass `condition`.
+        pub fn words(
+            &mut self,
+            condition: impl Fn(&str) -> bool,
+            expected: &str,
+        ) -> Result<Spanned<String>, DecodeError> {
+            let words: Vec<(&str, Span)> = self.items[self.index..]
+                .iter()
+                .map_while(|item| match item {
+                    Item::Word(text, span) => Some((*text, *span)),
+                    Item::Node(_) => None,
+                })
+                .collect();
+            let (Some((_, first)), Some((_, last))) = (words.first(), words.last()) else {
+                if self.other_call.is_some() {
+                    return Err(self.is_other_call());
+                }
+                return Err(self.unexpected(expected));
+            };
+            let span = first.to(*last);
+            let text = words
+                .iter()
+                .map(|(text, _)| *text)
+                .collect::<Vec<_>>()
+                .join(" ");
+            if !condition(&text) {
+                let error = match self.other_call.is_some() {
+                    true => self.is_other_call(),
+                    false => {
+                        let error = DecodeError::new(span, format!("the words `{text}`"), expected);
+                        self.fail(error)
+                    }
+                };
+                return Err(error);
+            }
+            self.index += words.len();
+            self.other_call = None;
+            Ok(Spanned { value: text, span })
         }
 
         /// Matches one node. `expected` names it when nothing is there.

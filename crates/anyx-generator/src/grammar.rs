@@ -64,6 +64,7 @@ pub enum Pattern {
     AnyCall(AnyCall),
     Word(Word),
     AnyWord(AnyWord),
+    Words(Words),
     String(String),
     Number(Number),
     AnyNode(AnyNode),
@@ -112,7 +113,7 @@ pub struct AnyCall {
 #[derive(Clone, Debug, PartialEq)]
 pub enum CallCondition {
     Name {
-        conditions: Spanned<Vec<StringCondition>>,
+        conditions: Spanned<Vec<NameCondition>>,
         span: Span,
     },
     Arguments {
@@ -125,8 +126,20 @@ pub enum CallCondition {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub enum NameCondition {
+    NoKeyword { span: Span },
+    StringCondition(StringCondition),
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub struct Word {
     pub text: Spanned<StringLiteral>,
+    pub span: Span,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Words {
+    pub conditions: Option<Spanned<Vec<NameCondition>>>,
     pub span: Span,
 }
 
@@ -233,6 +246,7 @@ impl Pattern {
             Pattern::AnyCall(value) => value.span,
             Pattern::Word(value) => value.span,
             Pattern::AnyWord(value) => value.span,
+            Pattern::Words(value) => value.span,
             Pattern::String(value) => value.span(),
             Pattern::Number(value) => value.span(),
             Pattern::AnyNode(value) => value.span,
@@ -267,6 +281,15 @@ impl CallCondition {
             CallCondition::Name { span, .. }
             | CallCondition::Arguments { span, .. }
             | CallCondition::NoArguments { span, .. } => *span,
+        }
+    }
+}
+
+impl NameCondition {
+    pub fn span(&self) -> Span {
+        match self {
+            NameCondition::NoKeyword { span, .. } => *span,
+            NameCondition::StringCondition(value) => value.span(),
         }
     }
 }
@@ -421,6 +444,7 @@ pub fn decode_pattern(node: &Node) -> Result<Pattern, DecodeError> {
         .or_else(|error| error.or(decode_any_call(node).map(Pattern::AnyCall)))
         .or_else(|error| error.or(decode_word(node).map(Pattern::Word)))
         .or_else(|error| error.or(decode_any_word(node).map(Pattern::AnyWord)))
+        .or_else(|error| error.or(decode_words(node).map(Pattern::Words)))
         .or_else(|error| error.or(decode_string(node).map(Pattern::String)))
         .or_else(|error| error.or(decode_number(node).map(Pattern::Number)))
         .or_else(|error| error.or(decode_any_node(node).map(Pattern::AnyNode)))
@@ -631,9 +655,9 @@ fn decode_call_condition_name(node: &Node) -> Result<CallCondition, DecodeError>
 
 fn decode_call_condition_name_conditions(
     node: &Node,
-) -> Result<Spanned<Vec<StringCondition>>, DecodeError> {
+) -> Result<Spanned<Vec<NameCondition>>, DecodeError> {
     let mut elements = support::square_bracket(node)?;
-    let value = elements.one_or_more(decode_string_condition, "a string condition")?;
+    let value = elements.one_or_more(decode_name_condition, "a name condition")?;
     elements.finish()?;
     Ok(Spanned {
         value,
@@ -659,6 +683,20 @@ fn decode_call_condition_no_arguments(node: &Node) -> Result<CallCondition, Deco
     Ok(decoded)
 }
 
+pub fn decode_name_condition(node: &Node) -> Result<NameCondition, DecodeError> {
+    decode_name_condition_no_keyword(node).or_else(|error| {
+        error.or(decode_string_condition(node).map(NameCondition::StringCondition))
+    })
+}
+
+fn decode_name_condition_no_keyword(node: &Node) -> Result<NameCondition, DecodeError> {
+    let mut parts = support::call(node, "the call `NO KEYWORD`")?;
+    let decoded = NameCondition::NoKeyword { span: node.span };
+    parts.word("NO")?.word("KEYWORD")?;
+    parts.finish()?;
+    Ok(decoded)
+}
+
 pub fn decode_word(node: &Node) -> Result<Word, DecodeError> {
     let mut parts = support::call(node, "the call `WORD _`")?;
     let decoded = Word {
@@ -670,6 +708,26 @@ pub fn decode_word(node: &Node) -> Result<Word, DecodeError> {
     };
     parts.finish()?;
     Ok(decoded)
+}
+
+pub fn decode_words(node: &Node) -> Result<Words, DecodeError> {
+    let mut parts = support::call(node, "the call `WORDS _?`")?;
+    let decoded = Words {
+        conditions: parts.word("WORDS")?.optional(decode_words_conditions),
+        span: node.span,
+    };
+    parts.finish()?;
+    Ok(decoded)
+}
+
+fn decode_words_conditions(node: &Node) -> Result<Spanned<Vec<NameCondition>>, DecodeError> {
+    let mut elements = support::square_bracket(node)?;
+    let value = elements.one_or_more(decode_name_condition, "a name condition")?;
+    elements.finish()?;
+    Ok(Spanned {
+        value,
+        span: node.span,
+    })
 }
 
 pub fn decode_any_node(node: &Node) -> Result<AnyNode, DecodeError> {
@@ -1256,10 +1314,11 @@ pub mod support {
         }
 
         /// The error for a call whose words and arguments are not arranged as
-        /// expected.
+        /// expected. It replaces why an optional part before them did not fit,
+        /// since the call is another shape altogether.
         fn is_other_call(&mut self) -> DecodeError {
-            let error = self.other_call.clone().expect("the sequence of a call");
-            self.fail(error)
+            self.missed = None;
+            self.other_call.clone().expect("the sequence of a call")
         }
 
         fn fail(&mut self, error: DecodeError) -> DecodeError {
@@ -1289,6 +1348,47 @@ pub mod support {
             self.index += 1;
             self.other_call = None;
             Ok(span)
+        }
+
+        /// Matches every name word in a row, at least one, whose text, the
+        /// words joined by spaces, must pass `condition`.
+        pub fn words(
+            &mut self,
+            condition: impl Fn(&str) -> bool,
+            expected: &str,
+        ) -> Result<Spanned<String>, DecodeError> {
+            let words: Vec<(&str, Span)> = self.items[self.index..]
+                .iter()
+                .map_while(|item| match item {
+                    Item::Word(text, span) => Some((*text, *span)),
+                    Item::Node(_) => None,
+                })
+                .collect();
+            let (Some((_, first)), Some((_, last))) = (words.first(), words.last()) else {
+                if self.other_call.is_some() {
+                    return Err(self.is_other_call());
+                }
+                return Err(self.unexpected(expected));
+            };
+            let span = first.to(*last);
+            let text = words
+                .iter()
+                .map(|(text, _)| *text)
+                .collect::<Vec<_>>()
+                .join(" ");
+            if !condition(&text) {
+                let error = match self.other_call.is_some() {
+                    true => self.is_other_call(),
+                    false => {
+                        let error = DecodeError::new(span, format!("the words `{text}`"), expected);
+                        self.fail(error)
+                    }
+                };
+                return Err(error);
+            }
+            self.index += words.len();
+            self.other_call = None;
+            Ok(Spanned { value: text, span })
         }
 
         /// Matches one node. `expected` names it when nothing is there.

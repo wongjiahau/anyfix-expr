@@ -44,6 +44,10 @@ pub enum Pattern {
         conditions: Vec<StringCondition>,
     },
     String(Vec<StringCondition>),
+    /// `WORDS`: among the parts of a call, one or more of its name words in
+    /// a row, decoded to their text joined by spaces. The conditions apply
+    /// to that text.
+    Words(Vec<StringCondition>),
     Number(NumberPattern),
     /// Any one node, decoded to itself.
     AnyNode,
@@ -160,6 +164,8 @@ pub enum StringCondition {
     MatchingRegex(String),
     /// No word of a call's name is a `_` slot: `NO ARGUMENTS`.
     NoSlots,
+    /// `NO KEYWORD`: no word is all caps.
+    NoKeyword,
 }
 
 impl StringCondition {
@@ -173,6 +179,7 @@ impl StringCondition {
                 regex::Regex::new(regex).is_ok_and(|regex| regex.is_match(text))
             }
             StringCondition::NoSlots => !text.split(' ').any(|word| word == "_"),
+            StringCondition::NoKeyword => !text.split(' ').any(anyx::is_keyword),
         }
     }
 }
@@ -316,6 +323,7 @@ fn conditions_text(conditions: &[StringCondition]) -> String {
             StringCondition::Contains(text) => format!("contains {text:?}"),
             StringCondition::MatchingRegex(regex) => format!("matches the regex `{regex}`"),
             StringCondition::NoSlots => "has no `_`".to_string(),
+            StringCondition::NoKeyword => "has no keyword".to_string(),
         })
         .collect();
     join_and(&parts)
@@ -364,6 +372,10 @@ impl Grammar {
                 [StringCondition::Is(text)] => format!("the string {text:?}"),
                 _ => format!("a string that {}", conditions_text(conditions)),
             },
+            Pattern::Words(conditions) => match conditions.is_empty() {
+                true => "words".to_string(),
+                false => format!("words whose text {}", conditions_text(conditions)),
+            },
             Pattern::Number(number) => describe_number(number),
             Pattern::AnyNode => "a node".to_string(),
         };
@@ -401,13 +413,14 @@ fn describe_number(number: &NumberPattern) -> String {
     }
 }
 
-/// The name a call must have: its words, and `_` for each slot, marked
-/// `_?`, `_*` or `_+` when the slot repeats.
+/// The name a call must have: its words, `…` for the words of a `WORDS`,
+/// and `_` for each slot, marked `_?`, `_*` or `_+` when the slot repeats.
 pub fn call_picture(parts: &[Element]) -> String {
     parts
         .iter()
         .map(|part| match (&part.pattern, part.repetition) {
             (Pattern::Word(text), _) => text.clone(),
+            (Pattern::Words(_), _) => "…".to_string(),
             (_, Repetition::One) => "_".to_string(),
             (_, Repetition::Optional) => "_?".to_string(),
             (_, Repetition::ZeroOrMore | Repetition::Each) => "_*".to_string(),

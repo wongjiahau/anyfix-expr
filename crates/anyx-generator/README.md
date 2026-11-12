@@ -163,6 +163,19 @@ A `WORD` part is one of the call's name words. Every other part fills the
 call's next slot. A repetition makes the call variadic: the last example
 matches `print`, `print _`, `print _ _` and so on.
 
+A `WORDS` part takes the call's name words that stand in a row there, one
+or more of them, and decodes to their text joined by spaces. It lets a
+language's users name things with words of their own:
+
+```text
+## `max size: 10`, or `"The limit." max size: 10`
+setting: ANYFIX CALL [doc: OPTIONAL: STRING, name: WORDS [NO KEYWORD], value: NUMBER],
+```
+
+Its conditions apply to that text, as with `NAME`. A `WORDS` must have a
+name, appear once, and have a slot, not a `WORD`, on each side, since it
+takes every name word in a row.
+
 Or conditions on any call:
 
 ```text
@@ -175,7 +188,9 @@ ANYFIX CALL [NO ARGUMENTS]                              ## words alone: `sans se
 Without parts, the AST keeps the call's name text, with `_` for each slot:
 `list file in _`.
 
-- `NAME [string conditions]` puts conditions on that name text.
+- `NAME [conditions]` puts conditions on that name text: the string
+  conditions, and `NO KEYWORD`, which holds when no word of the name is all
+  caps.
 - `ARGUMENTS: pattern` describes the arguments. Without it, they stay raw
   `anyx::Node`s.
 - `NO ARGUMENTS` takes only a call with none, which is one or more words
@@ -358,6 +373,7 @@ pub struct Array { pub value: Vec<Value>, pub span: Span }
 | `STRING` | `Spanned<StringLiteral>`: the value, and its pieces as written |
 | `NUMBER` | `Spanned<f64>`, or an integer type (see below) |
 | `ANY WORD` | `Spanned<String>` |
+| `WORDS` | `Spanned<String>`: the words joined by spaces |
 | a named `WORD` | `Span` |
 | `ANYFIX CALL [parts]` | a struct of its fields |
 | `ANYFIX CALL`, alone or with conditions | a struct of `name: CallName` and `arguments` |

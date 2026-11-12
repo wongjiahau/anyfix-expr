@@ -165,6 +165,13 @@ impl Lowerer<'_> {
                 Pattern::Word(word.text.value.value.clone())
             }
             ast::Pattern::AnyWord(any_word) => self.any_word(any_word),
+            ast::Pattern::Words(words) => {
+                self.error(
+                    words.span,
+                    "found `WORDS` outside the parts of a call; expected it only among the parts of an `ANYFIX CALL [...]`, since only a call has name words; put it in one, as in `ANYFIX CALL [name: WORDS, value]`",
+                );
+                self.words(words)
+            }
             ast::Pattern::String(string) => Pattern::String(match string {
                 ast::String::Any(_) => Vec::new(),
                 ast::String::Exact { text, .. } => {
@@ -401,20 +408,40 @@ impl Lowerer<'_> {
     }
 
     fn specific_call(&mut self, call: &ast::SpecificCall) -> Pattern {
-        let mut parts: Vec<Element> = call.parts.iter().map(|part| self.element(part)).collect();
+        let mut parts: Vec<Element> = call.parts.iter().map(|part| self.call_part(part)).collect();
         self.check_each_is_last(&parts);
         for part in &parts {
-            if matches!(part.pattern, Pattern::Word(_)) && part.repetition != Repetition::One {
+            let what = match part.pattern {
+                Pattern::Word(_) => "WORD",
+                Pattern::Words(_) => "WORDS",
+                _ => continue,
+            };
+            if part.repetition != Repetition::One {
                 self.error(
                     part.span,
-                    "found a repeated `WORD` among the parts of a call; expected each name word exactly once; write one `ANYFIX CALL` per shape and join them with `ONE OF`",
+                    format!(
+                        "found a repeated `{what}` among the parts of a call; expected each name word exactly once; write one `ANYFIX CALL` per shape and join them with `ONE OF`"
+                    ),
+                );
+            }
+        }
+        for pair in parts.windows(2) {
+            let [before, after] = pair else { continue };
+            let is_words = |part: &Element| matches!(part.pattern, Pattern::Words(_));
+            let is_word = |part: &Element| matches!(part.pattern, Pattern::Word(_));
+            if is_words(before) && (is_word(after) || is_words(after))
+                || is_word(before) && is_words(after)
+            {
+                self.error(
+                    after.span,
+                    "found a name word right next to `WORDS`; expected a slot between them, since `WORDS` takes every name word in a row; put a slot between them, or write the words as one `WORDS`",
                 );
             }
         }
         self.name_fields(&mut parts, Names::Required);
         let has_word = parts
             .iter()
-            .any(|part| matches!(part.pattern, Pattern::Word(_)));
+            .any(|part| matches!(part.pattern, Pattern::Word(_) | Pattern::Words(_)));
         let most_items: usize = parts
             .iter()
             .map(|part| match part.repetition.may_repeat() {
@@ -431,6 +458,47 @@ impl Lowerer<'_> {
         Pattern::SpecificCall(parts)
     }
 
+    /// One of the parts of an `ANYFIX CALL [...]`, where `WORDS` may stand.
+    fn call_part(&mut self, part: &ast::Element) -> Element {
+        let (name, pattern, span) = match part {
+            ast::Element::Field(field) => (Some(rule_name(field)), &field.arguments, field.span),
+            ast::Element::Pattern(pattern) => (None, pattern, pattern.span()),
+        };
+        let (repetition, inner) = repetition_of(pattern);
+        match inner {
+            ast::Pattern::Words(words) => Element {
+                name,
+                repetition,
+                pattern: self.words(words),
+                span,
+            },
+            _ => self.element(part),
+        }
+    }
+
+    fn words(&mut self, words: &ast::Words) -> Pattern {
+        let conditions = words.conditions.iter().flat_map(|list| list.iter());
+        Pattern::Words(
+            conditions
+                .filter_map(|condition| self.name_condition(condition))
+                .collect(),
+        )
+    }
+
+    fn name_conditions(&mut self, conditions: &[ast::NameCondition]) -> Vec<StringCondition> {
+        conditions
+            .iter()
+            .filter_map(|condition| self.name_condition(condition))
+            .collect()
+    }
+
+    fn name_condition(&mut self, condition: &ast::NameCondition) -> Option<StringCondition> {
+        match condition {
+            ast::NameCondition::NoKeyword { .. } => Some(StringCondition::NoKeyword),
+            ast::NameCondition::StringCondition(condition) => self.string_condition(condition),
+        }
+    }
+
     fn any_call(&mut self, call: &ast::AnyCall) -> Pattern {
         let mut name = None;
         let mut arguments = None;
@@ -444,7 +512,7 @@ impl Lowerer<'_> {
                             "found a second `NAME`; expected one `NAME [...]` holding every condition on the name; merge the two lists",
                         );
                     }
-                    name = Some(self.string_conditions(conditions));
+                    name = Some(self.name_conditions(conditions));
                 }
                 ast::CallCondition::Arguments { pattern, span } => {
                     if arguments.is_some() {

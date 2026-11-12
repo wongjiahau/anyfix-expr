@@ -43,10 +43,25 @@ pub enum Node {
         arguments: Vec<anyx::Node>,
         span: anyx::Span,
     },
+    Set {
+        field: Field,
+        span: anyx::Span,
+    },
+    Unset {
+        name: NodeUnsetName,
+        span: anyx::Span,
+    },
     Exact(Spanned<StringLiteral>),
     Spanned(Span),
     Type(anyx::Span),
     NotNull(anyx::Span),
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct NodeUnsetName {
+    pub name: CallName,
+    pub arguments: Vec<anyx::Node>,
+    pub span: anyx::Span,
 }
 
 pub type Span = anyx::Span;
@@ -99,6 +114,14 @@ pub struct WordsListPhrase {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub struct Field {
+    pub doc: std::option::Option<Spanned<StringLiteral>>,
+    pub name: Spanned<std::string::String>,
+    pub value: Spanned<f64>,
+    pub span: anyx::Span,
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub struct Box {
     pub inner: std::boxed::Box<Node>,
     pub result: std::option::Option<std::boxed::Box<Node>>,
@@ -113,6 +136,8 @@ impl Node {
             | Node::Each { span, .. }
             | Node::Kept { span, .. }
             | Node::Raw { span, .. }
+            | Node::Set { span, .. }
+            | Node::Unset { span, .. }
             | Node::Spanned(span)
             | Node::Type(span)
             | Node::NotNull(span) => *span,
@@ -168,6 +193,8 @@ pub fn decode_node(node: &anyx::Node) -> Result<Node, DecodeError> {
         .or_else(|error| error.or(decode_node_each(node)))
         .or_else(|error| error.or(decode_node_kept(node)))
         .or_else(|error| error.or(decode_node_raw(node)))
+        .or_else(|error| error.or(decode_node_set(node)))
+        .or_else(|error| error.or(decode_node_unset(node)))
         .or_else(|error| {
             error.or(
                 support::string(node, |text| text == "exact", "the string \"exact\"")
@@ -242,6 +269,42 @@ fn decode_node_raw(node: &anyx::Node) -> Result<Node, DecodeError> {
         "a call whose name starts with \"raw \"",
     )?;
     Ok(Node::Raw {
+        name,
+        arguments: arguments.to_vec(),
+        span: node.span,
+    })
+}
+
+fn decode_node_set(node: &anyx::Node) -> Result<Node, DecodeError> {
+    let mut parts = support::call(node, "the call `SET _`")?;
+    let decoded = Node::Set {
+        field: parts.word("SET")?.one(decode_field, "a field")?,
+        span: node.span,
+    };
+    parts.finish()?;
+    Ok(decoded)
+}
+
+fn decode_node_unset(node: &anyx::Node) -> Result<Node, DecodeError> {
+    let mut parts = support::call(node, "the call `UNSET _`")?;
+    let decoded = Node::Unset {
+        name: parts.word("UNSET")?.one(
+            decode_node_unset_name,
+            "a call whose name has no keyword and has no `_`",
+        )?,
+        span: node.span,
+    };
+    parts.finish()?;
+    Ok(decoded)
+}
+
+fn decode_node_unset_name(node: &anyx::Node) -> Result<NodeUnsetName, DecodeError> {
+    let (name, arguments) = support::any_call(
+        node,
+        |name| !name.split(' ').any(anyx::is_keyword) && !name.split(' ').any(|word| word == "_"),
+        "a call whose name has no keyword and has no `_`",
+    )?;
+    Ok(NodeUnsetName {
         name,
         arguments: arguments.to_vec(),
         span: node.span,
@@ -395,6 +458,24 @@ fn decode_words_list_phrase(node: &anyx::Node) -> Result<WordsListPhrase, Decode
         arguments: arguments.to_vec(),
         span: node.span,
     })
+}
+
+pub fn decode_field(node: &anyx::Node) -> Result<Field, DecodeError> {
+    let mut parts = support::call(node, "the call `_? … _`")?;
+    let decoded = Field {
+        doc: parts.optional(|node| support::string(node, |_| true, "a string")),
+        name: parts.words(
+            |text| !text.split(' ').any(anyx::is_keyword),
+            "words whose text has no keyword",
+        )?,
+        value: parts.one(
+            |node| support::float(node, f64::NEG_INFINITY, f64::INFINITY, false, "a number"),
+            "a number",
+        )?,
+        span: node.span,
+    };
+    parts.finish()?;
+    Ok(decoded)
 }
 
 pub fn decode_box(node: &anyx::Node) -> Result<Box, DecodeError> {
@@ -770,10 +851,11 @@ pub mod support {
         }
 
         /// The error for a call whose words and arguments are not arranged as
-        /// expected.
+        /// expected. It replaces why an optional part before them did not fit,
+        /// since the call is another shape altogether.
         fn is_other_call(&mut self) -> DecodeError {
-            let error = self.other_call.clone().expect("the sequence of a call");
-            self.fail(error)
+            self.missed = None;
+            self.other_call.clone().expect("the sequence of a call")
         }
 
         fn fail(&mut self, error: DecodeError) -> DecodeError {
@@ -803,6 +885,47 @@ pub mod support {
             self.index += 1;
             self.other_call = None;
             Ok(span)
+        }
+
+        /// Matches every name word in a row, at least one, whose text, the
+        /// words joined by spaces, must pass `condition`.
+        pub fn words(
+            &mut self,
+            condition: impl Fn(&str) -> bool,
+            expected: &str,
+        ) -> Result<Spanned<String>, DecodeError> {
+            let words: Vec<(&str, Span)> = self.items[self.index..]
+                .iter()
+                .map_while(|item| match item {
+                    Item::Word(text, span) => Some((*text, *span)),
+                    Item::Node(_) => None,
+                })
+                .collect();
+            let (Some((_, first)), Some((_, last))) = (words.first(), words.last()) else {
+                if self.other_call.is_some() {
+                    return Err(self.is_other_call());
+                }
+                return Err(self.unexpected(expected));
+            };
+            let span = first.to(*last);
+            let text = words
+                .iter()
+                .map(|(text, _)| *text)
+                .collect::<Vec<_>>()
+                .join(" ");
+            if !condition(&text) {
+                let error = match self.other_call.is_some() {
+                    true => self.is_other_call(),
+                    false => {
+                        let error = DecodeError::new(span, format!("the words `{text}`"), expected);
+                        self.fail(error)
+                    }
+                };
+                return Err(error);
+            }
+            self.index += words.len();
+            self.other_call = None;
+            Ok(Spanned { value: text, span })
         }
 
         /// Matches one node. `expected` names it when nothing is there.

@@ -121,3 +121,24 @@ nothing to report
 ## ENTRY: value, value: ONE OF [signed: NUMBER [SIGNED], words: ANYFIX CALL [NO ARGUMENTS]]
 nothing to report
 
+## ENTRY: value, value: ONE OF [a: ANYFIX CALL [WORD "IF", x: STRING], b: ANYFIX CALL [name: WORDS [NO KEYWORD], x: STRING]]
+nothing to report
+
+## ENTRY: value, value: ONE OF [a: ANYFIX CALL [WORD "IF", x: STRING], b: ANYFIX CALL [name: WORDS, x: STRING]]
+grammar:1:69: warning: found the choices `a` and `b` able to match the same input; expected at most one choice to fit any input, since `a` comes first and always wins it; make one of them more specific, or put the more specific one first
+  ENTRY: value, value: ONE OF [a: ANYFIX CALL [WORD "IF", x: STRING], b: ANYFIX CALL [name: WORDS, x: STRING]]
+                                                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+## ENTRY: value, value: ONE OF [a: ANYFIX CALL [name: WORDS [NO KEYWORD], x: STRING], b: ANYFIX CALL [name: WORDS [NO KEYWORD], x: NUMBER]]
+nothing to report
+
+## ENTRY: value, value: ONE OF [a: ANYFIX CALL [name: WORDS, x: STRING], b: ANYFIX CALL [NAME [NO KEYWORD]]]
+grammar:1:71: warning: found the choices `a` and `b` able to match the same input; expected at most one choice to fit any input, since `a` comes first and always wins it; make one of them more specific, or put the more specific one first
+  ENTRY: value, value: ONE OF [a: ANYFIX CALL [name: WORDS, x: STRING], b: ANYFIX CALL [NAME [NO KEYWORD]]]
+                                                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+## ENTRY: value, value: ONE OF [a: WORD "null", b: ANYFIX CALL [name: WORDS, x: OPTIONAL: STRING]]
+grammar:1:46: warning: found the choices `a` and `b` able to match the same input; expected at most one choice to fit any input, since `a` comes first and always wins it; make one of them more specific, or put the more specific one first
+  ENTRY: value, value: ONE OF [a: WORD "null", b: ANYFIX CALL [name: WORDS, x: OPTIONAL: STRING]]
+                                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+

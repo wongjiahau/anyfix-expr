@@ -61,3 +61,34 @@ grammar:1:61: warning: found a `PARENTHESIS` around exactly one element; expecte
 ## ENTRY: value, value: ONE OF [x: STRING, pair: PARENTHESIS [value, other: value]]
 nothing to report
 
+## ENTRY: value, value: WORDS
+grammar:1:22: error: found `WORDS` outside the parts of a call; expected it only among the parts of an `ANYFIX CALL [...]`, since only a call has name words; put it in one, as in `ANYFIX CALL [name: WORDS, value]`
+  ENTRY: value, value: WORDS
+                       ^^^^^
+
+## ENTRY: value, value: ANYFIX CALL [WORDS, x: STRING]
+grammar:1:35: error: found `WORDS` with no name; expected `name: pattern`, since only a rule reference or a `WORD` can go unnamed here; add a name, as in `name: WORDS`
+  ENTRY: value, value: ANYFIX CALL [WORDS, x: STRING]
+                                    ^^^^^
+
+## ENTRY: value, value: ANYFIX CALL [name: OPTIONAL: WORDS, x: STRING]
+grammar:1:35: error: found a repeated `WORDS` among the parts of a call; expected each name word exactly once; write one `ANYFIX CALL` per shape and join them with `ONE OF`
+  ENTRY: value, value: ANYFIX CALL [name: OPTIONAL: WORDS, x: STRING]
+                                    ^^^^^^^^^^^^^^^^^^^^^
+
+## ENTRY: value, value: ANYFIX CALL [name: WORDS, WORD "is", x: STRING]
+grammar:1:48: error: found a name word right next to `WORDS`; expected a slot between them, since `WORDS` takes every name word in a row; put a slot between them, or write the words as one `WORDS`
+  ENTRY: value, value: ANYFIX CALL [name: WORDS, WORD "is", x: STRING]
+                                                 ^^^^^^^^^
+
+## ENTRY: value, value: ANYFIX CALL [WORD "set", name: WORDS, x: STRING]
+grammar:1:47: error: found a name word right next to `WORDS`; expected a slot between them, since `WORDS` takes every name word in a row; put a slot between them, or write the words as one `WORDS`
+  ENTRY: value, value: ANYFIX CALL [WORD "set", name: WORDS, x: STRING]
+                                                ^^^^^^^^^^^
+
+## ENTRY: value, value: ANYFIX CALL [name: WORDS [NO KEYWORD, STARTS WITH "x"], x: STRING]
+nothing to report
+
+## ENTRY: value, value: ANYFIX CALL [NAME [NO KEYWORD, ENDS WITH " _"]]
+nothing to report
+

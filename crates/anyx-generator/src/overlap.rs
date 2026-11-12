@@ -28,6 +28,8 @@ pub struct Overlap<'a> {
 #[derive(Clone, Copy)]
 enum Atom<'a> {
     NameWord(&'a str),
+    /// The name words of a `WORDS`, one at a time.
+    NameWords(&'a [StringCondition]),
     Node(&'a Pattern),
     /// Any node: an element of `EACH`, which keeps a node that does not fit
     /// as its error.
@@ -190,6 +192,13 @@ impl<'a> Overlap<'a> {
                         .as_ref()
                         .is_none_or(|arguments| arguments.repetition.may_be_empty())
             }
+            (Pattern::Word(_) | Pattern::AnyWord { .. }, Pattern::SpecificCall(parts))
+                if has_words(parts) =>
+            {
+                parts.iter().all(|part| {
+                    matches!(part.pattern, Pattern::Words(_)) || part.repetition.may_be_empty()
+                })
+            }
             (Pattern::Word(_) | Pattern::AnyWord { .. }, Pattern::SpecificCall(parts)) => {
                 match only_word(parts) {
                     Some(word) => {
@@ -232,12 +241,14 @@ impl<'a> Overlap<'a> {
                     }
             }
             (Pattern::AnyCall { name, arguments }, Pattern::SpecificCall(parts)) => {
-                let fits_a_name = possible_names(parts)
-                    .iter()
-                    .any(|text| name.iter().all(|condition| condition.holds(text)));
+                // The words of a `WORDS` are unknown, so any name may fit.
+                let fits_a_name = has_words(parts)
+                    || possible_names(parts)
+                        .iter()
+                        .any(|text| name.iter().all(|condition| condition.holds(text)));
                 let slots: Vec<Element> = parts
                     .iter()
-                    .filter(|part| !matches!(part.pattern, Pattern::Word(_)))
+                    .filter(|part| !matches!(part.pattern, Pattern::Word(_) | Pattern::Words(_)))
                     .cloned()
                     .collect();
                 fits_a_name
@@ -276,6 +287,11 @@ impl<'a> Overlap<'a> {
             };
             let both = match (x.atom, y.atom) {
                 (Atom::NameWord(x), Atom::NameWord(y)) => x == y,
+                (Atom::NameWord(word), Atom::NameWords(conditions))
+                | (Atom::NameWords(conditions), Atom::NameWord(word)) => {
+                    may_be_among(word, conditions)
+                }
+                (Atom::NameWords(x), Atom::NameWords(y)) => conditions_overlap(x, y),
                 (Atom::Node(x), Atom::Node(y)) => self.patterns(x, y),
                 (Atom::AnyNode, Atom::Node(_) | Atom::AnyNode) | (Atom::Node(_), Atom::AnyNode) => {
                     true
@@ -302,12 +318,32 @@ fn node_steps(elements: &[Element]) -> Vec<Step<'_>> {
     steps(elements, |element| Atom::Node(&element.pattern))
 }
 
-/// The steps of a call's parts, where a `WORD` is a name word.
+/// The steps of a call's parts, where a `WORD` is a name word and a
+/// `WORDS` is one or more of them.
 fn part_steps(parts: &[Element]) -> Vec<Step<'_>> {
-    steps(parts, |part| match &part.pattern {
-        Pattern::Word(text) => Atom::NameWord(text),
-        pattern => Atom::Node(pattern),
-    })
+    let mut all = Vec::new();
+    for part in parts {
+        let one = std::slice::from_ref(part);
+        match &part.pattern {
+            Pattern::Words(conditions) => all.extend(
+                steps(one, |_| Atom::NameWords(conditions))
+                    .into_iter()
+                    .flat_map(|step| {
+                        [
+                            step,
+                            Step {
+                                optional: true,
+                                repeats: true,
+                                ..step
+                            },
+                        ]
+                    }),
+            ),
+            Pattern::Word(text) => all.extend(steps(one, |_| Atom::NameWord(text))),
+            pattern => all.extend(steps(one, |_| Atom::Node(pattern))),
+        }
+    }
+    all
 }
 
 fn steps<'a>(elements: &'a [Element], atom: impl Fn(&'a Element) -> Atom<'a>) -> Vec<Step<'a>> {
@@ -353,10 +389,28 @@ fn call_name_covers(conditions: &[StringCondition], specific: &Pattern) -> bool 
         Pattern::SpecificCall(parts) => {
             conditions.is_empty()
                 || (!parts.iter().any(|part| part.repetition.may_repeat())
+                    && !has_words(parts)
                     && possible_names(parts).iter().all(|name| all_hold(name)))
         }
         _ => false,
     }
+}
+
+/// Whether `word` may be one of the words of a `WORDS`. Its conditions
+/// are on all the words together, so only those that hold for each word
+/// alone are checked, and the answer leans towards yes.
+fn may_be_among(word: &str, conditions: &[StringCondition]) -> bool {
+    conditions.iter().all(|condition| match condition {
+        StringCondition::NoKeyword | StringCondition::NoSlots => condition.holds(word),
+        _ => true,
+    })
+}
+
+/// Whether a call's parts have a `WORDS`, whose words are unknown.
+fn has_words(parts: &[Element]) -> bool {
+    parts
+        .iter()
+        .any(|part| matches!(part.pattern, Pattern::Words(_)))
 }
 
 /// The word a specific call is when it can be one word and nothing else.
@@ -478,6 +532,10 @@ fn conditions_overlap(a: &[StringCondition], b: &[StringCondition]) -> bool {
             StringCondition::Contains(text) => regex::escape(text),
             StringCondition::MatchingRegex(regex) => regex.clone(),
             StringCondition::NoSlots => "^(?:(?:[^ _][^ ]*|_[^ ]+)(?: |$))*$".to_string(),
+            // Every word has a lowercase letter, or no uppercase one.
+            StringCondition::NoKeyword => {
+                "^(?:(?:[^ ]*\\p{Ll}[^ ]*|[^ \\p{Lu}]*)(?: |$))*$".to_string()
+            }
         })
         .collect();
     some_text_matches_all(&regexes)

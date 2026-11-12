@@ -142,6 +142,11 @@ enum Value {
     Definition(usize),
     /// The span of a word.
     Word(String),
+    /// The name words a `WORDS` takes, whose text must pass `condition`,
+    /// a closure. Only a call's sequence decodes them.
+    Words {
+        condition: String,
+    },
     /// A built-in, decoded by the expression `call`.
     Leaf {
         kind: Leaf,
@@ -331,6 +336,12 @@ impl Builder<'_> {
                     ),
                 }
             }
+            Pattern::Words(conditions) => {
+                let terms = self.terms(conditions, "text");
+                Value::Words {
+                    condition: closure(&terms, "text"),
+                }
+            }
             Pattern::AnyNode => Value::Leaf {
                 kind: Leaf::Node,
                 call: "support::any_node(node)".to_string(),
@@ -486,6 +497,9 @@ impl Builder<'_> {
                 StringCondition::NoSlots => {
                     format!("!{variable}.split(' ').any(|word| word == \"_\")")
                 }
+                StringCondition::NoKeyword => {
+                    format!("!{variable}.split(' ').any(anyx::is_keyword)")
+                }
             })
             .collect()
     }
@@ -495,7 +509,7 @@ impl Builder<'_> {
         let definition = match value {
             Value::Rule(rule) => self.rule_definitions[*rule],
             Value::Definition(definition) => *definition,
-            Value::Word(_) | Value::Leaf { .. } => return Vec::new(),
+            Value::Word(_) | Value::Words { .. } | Value::Leaf { .. } => return Vec::new(),
         };
         match &self.definitions[definition].body {
             Body::Alias(value) => self.held_types(value),
@@ -772,7 +786,7 @@ impl Printer<'_> {
         match value {
             Value::Rule(rule) => Some(self.rule_definitions[*rule]),
             Value::Definition(definition) => Some(*definition),
-            Value::Word(_) | Value::Leaf { .. } => None,
+            Value::Word(_) | Value::Words { .. } | Value::Leaf { .. } => None,
         }
     }
 
@@ -780,6 +794,7 @@ impl Printer<'_> {
         let spanned = |inner: &str| format!("{}<{inner}>", self.names.get("Spanned"));
         match value {
             Value::Word(_) => self.names.get("Span").to_string(),
+            Value::Words { .. } => spanned(self.names.get("String")),
             Value::Leaf { kind, .. } => match kind {
                 Leaf::StringLiteral => spanned(self.names.get("StringLiteral")),
                 Leaf::Text => spanned(self.names.get("String")),
@@ -844,6 +859,7 @@ impl Printer<'_> {
     fn call(&self, value: &Value) -> String {
         match value {
             Value::Word(text) => format!("support::word(node, {text:?})"),
+            Value::Words { .. } => unreachable!("only a call's sequence decodes `WORDS`"),
             Value::Leaf { call, .. } => call.clone(),
             Value::Rule(rule) => {
                 format!("{}(node)", self.function_name(self.rule_definitions[*rule]))
@@ -1000,15 +1016,16 @@ impl Printer<'_> {
                 }
                 Step::Field(field) => field,
             };
-            let decoder = self.decoder(&field.value, field.boxed);
+            let decoder = || self.decoder(&field.value, field.boxed);
             let expected = &field.expected;
             let matched = match (&field.value, field.repetition) {
                 (Value::Word(text), Repetition::One) => format!(".word_span({text:?})?"),
-                (_, Repetition::One) => format!(".one({decoder}, {expected:?})?"),
-                (_, Repetition::Optional) => format!(".optional({decoder})"),
-                (_, Repetition::ZeroOrMore) => format!(".zero_or_more({decoder})"),
-                (_, Repetition::OneOrMore) => format!(".one_or_more({decoder}, {expected:?})?"),
-                (_, Repetition::Each) => format!(".each({decoder})"),
+                (Value::Words { condition }, _) => format!(".words({condition}, {expected:?})?"),
+                (_, Repetition::One) => format!(".one({}, {expected:?})?", decoder()),
+                (_, Repetition::Optional) => format!(".optional({})", decoder()),
+                (_, Repetition::ZeroOrMore) => format!(".zero_or_more({})", decoder()),
+                (_, Repetition::OneOrMore) => format!(".one_or_more({}, {expected:?})?", decoder()),
+                (_, Repetition::Each) => format!(".each({})", decoder()),
             };
             fields.push((field.name.clone(), format!("{variable}{words}{matched}")));
             words.clear();
