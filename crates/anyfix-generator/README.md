@@ -306,16 +306,17 @@ the call `server _`
 ```rust
 mod parser;
 
-let parsed = anyfix_expr::parse(source);
-// Report `parsed.errors` first: they are about the anyfix syntax itself.
-match parser::decode_document(&parsed.syntax.nodes()) {
+let parsed = parser::parse_document(source);
+// Report `parsed.syntax_errors` first: they are about the anyfix syntax itself.
+match parsed.document {
     Ok(document) => { /* a `parser::Document` */ }
     Err(error) => eprintln!("{}", error.render(source, "input.json")),
 }
 ```
 
-`decode_document` decodes what `ENTRY` describes. Each rule also has a
-decoder of its own, `decode_<rule>`, from one node.
+`parse_document` parses the source with anyfix and decodes what `ENTRY`
+describes. To decode nodes you already have, `decode_document` takes them.
+Each rule also has a decoder of its own, `decode_<rule>`, from one node.
 
 ### The types
 

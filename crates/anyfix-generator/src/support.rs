@@ -204,6 +204,23 @@ enum Item<'a> {
     Node(&'a Node),
 }
 
+/// A source parsed by anyfix and decoded: the syntax errors anyfix found and
+/// recovered from, and the document, or why it does not match.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Parsed<T> {
+    pub syntax_errors: Vec<anyfix_expr::Error>,
+    pub document: Result<T, DecodeError>,
+}
+
+/// Parses `source` with anyfix, then decodes its nodes with `decode`.
+pub fn parse<T>(source: &str, decode: impl FnOnce(&[Node]) -> Result<T, DecodeError>) -> Parsed<T> {
+    let parsed = anyfix_expr::parse(source);
+    Parsed {
+        document: decode(&parsed.syntax.nodes()),
+        syntax_errors: parsed.errors,
+    }
+}
+
 /// The sequence of top-level elements of a document.
 pub fn document(nodes: &[Node]) -> Sequence<'_> {
     let end = nodes.last().map_or(0, |last| last.span.end);

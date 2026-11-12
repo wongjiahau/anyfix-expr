@@ -895,6 +895,11 @@ fn decode_number_condition_at_most(node: &Node) -> Result<NumberCondition, Decod
     Ok(decoded)
 }
 
+/// Parses `source` with anyfix and decodes its document.
+pub fn parse_document(source: &str) -> support::Parsed<Document> {
+    support::parse(source, decode_document)
+}
+
 pub mod support {
     //! What every generated decoder needs: spans, errors, and matching a
     //! sequence of nodes. The generator copies this file into its output, so a
@@ -1100,6 +1105,26 @@ pub mod support {
     enum Item<'a> {
         Word(&'a str, Span),
         Node(&'a Node),
+    }
+
+    /// A source parsed by anyfix and decoded: the syntax errors anyfix found and
+    /// recovered from, and the document, or why it does not match.
+    #[derive(Clone, Debug, PartialEq)]
+    pub struct Parsed<T> {
+        pub syntax_errors: Vec<anyfix_expr::Error>,
+        pub document: Result<T, DecodeError>,
+    }
+
+    /// Parses `source` with anyfix, then decodes its nodes with `decode`.
+    pub fn parse<T>(
+        source: &str,
+        decode: impl FnOnce(&[Node]) -> Result<T, DecodeError>,
+    ) -> Parsed<T> {
+        let parsed = anyfix_expr::parse(source);
+        Parsed {
+            document: decode(&parsed.syntax.nodes()),
+            syntax_errors: parsed.errors,
+        }
     }
 
     /// The sequence of top-level elements of a document.

@@ -555,3 +555,16 @@ fn any_order_fails_without_a_required_element() {
         "found the end of the document; expected the call `package _`"
     );
 }
+
+#[test]
+fn parse_document_gives_the_syntax_errors_and_the_document() {
+    let parsed = manifest::parse_document("package { name \"demo\" }, license (\"MIT\"");
+    let messages: Vec<&str> = parsed
+        .syntax_errors
+        .iter()
+        .map(|error| error.message.as_str())
+        .collect();
+    assert_eq!(messages.len(), 1, "{messages:?}");
+    let document = parsed.document.unwrap();
+    assert_eq!(document.package.fields.name.value.value.value, "demo");
+}

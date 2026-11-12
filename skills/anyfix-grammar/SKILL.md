@@ -47,9 +47,9 @@ way of working, the examples and the mistakes to avoid.
    that point at the right place:
 
    ```rust
-   let parsed = anyfix_expr::parse(source);
-   assert!(parsed.errors.is_empty());
-   let document = parser::decode_document(&parsed.syntax.nodes()).unwrap();
+   let parsed = parser::parse_document(source);
+   assert!(parsed.syntax_errors.is_empty());
+   let document = parsed.document.unwrap();
    ```
 
    `error.render(source, path)` gives the message with the source line.
