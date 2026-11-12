@@ -62,7 +62,7 @@ pub struct Choice {
 pub struct Element {
     /// The field this element fills. An unnamed `WORD` fills none, and
     /// neither does the only element of a bracket that needs no name.
-    /// Among the parts of a `SPECIFIC ANYFIX CALL`, a `WORD` is always one
+    /// Among the parts of an `ANYFIX CALL [...]`, a `WORD` is always one
     /// of the call's name words, named or not.
     pub name: Option<String>,
     pub repetition: Repetition,

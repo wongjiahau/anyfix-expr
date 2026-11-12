@@ -2,13 +2,13 @@
 # is not repeated may be written once.
 
 ENTRY: ANY ORDER [
-  package: SPECIFIC ANYFIX CALL [WORD "package", fields: package fields],
-  dependency: ZERO OR MORE: SPECIFIC ANYFIX CALL [WORD "dependency", name: STRING],
-  license: OPTIONAL: SPECIFIC ANYFIX CALL [WORD "license", name: STRING],
+  package: ANYFIX CALL [WORD "package", fields: package fields],
+  dependency: ZERO OR MORE: ANYFIX CALL [WORD "dependency", name: STRING],
+  license: OPTIONAL: ANYFIX CALL [WORD "license", name: STRING],
 ],
 
 package fields: CURLY BRACE: ANY ORDER [
-  name: SPECIFIC ANYFIX CALL [WORD "name", value: STRING],
-  version: OPTIONAL: SPECIFIC ANYFIX CALL [WORD "version", value: STRING],
-  author: ZERO OR MORE: SPECIFIC ANYFIX CALL [WORD "author", value: STRING],
+  name: ANYFIX CALL [WORD "name", value: STRING],
+  version: OPTIONAL: ANYFIX CALL [WORD "version", value: STRING],
+  author: ZERO OR MORE: ANYFIX CALL [WORD "author", value: STRING],
 ],

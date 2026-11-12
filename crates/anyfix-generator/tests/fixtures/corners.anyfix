@@ -17,8 +17,8 @@ node: ONE OF [
   nothing: PARENTHESIS [],
   only words: PARENTHESIS [WORD "only", WORD "words"],
   wrapped: PARENTHESIS [WORD "wrap", OPTIONAL: node, WORD "end"],
-  each: SPECIFIC ANYFIX CALL [WORD "EACH", EACH: node],
-  kept: SPECIFIC ANYFIX CALL [WORD "KEEP", node: ANY NODE],
+  each: ANYFIX CALL [WORD "EACH", EACH: node],
+  kept: ANYFIX CALL [WORD "KEEP", node: ANY NODE],
   raw: ANYFIX CALL [NAME [STARTS WITH "raw "]],
   exact: STRING "exact",
   spanned: span,
@@ -28,7 +28,7 @@ node: ONE OF [
 
 span: WORD "span",
 
-option: SPECIFIC ANYFIX CALL [
+option: ANYFIX CALL [
   WORD "OPTION", type: ANY WORD [SYMBOL], OPTIONAL: node,
   WORD "THEN", match: OPTIONAL: string, WORD "END",
 ],
@@ -45,7 +45,7 @@ numbers: SQUARE BRACKET [
   rest: ZERO OR MORE: NUMBER,
 ],
 
-words: SPECIFIC ANYFIX CALL [
+words: ANYFIX CALL [
   WORD "WORDS",
   list: SQUARE BRACKET [
     keyword: ANY WORD [KEYWORD],

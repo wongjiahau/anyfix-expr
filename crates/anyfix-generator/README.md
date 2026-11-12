@@ -27,7 +27,7 @@ value: ONE OF [
 object: CURLY BRACE: ZERO OR MORE: member,
 
 # `"key": value` is the call `_ _` of the key and the value.
-member: SPECIFIC ANYFIX CALL [key: STRING, value],
+member: ANYFIX CALL [key: STRING, value],
 
 array: SQUARE BRACKET: ZERO OR MORE: value,
 ```
@@ -77,7 +77,7 @@ The choices are tried in the order written, and the first one that matches
 wins. The generator warns whenever two choices can match the same input,
 since the later one then never sees it, unless the later one matches
 everything the earlier one does: a fallback after the cases it catches,
-such as `[minus: SPECIFIC ANYFIX CALL [WORD "-", n: NUMBER], other: ANYFIX CALL]`.
+such as `[minus: ANYFIX CALL [WORD "-", n: NUMBER], other: ANYFIX CALL]`.
 
 ### `ZERO OR MORE:`, `ONE OR MORE:`, `OPTIONAL:`, `EACH:`
 
@@ -89,8 +89,8 @@ EACH: setting
 ```
 
 A repetition is written as a prefix, and stands where a sequence of nodes is
-described: in `ENTRY`, in a bracket, among the parts of a
-`SPECIFIC ANYFIX CALL`, or after `ARGUMENTS:`. It takes as many nodes as
+described: in `ENTRY`, in a bracket, among the parts of an
+`ANYFIX CALL [...]`, or after `ARGUMENTS:`. It takes as many nodes as
 match, and never gives one back: in `[ZERO OR MORE: STRING, STRING]` the
 repetition takes every string, so the last `STRING` never matches.
 
@@ -102,7 +102,7 @@ after it still decode. So `EACH` comes last in its list, and the list it is
 in matches whatever its elements are.
 
 ```text
-section: SPECIFIC ANYFIX CALL [WORD "server", settings: CURLY BRACE: EACH: setting],
+section: ANYFIX CALL [WORD "server", settings: CURLY BRACE: EACH: setting],
 ```
 
 ### `ANY ORDER [...]`
@@ -145,32 +145,35 @@ always a list of the grammar language, never a bracket of your language.
 `(a,)`. Parentheses around one element with no comma only group, so `(x)`
 is `x` and no `PARENTHESIS` is there to match.
 
-### `SPECIFIC ANYFIX CALL [...]`
-
-```text
-SPECIFIC ANYFIX CALL [WORD "IF", condition: expression, WORD "THEN", then: expression]
-SPECIFIC ANYFIX CALL [key: STRING, value]      # the call `_ _`
-SPECIFIC ANYFIX CALL [WORD "print", ZERO OR MORE: expression]
-```
-
-The parts describe one call, in order. A `WORD` part is one of the call's
-name words. Every other part fills the call's next slot. A repetition makes
-the call variadic: the last example matches `print`, `print _`,
-`print _ _` and so on.
-
 ### `ANYFIX CALL`
 
+`ANYFIX CALL` alone matches any call, which is how a language lets its users
+define their own. The square brackets after it restrict which calls match,
+in one of two ways.
+
+The parts of one call, in order:
+
 ```text
-ANYFIX CALL                                             # any call
+ANYFIX CALL [WORD "IF", condition: expression, WORD "THEN", then: expression]
+ANYFIX CALL [key: STRING, value]      # the call `_ _`
+ANYFIX CALL [WORD "print", ZERO OR MORE: expression]
+```
+
+A `WORD` part is one of the call's name words. Every other part fills the
+call's next slot. A repetition makes the call variadic: the last example
+matches `print`, `print _`, `print _ _` and so on.
+
+Or conditions on any call:
+
+```text
 ANYFIX CALL [NAME [STARTS WITH "get "]]                 # by its name
 ANYFIX CALL [ARGUMENTS: ZERO OR MORE: expression]       # with typed arguments
 ANYFIX CALL [NAME [ENDS WITH " _"], ARGUMENTS: expression]
 ANYFIX CALL [NO ARGUMENTS]                              # words alone: `sans serif`
 ```
 
-`ANYFIX CALL` matches any call, which is how a language lets its users
-define their own. The AST keeps the call's name text, with `_` for each
-slot: `list file in _`.
+Without parts, the AST keeps the call's name text, with `_` for each slot:
+`list file in _`.
 
 - `NAME [string conditions]` puts conditions on that name text.
 - `ARGUMENTS: pattern` describes the arguments. Without it, they stay raw
@@ -234,7 +237,7 @@ grammar needs no `ONE OF` of its own to read a signed value.
 ### `ANY NODE`
 
 ```text
-SPECIFIC ANYFIX CALL [WORD "range", value: ANY NODE]
+ANYFIX CALL [WORD "range", value: ANY NODE]
 ```
 
 `ANY NODE` matches any one node and keeps it as an `anyfix_expr::Node`,
@@ -249,7 +252,7 @@ field of the surrounding call or bracket, or a choice of the surrounding
 `ONE OF`:
 
 ```text
-member: SPECIFIC ANYFIX CALL [key: STRING, value],
+member: ANYFIX CALL [key: STRING, value],
 value: ONE OF [object, text: STRING, WORD "null"],
 ```
 
@@ -258,8 +261,8 @@ The name can be left out when it is obvious:
 - A rule reference is named after its rule: `value` above is the field
   `value`, and `object` is the choice `object`. So is a repetition of one:
   `ZERO OR MORE: member` is the field `member`.
-- `WORD "null"` in a `ONE OF` is the choice `null`. Among the parts of a
-  `SPECIFIC ANYFIX CALL` or the elements of a bracket, a `WORD` is only
+- `WORD "null"` in a `ONE OF` is the choice `null`. Among the parts of an
+  `ANYFIX CALL [...]` or the elements of a bracket, a `WORD` is only
   matched and makes no field.
 
 Anything else must be named: `STRING`, `NUMBER`, a symbol word such as
@@ -356,7 +359,8 @@ pub struct Array { pub value: Vec<Value>, pub span: Span }
 | `NUMBER` | `Spanned<f64>`, or an integer type (see below) |
 | `ANY WORD` | `Spanned<String>` |
 | a named `WORD` | `Span` |
-| `ANYFIX CALL` | a struct of `name: CallName` and `arguments` |
+| `ANYFIX CALL [parts]` | a struct of its fields |
+| `ANYFIX CALL`, alone or with conditions | a struct of `name: CallName` and `arguments` |
 | a bracket that is a field or a choice, around one unnamed value | `Spanned<T>`: the value, and the bracket's span |
 
 A rule `key value` is the type `KeyValue`, decoded by `decode_key_value`.
@@ -399,7 +403,7 @@ by its full path (`std::string::String`, `anyfix_expr::Node`).
   every node that fits and gives none back, so in `[ZERO OR MORE: value,
   last: value]` nothing is left for `last`. `EACH` takes every node left,
   whether it fits or not.
-- A call matches `SPECIFIC ANYFIX CALL` only with exactly its words and
+- A call matches `ANYFIX CALL [parts]` only with exactly its words and
   arguments, and a bracket only when no element is left over.
 
 ### Decode errors

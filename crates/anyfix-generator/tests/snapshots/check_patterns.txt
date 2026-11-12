@@ -38,10 +38,10 @@ grammar:1:41: error: found a second kind of word; expected at most one of `KEYWO
   ENTRY: value, value: ANY WORD [KEYWORD, SYMBOL]
                                           ^^^^^^
 
-## ENTRY: value, value: SPECIFIC ANYFIX CALL [x: STRING]
+## ENTRY: value, value: ANYFIX CALL [x: STRING]
 grammar:1:22: error: found a call of one slot and no word; expected a `WORD`, or at least two parts, since one item alone is never a call; write the part's pattern on its own
-  ENTRY: value, value: SPECIFIC ANYFIX CALL [x: STRING]
-                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  ENTRY: value, value: ANYFIX CALL [x: STRING]
+                       ^^^^^^^^^^^^^^^^^^^^^^^
 
 ## ENTRY: value, value: ANYFIX CALL [NAME [CONTAINS "a"], NAME [CONTAINS "b"]]
 grammar:1:56: error: found a second `NAME`; expected one `NAME [...]` holding every condition on the name; merge the two lists

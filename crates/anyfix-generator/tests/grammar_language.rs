@@ -198,14 +198,20 @@ fn bad_grammars_say_what_was_found_and_what_was_expected() {
                 ^",
         ),
         (
+            "ENTRY: value, value: ANYFIX CALL [WORD \"f\", NAME [STARTS WITH \"g\"]]",
+            "grammar:1:45: found the word `NAME`; expected the word `ONE`, `ZERO`, `OPTIONAL`, `EACH`, `CURLY`, `SQUARE`, `PARENTHESIS`, `ANYFIX`, `WORD`, `ANY`, `STRING` or `NUMBER`
+  ENTRY: value, value: ANYFIX CALL [WORD \"f\", NAME [STARTS WITH \"g\"]]
+                                              ^^^^",
+        ),
+        (
             "ENTRY: value, value: a_b",
-            "grammar:1:22: found the word `a_b`; expected the word `ONE`, `ZERO`, `OPTIONAL`, `EACH`, `CURLY`, `SQUARE`, `PARENTHESIS`, `SPECIFIC`, `ANYFIX`, `WORD`, `ANY`, `STRING`, `NUMBER` or a call whose name matches the regex `^[a-z][a-z0-9]*( [a-z][a-z0-9]*)*$`
+            "grammar:1:22: found the word `a_b`; expected the word `ONE`, `ZERO`, `OPTIONAL`, `EACH`, `CURLY`, `SQUARE`, `PARENTHESIS`, `ANYFIX`, `WORD`, `ANY`, `STRING`, `NUMBER` or a call whose name matches the regex `^[a-z][a-z0-9]*( [a-z][a-z0-9]*)*$`
   ENTRY: value, value: a_b
                        ^^^",
         ),
         (
             "ENTRY: value, value: (a, b)",
-            "grammar:1:22: found `(...)`; expected the word `STRING`, `NUMBER`, the call `ONE OF _`, `ZERO OR MORE _`, `ONE OR MORE _`, `OPTIONAL _`, `EACH _`, `CURLY BRACE _`, `SQUARE BRACKET _`, `PARENTHESIS _`, `SPECIFIC ANYFIX CALL _`, `ANYFIX CALL _?`, `WORD _`, `ANY WORD _?`, `STRING _`, `NUMBER _`, `ANY NODE` or a call whose name matches the regex `^[a-z][a-z0-9]*( [a-z][a-z0-9]*)*$`
+            "grammar:1:22: found `(...)`; expected the word `STRING`, `NUMBER`, the call `ONE OF _`, `ZERO OR MORE _`, `ONE OR MORE _`, `OPTIONAL _`, `EACH _`, `CURLY BRACE _`, `SQUARE BRACKET _`, `PARENTHESIS _`, `ANYFIX CALL _`, `ANYFIX CALL _?`, `WORD _`, `ANY WORD _?`, `STRING _`, `NUMBER _`, `ANY NODE` or a call whose name matches the regex `^[a-z][a-z0-9]*( [a-z][a-z0-9]*)*$`
   ENTRY: value, value: (a, b)
                        ^^^^^^",
         ),

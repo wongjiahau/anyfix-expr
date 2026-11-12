@@ -35,11 +35,11 @@ grammar:1:62: error: found `NUMBER` with no name; expected `name: pattern`, sinc
 ## ENTRY: value, value: CURLY BRACE [a: SQUARE BRACKET [STRING]]
 nothing to report
 
-## ENTRY: value, value: SPECIFIC ANYFIX CALL [WORD "a", span: STRING, self: STRING]
-grammar:1:54: error: found a field named `span`; expected another name, since every struct already has a `span`; rename the field
-  ENTRY: value, value: SPECIFIC ANYFIX CALL [WORD "a", span: STRING, self: STRING]
-                                                       ^^^^^^^^^^^^
-grammar:1:68: error: found the name `self`; expected a name that can be a Rust identifier, which `self` can't; choose another name
-  ENTRY: value, value: SPECIFIC ANYFIX CALL [WORD "a", span: STRING, self: STRING]
-                                                                     ^^^^^^^^^^^^
+## ENTRY: value, value: ANYFIX CALL [WORD "a", span: STRING, self: STRING]
+grammar:1:45: error: found a field named `span`; expected another name, since every struct already has a `span`; rename the field
+  ENTRY: value, value: ANYFIX CALL [WORD "a", span: STRING, self: STRING]
+                                              ^^^^^^^^^^^^
+grammar:1:59: error: found the name `self`; expected a name that can be a Rust identifier, which `self` can't; choose another name
+  ENTRY: value, value: ANYFIX CALL [WORD "a", span: STRING, self: STRING]
+                                                            ^^^^^^^^^^^^
 

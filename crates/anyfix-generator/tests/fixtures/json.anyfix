@@ -15,6 +15,6 @@ value: ONE OF [
 object: CURLY BRACE: ZERO OR MORE: member,
 
 # `"key": value` is the call `_ _` of the key and the value.
-member: SPECIFIC ANYFIX CALL [key: STRING, value],
+member: ANYFIX CALL [key: STRING, value],
 
 array: SQUARE BRACKET: ZERO OR MORE: value,

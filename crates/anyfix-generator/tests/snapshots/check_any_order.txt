@@ -23,6 +23,6 @@ grammar:1:60: warning: found the elements `text` and `name` able to match the sa
   ENTRY: thing, thing: CURLY BRACE: ANY ORDER [text: STRING, name: STRING [MATCHING REGEX "^a"]]
                                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-## ENTRY: ANY ORDER [count: NUMBER, label: OPTIONAL: STRING, tag: ZERO OR MORE: SPECIFIC ANYFIX CALL [WORD "tag", value: STRING]]
+## ENTRY: ANY ORDER [count: NUMBER, label: OPTIONAL: STRING, tag: ZERO OR MORE: ANYFIX CALL [WORD "tag", value: STRING]]
 nothing to report
 

@@ -105,7 +105,7 @@ choice: ONE OF [first: pattern, second: pattern],   # first match wins
 | `ZERO OR MORE:`, `ONE OR MORE:`, `OPTIONAL:` | inside a bracket, `ENTRY`, a call or `ARGUMENTS:` | `Vec`, `Option` |
 | `EACH:` | every element left, each decoded on its own | `Vec<Result<T, DecodeError>>` |
 | `ENTRY: ANY ORDER [a: x, b: OPTIONAL: y]` (also in a bracket) | elements in any order; required ones once, `OPTIONAL` at most once | a struct with a field per element and `errors: Vec<DecodeError>` for strays and repeats |
-| `SPECIFIC ANYFIX CALL [WORD "IF", condition: x, WORD "THEN", then: y]` | the call `IF _ THEN _` | a struct |
+| `ANYFIX CALL [WORD "IF", condition: x, WORD "THEN", then: y]` | the call `IF _ THEN _` | a struct |
 | `ANYFIX CALL [NAME [MATCHING REGEX "^[a-z]+ _$"], ARGUMENTS: x]` | any call whose name fits | a struct with `name: CallName` and `arguments` |
 | `ANYFIX CALL [NO ARGUMENTS]` | a call of words alone: `sans serif` | a struct with `name: CallName` |
 | `ANY NODE` | any one node, for your own code to decode | `anyfix_expr::Node` |
@@ -141,7 +141,7 @@ value: ONE OF [
 object: CURLY BRACE: ZERO OR MORE: member,
 
 # `"key": value` is the call `_ _` of the key and the value.
-member: SPECIFIC ANYFIX CALL [key: STRING, value],
+member: ANYFIX CALL [key: STRING, value],
 
 array: SQUARE BRACKET: ZERO OR MORE: value,
 ```
@@ -198,7 +198,7 @@ allows no `_`, so the two never compete. `EACH` keeps a setting that does not fi
 `DecodeError`, so a config with two typos reports both, and the settings
 around them still decode. Use it wherever a user edits a list by hand.
 When the keys *are* known, prefer one
-`SPECIFIC ANYFIX CALL [WORD "port", port: NUMBER [INTEGER, AT LEAST 1, AT MOST 65535]]`
+`ANYFIX CALL [WORD "port", port: NUMBER [INTEGER, AT LEAST 1, AT MOST 65535]]`
 per key: the types and the errors get better.
 
 ### A keyword language (`examples/language.anyfix`)
@@ -207,23 +207,23 @@ per key: the types and the errors get better.
 ENTRY [ZERO OR MORE: statement],
 
 statement: ONE OF [
-  let: SPECIFIC ANYFIX CALL [WORD "LET", binding],
-  return: SPECIFIC ANYFIX CALL [WORD "RETURN", OPTIONAL: expression],
+  let: ANYFIX CALL [WORD "LET", binding],
+  return: ANYFIX CALL [WORD "RETURN", OPTIONAL: expression],
   expression,
 ],
 
 # `total = 1` is the call `_ = _` of the name and the value.
-binding: SPECIFIC ANYFIX CALL [name: ANY WORD [NAME], WORD "=", value: expression],
+binding: ANYFIX CALL [name: ANY WORD [NAME], WORD "=", value: expression],
 
 expression: ONE OF [
-  if: SPECIFIC ANYFIX CALL [
+  if: ANYFIX CALL [
     WORD "IF", condition: expression,
     WORD "THEN", then: expression,
     WORD "ELSE", else: expression,
   ],
-  not: SPECIFIC ANYFIX CALL [WORD "NOT", expression],
-  less: SPECIFIC ANYFIX CALL [left: expression, WORD "<", right: expression],
-  sum: SPECIFIC ANYFIX CALL [left: expression, WORD "+", right: expression],
+  not: ANYFIX CALL [WORD "NOT", expression],
+  less: ANYFIX CALL [left: expression, WORD "<", right: expression],
+  sum: ANYFIX CALL [left: expression, WORD "+", right: expression],
   variable: ANY WORD [NAME],
   number: NUMBER,
   text: STRING,
@@ -287,7 +287,7 @@ Errors that need a design change rather than a typo fix:
   paths of names give the same type (rule `value text` and rule `value`'s
   choice `text`). Rename one.
 - **"a repeated `WORD` among the parts of a call"**: `A _ A _` is not one
-  shape to match; write one `SPECIFIC ANYFIX CALL` per shape.
+  shape to match; write one `ANYFIX CALL` per shape.
 
 Decode errors, from the generated parser, have the same shape and point at
 the source being decoded:

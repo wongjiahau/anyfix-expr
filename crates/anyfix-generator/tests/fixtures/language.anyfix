@@ -3,23 +3,23 @@
 ENTRY [ZERO OR MORE: statement],
 
 statement: ONE OF [
-  let: SPECIFIC ANYFIX CALL [WORD "LET", binding],
-  return: SPECIFIC ANYFIX CALL [WORD "RETURN", OPTIONAL: expression],
+  let: ANYFIX CALL [WORD "LET", binding],
+  return: ANYFIX CALL [WORD "RETURN", OPTIONAL: expression],
   expression,
 ],
 
 # `total = 1` is the call `_ = _` of the name and the value.
-binding: SPECIFIC ANYFIX CALL [name: ANY WORD [NAME], WORD "=", value: expression],
+binding: ANYFIX CALL [name: ANY WORD [NAME], WORD "=", value: expression],
 
 expression: ONE OF [
-  if: SPECIFIC ANYFIX CALL [
+  if: ANYFIX CALL [
     WORD "IF", condition: expression,
     WORD "THEN", then: expression,
     WORD "ELSE", else: expression,
   ],
-  not: SPECIFIC ANYFIX CALL [WORD "NOT", expression],
-  less: SPECIFIC ANYFIX CALL [left: expression, WORD "<", right: expression],
-  sum: SPECIFIC ANYFIX CALL [left: expression, WORD "+", right: expression],
+  not: ANYFIX CALL [WORD "NOT", expression],
+  less: ANYFIX CALL [left: expression, WORD "<", right: expression],
+  sum: ANYFIX CALL [left: expression, WORD "+", right: expression],
   variable: ANY WORD [NAME],
   number: NUMBER,
   text: STRING,

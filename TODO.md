@@ -20,7 +20,7 @@ the tree from `SyntaxTree::nodes()` into that AST.
   - [x] `ONE OF [...]`: first match wins
   - [x] `ZERO OR MORE:`, `ONE OR MORE:`, `OPTIONAL:`
   - [x] `CURLY BRACE`, `SQUARE BRACKET`, `PARENTHESIS`, with `: pattern` or `[elements in order]`
-  - [x] `SPECIFIC ANYFIX CALL [WORD "IF", condition: expression, ...]`
+  - [x] `ANYFIX CALL [WORD "IF", condition: expression, ...]`
   - [x] `ANYFIX CALL [NAME [...], ARGUMENTS: pattern]`
   - [x] `WORD "x"`, `ANY WORD [KEYWORD | NAME | SYMBOL | string conditions]`
   - [x] `STRING`, `STRING "exact"`, `STRING [STARTS WITH, ENDS WITH, CONTAINS, MATCHING REGEX]`

@@ -131,7 +131,7 @@ impl Lowerer<'_> {
             ast::Pattern::Repetition(repetition) => {
                 self.error(
                     repetition.span(),
-                    "found a repetition where exactly one node is matched; expected `ZERO OR MORE`, `ONE OR MORE`, `OPTIONAL` and `EACH` only on an element of `ENTRY`, of a bracket or of a `SPECIFIC ANYFIX CALL`, or after `ARGUMENTS:`; move it into a list, as in `SQUARE BRACKET [ZERO OR MORE: value]`",
+                    "found a repetition where exactly one node is matched; expected `ZERO OR MORE`, `ONE OR MORE`, `OPTIONAL` and `EACH` only on an element of `ENTRY`, of a bracket or of an `ANYFIX CALL [...]`, or after `ARGUMENTS:`; move it into a list, as in `SQUARE BRACKET [ZERO OR MORE: value]`",
                 );
                 self.pattern(repetition_of(pattern).1, position)
             }
@@ -407,7 +407,7 @@ impl Lowerer<'_> {
             if matches!(part.pattern, Pattern::Word(_)) && part.repetition != Repetition::One {
                 self.error(
                     part.span,
-                    "found a repeated `WORD` among the parts of a call; expected each name word exactly once; write one `SPECIFIC ANYFIX CALL` per shape and join them with `ONE OF`",
+                    "found a repeated `WORD` among the parts of a call; expected each name word exactly once; write one `ANYFIX CALL` per shape and join them with `ONE OF`",
                 );
             }
         }

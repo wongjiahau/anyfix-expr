@@ -566,10 +566,9 @@ fn decode_container_parenthesis(node: &Node) -> Result<Container, DecodeError> {
 }
 
 pub fn decode_specific_call(node: &Node) -> Result<SpecificCall, DecodeError> {
-    let mut parts = support::call(node, "the call `SPECIFIC ANYFIX CALL _`")?;
+    let mut parts = support::call(node, "the call `ANYFIX CALL _`")?;
     let decoded = SpecificCall {
         parts: parts
-            .word("SPECIFIC")?
             .word("ANYFIX")?
             .word("CALL")?
             .one(decode_specific_call_parts, "`[...]`")?,
