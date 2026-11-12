@@ -397,3 +397,12 @@ fn random_layouts_keep_the_tree() {
         }
     }
 }
+
+#[test]
+fn a_blank_line_or_comment_before_a_call_does_not_break_it() {
+    let source = "f,\n\n## c\nMETHOD x RETURNS (y: TEXT)";
+    assert_eq!(
+        fmt_breaking_before(source, &["RETURNS"]),
+        "f,\n\n## c\nMETHOD x RETURNS y: TEXT,\n"
+    );
+}

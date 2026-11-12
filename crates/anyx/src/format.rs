@@ -551,9 +551,13 @@ impl Builder<'_> {
                 }
                 match tail.is_empty() {
                     true => Doc::Concat(head),
+                    // The first item stays out of the group, so that a
+                    // blank line or a comment before the run doesn't force
+                    // it to break.
                     false => {
+                        let first = head.remove(0);
                         head.push(indent(Doc::Concat(tail)));
-                        chain_group(Doc::Concat(head))
+                        Doc::Concat(vec![first, chain_group(Doc::Concat(head))])
                     }
                 }
             }
