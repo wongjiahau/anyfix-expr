@@ -104,6 +104,7 @@ choice: ONE OF [first: pattern, second: pattern],   # first match wins
 | `CURLY BRACE [a: x, b: y]` | a bracket of these elements in order | a struct |
 | `ZERO OR MORE:`, `ONE OR MORE:`, `OPTIONAL:` | inside a bracket, `ENTRY`, a call or `ARGUMENTS:` | `Vec`, `Option` |
 | `EACH:` | every element left, each decoded on its own | `Vec<Result<T, DecodeError>>` |
+| `ENTRY: ANY ORDER [a: x, b: OPTIONAL: y]` (also in a bracket) | elements in any order; required ones once, `OPTIONAL` at most once | a struct with a field per element and `errors: Vec<DecodeError>` for strays and repeats |
 | `SPECIFIC ANYFIX CALL [WORD "IF", condition: x, WORD "THEN", then: y]` | the call `IF _ THEN _` | a struct |
 | `ANYFIX CALL [NAME [MATCHING REGEX "^[a-z]+ _$"], ARGUMENTS: x]` | any call whose name fits | a struct with `name: CallName` and `arguments` |
 | `ANYFIX CALL [NO ARGUMENTS]` | a call of words alone: `sans serif` | a struct with `name: CallName` |

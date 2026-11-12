@@ -9,6 +9,7 @@ use crate::grammar::support::NumberValue;
 pub struct Grammar {
     /// The document's top-level sequence.
     pub entry: Vec<Element>,
+    pub entry_order: Order,
     pub rules: Vec<Rule>,
 }
 
@@ -29,6 +30,7 @@ pub enum Pattern {
     Container {
         kind: ContainerKind,
         elements: Vec<Element>,
+        order: Order,
     },
     SpecificCall(Vec<Element>),
     AnyCall {
@@ -110,6 +112,17 @@ impl Repetition {
             Repetition::ZeroOrMore | Repetition::OneOrMore | Repetition::Each
         )
     }
+}
+
+/// How the elements of a bracket or of the document are matched.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Order {
+    /// One after another, as listed.
+    Written,
+    /// `ANY ORDER`: each node goes to the first element it fits, wherever
+    /// it stands. A node that fits none, or a second node for an element
+    /// that is not repeated, is kept as an error and the rest still decode.
+    Any,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

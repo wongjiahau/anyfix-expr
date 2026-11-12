@@ -14,8 +14,8 @@ use anyfix_expr::Span;
 
 use crate::diagnostic::Diagnostic;
 use crate::model::{
-    Choice, ContainerKind, Element, Grammar, NumberType, Pattern, Repetition, StringCondition,
-    WordKind, values,
+    Choice, ContainerKind, Element, Grammar, NumberType, Order, Pattern, Repetition,
+    StringCondition, WordKind, values,
 };
 
 /// The module every generated file ends with.
@@ -78,6 +78,9 @@ enum Body {
 struct Record {
     source: Source,
     steps: Vec<Step>,
+    /// With [`Order::Any`], every step is a field, and the record also
+    /// keeps the nodes that fit none of them in `errors`.
+    order: Order,
 }
 
 enum Source {
@@ -110,6 +113,8 @@ struct Field {
     value: Value,
     /// What an error calls the value when it is missing.
     expected: String,
+    /// The element's name in the grammar, for errors about it.
+    label: String,
     boxed: bool,
 }
 
@@ -221,6 +226,7 @@ impl Builder<'_> {
         self.definitions[document].body = Body::Struct(Record {
             source: Source::Document,
             steps,
+            order: grammar.entry_order,
         });
         for rule in &grammar.rules {
             let path = words(&rule.name);
@@ -281,9 +287,14 @@ impl Builder<'_> {
                 self.definitions[definition].body = Body::Enum(variants);
                 Value::Definition(definition)
             }
-            Pattern::Container { kind, elements } => {
+            Pattern::Container {
+                kind,
+                elements,
+                order,
+            } => {
                 let definition = self.reserve(path, is_rule, span);
-                self.definitions[definition].body = if is_transparent(elements) && !is_rule {
+                let transparent = is_transparent(elements) && !is_rule && *order == Order::Written;
+                self.definitions[definition].body = if transparent {
                     Body::Transparent {
                         kind: *kind,
                         steps: self.steps(elements, path, "item"),
@@ -365,13 +376,19 @@ impl Builder<'_> {
     fn record(&mut self, pattern: &Pattern, path: &[String]) -> Record {
         let expected = self.grammar.describe_one(pattern);
         match pattern {
-            Pattern::Container { kind, elements } => Record {
+            Pattern::Container {
+                kind,
+                elements,
+                order,
+            } => Record {
                 source: Source::Container(*kind),
                 steps: self.steps(elements, path, "item"),
+                order: *order,
             },
             Pattern::SpecificCall(parts) => Record {
                 source: Source::Call { expected },
                 steps: self.steps(parts, path, "item"),
+                order: Order::Written,
             },
             Pattern::AnyCall { name, arguments } => {
                 let terms = self.terms(name, "name");
@@ -387,6 +404,7 @@ impl Builder<'_> {
                         }
                         None => Vec::new(),
                     },
+                    order: Order::Written,
                 }
             }
             _ => unreachable!("only brackets and calls have fields"),
@@ -410,6 +428,7 @@ impl Builder<'_> {
                     repetition: element.repetition,
                     value: self.value(&element.pattern, &path, element.span, false),
                     expected: self.grammar.describe_one(&element.pattern),
+                    label: name.to_string(),
                     boxed: false,
                 })
             })
@@ -872,6 +891,14 @@ impl Printer<'_> {
                 fields.push((field.name.clone(), self.field_type(field)));
             }
         }
+        if record.order == Order::Any {
+            let errors = format!(
+                "{}<{}>",
+                self.names.get("Vec"),
+                self.names.get("DecodeError")
+            );
+            fields.push(("errors".to_string(), errors));
+        }
         fields
     }
 
@@ -1043,6 +1070,15 @@ impl Printer<'_> {
                 "arguments"
             }
         };
+        if record.order == Order::Any {
+            self.any_order(output, variable, &record.steps);
+            write!(output, "Ok({constructor} {{ {first_fields}").unwrap();
+            for (name, expression) in self.any_order_fields(variable, &record.steps) {
+                write!(output, "{name}: {expression}, ").unwrap();
+            }
+            writeln!(output, "errors, span: {span} }})").unwrap();
+            return;
+        }
         let (fields, rest) = self.sequence(variable, &record.steps);
         write!(output, "let decoded = {constructor} {{ {first_fields}").unwrap();
         for (name, expression) in fields {
@@ -1053,6 +1089,66 @@ impl Printer<'_> {
             "span: {span} }};\n{rest}{variable}.finish()?;\nOk(decoded)"
         )
         .unwrap();
+    }
+
+    /// Sorts every node of the sequence `variable` into the local of the
+    /// first field it fits, keeping the nodes that fit none in `errors`.
+    fn any_order(&self, output: &mut String, variable: &str, steps: &[Step]) {
+        let fields = steps.iter().filter_map(|step| match step {
+            Step::Field(field) => Some(field),
+            Step::Word(_) => None,
+        });
+        output.push_str("let mut errors = Vec::new();\n");
+        for field in fields.clone() {
+            let empty = match field.repetition.may_repeat() {
+                true => "Vec::new()",
+                false => "None",
+            };
+            writeln!(output, "let mut {} = {empty};", found(field)).unwrap();
+        }
+        writeln!(output, "for node in {variable}.rest() {{").unwrap();
+        output.push_str("let mut attempts = support::Attempts::new(node);\n");
+        for field in fields {
+            let local = found(field);
+            let keep = match field.repetition.may_repeat() {
+                true => format!("{local}.push(value);"),
+                false => format!(
+                    "errors.extend(support::once(&mut {local}, value, node, {:?}));",
+                    field.label
+                ),
+            };
+            writeln!(
+                output,
+                "if let Some(value) = attempts.attempt({}) {{\n{keep}\ncontinue;\n}}",
+                self.decoder(&field.value, field.boxed)
+            )
+            .unwrap();
+        }
+        output.push_str("errors.push(attempts.error());\n}\n");
+    }
+
+    /// The field expressions of an `ANY ORDER` record, from the locals
+    /// [`Printer::any_order`] filled.
+    fn any_order_fields(&self, variable: &str, steps: &[Step]) -> Vec<(String, String)> {
+        steps
+            .iter()
+            .filter_map(|step| match step {
+                Step::Field(field) => Some(field),
+                Step::Word(_) => None,
+            })
+            .map(|field| {
+                let local = found(field);
+                let expected = &field.expected;
+                let expression = match field.repetition {
+                    Repetition::One => format!("{variable}.required({local}, {expected:?})?"),
+                    Repetition::OneOrMore => {
+                        format!("{variable}.at_least_one({local}, {expected:?})?")
+                    }
+                    _ => local,
+                };
+                (field.name.clone(), expression)
+            })
+            .collect()
     }
 
     fn print_decoder(&self, output: &mut String, definition: &Definition) {
@@ -1134,6 +1230,12 @@ impl Printer<'_> {
         }
         output.push_str("}\n\n");
     }
+}
+
+/// The local an `ANY ORDER` decoder collects `field` in. The prefix keeps
+/// it apart from the decoder's own locals, such as `node`.
+fn found(field: &Field) -> String {
+    format!("found_{}", field.name.trim_start_matches("r#"))
 }
 
 /// The value of a transparent bracket, if it has one.

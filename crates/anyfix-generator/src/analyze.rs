@@ -2,7 +2,9 @@
 //! forever, and no two choices of a `ONE OF` compete for the same input.
 
 use crate::diagnostic::Diagnostic;
-use crate::model::{ContainerKind, Element, Grammar, Pattern, Repetition};
+use anyfix_expr::Span;
+
+use crate::model::{ContainerKind, Element, Grammar, Order, Pattern, Repetition};
 use crate::overlap::Overlap;
 
 pub fn analyze(grammar: &Grammar) -> Vec<Diagnostic> {
@@ -10,6 +12,9 @@ pub fn analyze(grammar: &Grammar) -> Vec<Diagnostic> {
     unreachable_rules(grammar, &mut diagnostics);
     endless_recursion(grammar, &mut diagnostics);
     let mut overlap = Overlap::new(grammar);
+    if grammar.entry_order == Order::Any {
+        competing_elements(&grammar.entry, &mut overlap, &mut diagnostics);
+    }
     let roots = grammar
         .entry
         .iter()
@@ -153,23 +158,73 @@ fn cycle_through(start: usize, edges: &[Vec<usize>]) -> Option<Vec<usize>> {
     visit(start, start, edges, &mut visited, &mut path).then_some(path)
 }
 
-fn competing_choices(pattern: &Pattern, overlap: &mut Overlap, diagnostics: &mut Vec<Diagnostic>) {
-    if let Pattern::OneOf(choices) = pattern {
-        for (index, later) in choices.iter().enumerate() {
-            let earlier = choices[..index].iter().find(|earlier| {
-                overlap.patterns(&earlier.pattern, &later.pattern)
-                    && !overlap.covers(&later.pattern, &earlier.pattern)
-            });
-            if let Some(earlier) = earlier {
-                diagnostics.push(Diagnostic::warning(
-                    later.span,
-                    format!(
-                        "found the choices `{}` and `{}` able to match the same input; expected at most one choice to fit any input, since `{}` comes first and always wins it; make one of them more specific, or put the more specific one first",
-                        earlier.name, later.name, earlier.name
-                    ),
-                ));
-            }
+/// One of the alternatives a node is tried against in turn: a choice of a
+/// `ONE OF`, or an element of `ANY ORDER`.
+struct Alternative<'a> {
+    name: &'a str,
+    pattern: &'a Pattern,
+    span: Span,
+}
+
+/// Warns about each alternative that an earlier one takes input from.
+fn competing(
+    alternatives: &[Alternative],
+    kind: &str,
+    overlap: &mut Overlap,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for (index, later) in alternatives.iter().enumerate() {
+        let earlier = alternatives[..index].iter().find(|earlier| {
+            overlap.patterns(earlier.pattern, later.pattern)
+                && !overlap.covers(later.pattern, earlier.pattern)
+        });
+        if let Some(earlier) = earlier {
+            diagnostics.push(Diagnostic::warning(
+                later.span,
+                format!(
+                    "found the {kind}s `{}` and `{}` able to match the same input; expected at most one {kind} to fit any input, since `{}` comes first and always wins it; make one of them more specific, or put the more specific one first",
+                    earlier.name, later.name, earlier.name
+                ),
+            ));
         }
+    }
+}
+
+fn competing_elements(
+    elements: &[Element],
+    overlap: &mut Overlap,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let alternatives: Vec<Alternative> = elements
+        .iter()
+        .map(|element| Alternative {
+            name: element.name.as_deref().unwrap_or("item"),
+            pattern: &element.pattern,
+            span: element.span,
+        })
+        .collect();
+    competing(&alternatives, "element", overlap, diagnostics);
+}
+
+fn competing_choices(pattern: &Pattern, overlap: &mut Overlap, diagnostics: &mut Vec<Diagnostic>) {
+    match pattern {
+        Pattern::OneOf(choices) => {
+            let alternatives: Vec<Alternative> = choices
+                .iter()
+                .map(|choice| Alternative {
+                    name: &choice.name,
+                    pattern: &choice.pattern,
+                    span: choice.span,
+                })
+                .collect();
+            competing(&alternatives, "choice", overlap, diagnostics);
+        }
+        Pattern::Container {
+            elements,
+            order: Order::Any,
+            ..
+        } => competing_elements(elements, overlap, diagnostics),
+        _ => {}
     }
     for child in children(pattern) {
         competing_choices(child, overlap, diagnostics);
@@ -182,6 +237,7 @@ fn lone_parentheses(pattern: &Pattern, diagnostics: &mut Vec<Diagnostic>) {
     if let Pattern::Container {
         kind: ContainerKind::Parenthesis,
         elements,
+        order: Order::Written,
     } = pattern
         && let [only] = &elements[..]
         && only.repetition == Repetition::One

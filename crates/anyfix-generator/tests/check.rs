@@ -29,7 +29,11 @@ fn reports(sources: &[&str]) -> String {
 
 #[test]
 fn the_shipped_grammars_have_nothing_to_report() {
-    for path in ["grammar.anyfix", "tests/fixtures/json.anyfix"] {
+    for path in [
+        "grammar.anyfix",
+        "tests/fixtures/json.anyfix",
+        "tests/fixtures/manifest.anyfix",
+    ] {
         assert_eq!(report(&fixture(path)), "nothing to report\n", "{path}");
     }
 }
@@ -160,6 +164,21 @@ fn choices_that_compete_get_a_warning() {
             "ENTRY: value, value: ONE OF [signed: NUMBER [SIGNED], minus: SPECIFIC ANYFIX CALL [WORD \"-\", n: NUMBER]]",
             "ENTRY: value, value: ONE OF [signed: NUMBER [SIGNED], other: ANYFIX CALL]",
             "ENTRY: value, value: ONE OF [signed: NUMBER [SIGNED], words: ANYFIX CALL [NO ARGUMENTS]]",
+        ]),
+    );
+}
+
+#[test]
+fn any_order_takes_named_elements_that_compete_with_none() {
+    assert_snapshot(
+        "check_any_order.txt",
+        &reports(&[
+            "ENTRY: ANY ORDER [WORD \"x\", n: NUMBER]",
+            "ENTRY: ANY ORDER [items: EACH: NUMBER]",
+            "ENTRY: ANY ORDER [errors: OPTIONAL: NUMBER]",
+            "ENTRY: ANY ORDER [name: OPTIONAL: STRING [MATCHING REGEX \"^a\"], text: ZERO OR MORE: STRING]",
+            "ENTRY: thing, thing: CURLY BRACE: ANY ORDER [text: STRING, name: STRING [MATCHING REGEX \"^a\"]]",
+            "ENTRY: ANY ORDER [count: NUMBER, label: OPTIONAL: STRING, tag: ZERO OR MORE: SPECIFIC ANYFIX CALL [WORD \"tag\", value: STRING]]",
         ]),
     );
 }

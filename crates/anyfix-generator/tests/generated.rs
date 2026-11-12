@@ -12,6 +12,8 @@ mod corners;
 mod json;
 #[path = "generated/language.rs"]
 mod language;
+#[path = "generated/manifest.rs"]
+mod manifest;
 
 use common::fixture;
 
@@ -481,4 +483,75 @@ fn a_call_name_gives_its_words_and_the_call_written_out_flat() {
         .collect();
     assert_eq!(flat, ["raw", "thing", "5", "x"]);
     assert_eq!(&source[name.span.start..name.span.end], "raw thing");
+}
+
+#[test]
+fn the_manifest_is_generated() {
+    let warnings = assert_generated(
+        "tests/fixtures/manifest.anyfix",
+        "tests/generated/manifest.rs",
+    );
+    assert_eq!(warnings, Vec::<String>::new());
+}
+
+#[test]
+fn any_order_takes_the_elements_wherever_they_stand() {
+    let source = "dependency \"a\",
+license \"MIT\",
+package { author \"x\", name \"demo\", author \"y\" },
+dependency \"b\"";
+    let document = manifest::decode_document(&parse(source)).unwrap();
+    assert_eq!(document.errors, Vec::new());
+    assert_eq!(document.package.fields.name.value.value.value, "demo");
+    assert_eq!(document.package.fields.version, None);
+    let authors: Vec<&str> = document
+        .package
+        .fields
+        .author
+        .iter()
+        .map(|author| author.value.value.value.as_str())
+        .collect();
+    assert_eq!(authors, ["x", "y"]);
+    let dependencies: Vec<&str> = document
+        .dependency
+        .iter()
+        .map(|dependency| dependency.name.value.value.as_str())
+        .collect();
+    assert_eq!(dependencies, ["a", "b"]);
+    assert_eq!(document.license.unwrap().name.value.value, "MIT");
+}
+
+#[test]
+fn any_order_keeps_a_second_single_element_and_a_stray_node_as_errors() {
+    let source = "license \"MIT\",
+package { name \"demo\" },
+license \"GPL\",
+\"stray\"";
+    let document = manifest::decode_document(&parse(source)).unwrap();
+    assert_eq!(document.license.unwrap().name.value.value, "MIT");
+    let messages: Vec<String> = document
+        .errors
+        .iter()
+        .map(|error| error.message())
+        .collect();
+    assert_eq!(
+        messages,
+        [
+            "found a second `license`; expected one `license` at most",
+            "found the string \"stray\"; expected the call `package _`, `dependency _` or `license _`",
+        ]
+    );
+    assert_eq!(
+        &source[document.errors[0].span.start..document.errors[0].span.end],
+        "license \"GPL\""
+    );
+}
+
+#[test]
+fn any_order_fails_without_a_required_element() {
+    let error = manifest::decode_document(&parse("license \"MIT\"")).unwrap_err();
+    assert_eq!(
+        error.message(),
+        "found the end of the document; expected the call `package _`"
+    );
 }

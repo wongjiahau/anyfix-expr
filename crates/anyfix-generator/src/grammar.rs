@@ -38,7 +38,14 @@ pub struct Named {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Contents {
     List(Spanned<Vec<Element>>),
+    AnyOrder(AnyOrder),
     Element(Element),
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct AnyOrder {
+    pub elements: Spanned<Vec<Element>>,
+    pub span: Span,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -200,6 +207,7 @@ impl Contents {
     pub fn span(&self) -> Span {
         match self {
             Contents::List(value) => value.span,
+            Contents::AnyOrder(value) => value.span,
             Contents::Element(value) => value.span(),
         }
     }
@@ -360,12 +368,36 @@ pub fn decode_named(node: &Node) -> Result<Named, DecodeError> {
 pub fn decode_contents(node: &Node) -> Result<Contents, DecodeError> {
     decode_contents_list(node)
         .map(Contents::List)
+        .or_else(|error| error.or(decode_any_order(node).map(Contents::AnyOrder)))
         .or_else(|error| error.or(decode_element(node).map(Contents::Element)))
 }
 
 fn decode_contents_list(node: &Node) -> Result<Spanned<Vec<Element>>, DecodeError> {
     let mut elements = support::square_bracket(node)?;
     let value = elements.zero_or_more(decode_element);
+    elements.finish()?;
+    Ok(Spanned {
+        value,
+        span: node.span,
+    })
+}
+
+pub fn decode_any_order(node: &Node) -> Result<AnyOrder, DecodeError> {
+    let mut parts = support::call(node, "the call `ANY ORDER _`")?;
+    let decoded = AnyOrder {
+        elements: parts
+            .word("ANY")?
+            .word("ORDER")?
+            .one(decode_any_order_elements, "`[...]`")?,
+        span: node.span,
+    };
+    parts.finish()?;
+    Ok(decoded)
+}
+
+fn decode_any_order_elements(node: &Node) -> Result<Spanned<Vec<Element>>, DecodeError> {
+    let mut elements = support::square_bracket(node)?;
+    let value = elements.one_or_more(decode_element, "an element")?;
     elements.finish()?;
     Ok(Spanned {
         value,
@@ -1318,6 +1350,36 @@ pub mod support {
             Ok(values)
         }
 
+        /// Every node left, for an `ANY ORDER` to sort. A word stops it, as
+        /// with [`Sequence::each`].
+        pub fn rest(&mut self) -> Vec<&'a Node> {
+            let mut nodes = Vec::new();
+            while let Some(Item::Node(node)) = self.items.get(self.index) {
+                nodes.push(*node);
+                self.index += 1;
+            }
+            nodes
+        }
+
+        /// The value of an `ANY ORDER` element that must be there, or the error
+        /// saying it is missing, at the end of the sequence.
+        pub fn required<T>(&self, found: Option<T>, expected: &str) -> Result<T, DecodeError> {
+            found.ok_or_else(|| DecodeError::new(self.end.1, self.end.0, expected))
+        }
+
+        /// The values of a `ONE OR MORE` element of an `ANY ORDER`, or the
+        /// error saying there are none.
+        pub fn at_least_one<T>(
+            &self,
+            found: Vec<T>,
+            expected: &str,
+        ) -> Result<Vec<T>, DecodeError> {
+            match found.is_empty() {
+                true => Err(DecodeError::new(self.end.1, self.end.0, expected)),
+                false => Ok(found),
+            }
+        }
+
         /// Checks that nothing is left.
         pub fn finish(&mut self) -> Result<(), DecodeError> {
             if self.index == self.items.len() {
@@ -1326,6 +1388,62 @@ pub mod support {
             let end = self.end.0;
             Err(self.unexpected(end))
         }
+    }
+
+    /// One node of an `ANY ORDER`, tried against each element in turn.
+    pub struct Attempts<'a> {
+        node: &'a Node,
+        /// Why the elements tried so far did not fit, merged.
+        error: Option<DecodeError>,
+    }
+
+    impl<'a> Attempts<'a> {
+        pub fn new(node: &'a Node) -> Self {
+            Attempts { node, error: None }
+        }
+
+        /// The node decoded by `decode`, if it fits.
+        pub fn attempt<T>(
+            &mut self,
+            decode: impl FnOnce(&'a Node) -> Result<T, DecodeError>,
+        ) -> Option<T> {
+            match decode(self.node) {
+                Ok(value) => Some(value),
+                Err(error) => {
+                    self.error = Some(match self.error.take() {
+                        Some(earlier) => earlier.merge(error),
+                        None => error,
+                    });
+                    None
+                }
+            }
+        }
+
+        /// Why the node fits no element.
+        pub fn error(self) -> DecodeError {
+            let node = self.node;
+            self.error
+                .unwrap_or_else(|| DecodeError::new(node.span, describe(node), "nothing"))
+        }
+    }
+
+    /// Keeps `value` as the one `label` of an `ANY ORDER`, or gives the error
+    /// for a second one, keeping the first.
+    pub fn once<T>(
+        slot: &mut Option<T>,
+        value: T,
+        node: &Node,
+        label: &str,
+    ) -> Option<DecodeError> {
+        if slot.is_some() {
+            return Some(DecodeError::new(
+                node.span,
+                format!("a second `{label}`"),
+                format!("one `{label}` at most"),
+            ));
+        }
+        *slot = Some(value);
+        None
     }
 
     fn is_word(node: &Node, expected: &str) -> bool {

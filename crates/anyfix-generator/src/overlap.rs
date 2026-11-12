@@ -11,7 +11,8 @@ use regex_automata::util::primitives::StateID;
 use regex_automata::util::start;
 
 use crate::model::{
-    Element, Grammar, NumberPattern, NumberType, Pattern, Repetition, StringCondition, WordKind,
+    Element, Grammar, NumberPattern, NumberType, Order, Pattern, Repetition, StringCondition,
+    WordKind,
 };
 
 pub struct Overlap<'a> {
@@ -124,14 +125,26 @@ impl<'a> Overlap<'a> {
                 .any(|choice| self.patterns(other, &choice.pattern)),
             (Pattern::AnyNode, _) | (_, Pattern::AnyNode) => true,
             (
-                Pattern::Container { kind, elements },
+                Pattern::Container {
+                    kind,
+                    elements,
+                    order,
+                },
                 Pattern::Container {
                     kind: other_kind,
                     elements: other_elements,
+                    order: other_order,
                 },
             ) => {
+                // In any order, every element may be missing or repeated,
+                // so two brackets of a kind are taken to overlap.
                 kind == other_kind
-                    && self.sequences(&node_steps(elements), &node_steps(other_elements))
+                    && match (order, other_order) {
+                        (Order::Written, Order::Written) => {
+                            self.sequences(&node_steps(elements), &node_steps(other_elements))
+                        }
+                        _ => true,
+                    }
             }
             (Pattern::String(a), Pattern::String(b)) => conditions_overlap(a, b),
             (Pattern::Number(a), Pattern::Number(b)) => numbers_overlap(a, b),

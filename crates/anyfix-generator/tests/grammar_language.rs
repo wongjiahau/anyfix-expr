@@ -38,6 +38,7 @@ fn the_grammar_of_grammars_decodes() {
             "rule _",
             "named _",
             "contents _",
+            "any order _",
             "element _",
             "pattern _",
             "reference _",

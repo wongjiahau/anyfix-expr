@@ -9,7 +9,7 @@ use crate::diagnostic::Diagnostic;
 use crate::grammar as ast;
 use crate::grammar::support::number_value;
 use crate::model::{
-    Choice, ContainerKind, Element, Grammar, NumberPattern, Pattern, Repetition, Rule,
+    Choice, ContainerKind, Element, Grammar, NumberPattern, Order, Pattern, Repetition, Rule,
     StringCondition, WordKind, values,
 };
 
@@ -23,11 +23,7 @@ pub fn lower(document: &ast::Document, source: &str) -> (Grammar, Vec<Diagnostic
         diagnostics: Vec::new(),
     };
     lowerer.check_rule_names(document);
-    let entry = match &document.entry.contents {
-        ast::Contents::List(list) => &list.value[..],
-        ast::Contents::Element(element) => std::slice::from_ref(element),
-    };
-    let entry = lowerer.sequence(entry, Names::Required);
+    let (entry, entry_order) = lowerer.contents(&document.entry.contents, Names::Required);
     let rules = document
         .rule
         .iter()
@@ -37,7 +33,14 @@ pub fn lower(document: &ast::Document, source: &str) -> (Grammar, Vec<Diagnostic
             pattern: lowerer.pattern(&rule.arguments, Position::Rule),
         })
         .collect();
-    (Grammar { entry, rules }, lowerer.diagnostics)
+    (
+        Grammar {
+            entry,
+            entry_order,
+            rules,
+        },
+        lowerer.diagnostics,
+    )
 }
 
 /// `key value _`, the call that defines a rule or names a field, is the
@@ -144,17 +147,15 @@ impl Lowerer<'_> {
                         (ContainerKind::Parenthesis, contents)
                     }
                 };
-                let elements = match &**contents {
-                    ast::Contents::List(list) => &list.value[..],
-                    ast::Contents::Element(element) => std::slice::from_ref(element),
-                };
                 let names = match position {
                     Position::Rule => Names::Required,
                     Position::Inside => Names::Optional,
                 };
+                let (elements, order) = self.contents(contents, names);
                 Pattern::Container {
                     kind,
-                    elements: self.sequence(elements, names),
+                    elements,
+                    order,
                 }
             }
             ast::Pattern::SpecificCall(call) => self.specific_call(call),
@@ -275,6 +276,53 @@ impl Lowerer<'_> {
             pattern: self.pattern(pattern, Position::Inside),
             span,
         }
+    }
+
+    /// What a bracket or `ENTRY` holds, and the order it is matched in.
+    fn contents(&mut self, contents: &ast::Contents, names: Names) -> (Vec<Element>, Order) {
+        match contents {
+            ast::Contents::List(list) => (self.sequence(&list.value, names), Order::Written),
+            ast::Contents::Element(element) => (
+                self.sequence(std::slice::from_ref(element), names),
+                Order::Written,
+            ),
+            ast::Contents::AnyOrder(any_order) => {
+                (self.any_order(&any_order.elements.value), Order::Any)
+            }
+        }
+    }
+
+    /// The elements of `ANY ORDER [...]`: each a named field, since every
+    /// one is looked for wherever it stands.
+    fn any_order(&mut self, elements: &[ast::Element]) -> Vec<Element> {
+        let mut elements: Vec<Element> = elements
+            .iter()
+            .map(|element| self.element(element))
+            .collect();
+        for element in &elements {
+            if element.is_bare_word() {
+                self.error(
+                    element.span,
+                    "found an unnamed `WORD` in `ANY ORDER`; expected every element to be a field, since a word that is only matched has no place when the order is free; name it, as in `flag: WORD \"x\"`",
+                );
+            }
+            if element.repetition == Repetition::Each {
+                self.error(
+                    element.span,
+                    "found `EACH` in `ANY ORDER`; expected `OPTIONAL`, `ZERO OR MORE`, `ONE OR MORE` or no repetition, since a node that fits no element is already kept in `errors` and the rest still decode; use `ZERO OR MORE`",
+                );
+            }
+        }
+        self.name_fields(&mut elements, Names::Required);
+        for element in &elements {
+            if element.name.as_deref() == Some("errors") {
+                self.error(
+                    element.span,
+                    "found a field named `errors` in `ANY ORDER`; expected another name, since `errors` holds the nodes that fit no element; rename the field",
+                );
+            }
+        }
+        elements
     }
 
     /// The elements of a bracket or of `ENTRY`, with their field names.

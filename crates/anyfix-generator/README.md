@@ -105,6 +105,29 @@ in matches whatever its elements are.
 section: SPECIFIC ANYFIX CALL [WORD "server", settings: CURLY BRACE: EACH: setting],
 ```
 
+### `ANY ORDER [...]`
+
+```text
+ENTRY: ANY ORDER [
+  package: package section,
+  dependency: ZERO OR MORE: dependency section,
+  license: OPTIONAL: license section,
+],
+```
+
+`ANY ORDER [...]` stands in place of the list of `ENTRY` or of a bracket,
+for sections or settings that may be written in any order. Each node goes
+to the first element it fits, wherever it stands. An element with no
+repetition must be there once; `OPTIONAL` may be there once; `ZERO OR MORE`
+and `ONE OR MORE` collect every node that fits them, in order.
+
+A node that fits no element, and a second node for an element that is not
+repeated, is kept in the struct's `errors: Vec<DecodeError>` and the rest
+still decode: ``found a second `license`; expected one `license` at most``.
+Only a missing required element fails the whole match. So every element is
+named, none is an unnamed `WORD`, none is `EACH`, and none is called
+`errors`.
+
 ### `CURLY BRACE`, `SQUARE BRACKET`, `PARENTHESIS`
 
 ```text
@@ -113,8 +136,9 @@ SQUARE BRACKET [x: NUMBER, y: NUMBER] # [1, 2]: exactly these, in order
 PARENTHESIS []                        # (): nothing inside
 ```
 
-After the bracket's name comes what it holds: `[elements]` in order, or
-`: element` as a short form of a list of one. In a grammar, `[...]` is
+After the bracket's name comes what it holds: `[elements]` in order,
+`: ANY ORDER [elements]` in any order, or `: element` as a short form of a
+list of one. In a grammar, `[...]` is
 always a list of the grammar language, never a bracket of your language.
 
 `PARENTHESIS` matches what anyfix keeps as parentheses: `()`, `(a, b)` and
@@ -325,6 +349,7 @@ pub struct Array { pub value: Vec<Value>, pub span: Span }
 | a choice that is a `WORD` | a variant holding the word's `Span` |
 | `ZERO OR MORE:`, `ONE OR MORE:` | `Vec<T>` |
 | `EACH:` | `Vec<Result<T, DecodeError>>` |
+| `ANY ORDER [...]` | a field per element, and `errors: Vec<DecodeError>` |
 | `OPTIONAL:` | `Option<T>` |
 | `STRING` | `Spanned<StringLiteral>`: the value, and its pieces as written |
 | `NUMBER` | `Spanned<f64>`, or an integer type (see below) |
@@ -402,12 +427,14 @@ Errors, which stop the generation:
 - a repetition where exactly one node is matched, such as a whole rule or
   a choice
 - anything after `EACH` in its list, which `EACH` would have taken
+- in `ANY ORDER`, an unnamed `WORD`, an `EACH`, or a field named `errors`
 - conditions nothing can meet, and a regex that does not compile
 - a rule that refers to itself with no call or bracket in between
 
 Warnings:
 
-- two choices of a `ONE OF` that can match the same input, unless the
-  later one is a fallback that matches everything the earlier one does
+- two choices of a `ONE OF`, or two elements of an `ANY ORDER`, that can
+  match the same input, unless the later one is a fallback that matches
+  everything the earlier one does
 - a rule that nothing reachable from `ENTRY` refers to
 - a `PARENTHESIS` around exactly one element, which only `(x,)` matches

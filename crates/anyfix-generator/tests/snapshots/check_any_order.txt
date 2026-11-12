@@ -1,0 +1,28 @@
+## ENTRY: ANY ORDER [WORD "x", n: NUMBER]
+grammar:1:19: error: found an unnamed `WORD` in `ANY ORDER`; expected every element to be a field, since a word that is only matched has no place when the order is free; name it, as in `flag: WORD "x"`
+  ENTRY: ANY ORDER [WORD "x", n: NUMBER]
+                    ^^^^^^^^
+
+## ENTRY: ANY ORDER [items: EACH: NUMBER]
+grammar:1:19: error: found `EACH` in `ANY ORDER`; expected `OPTIONAL`, `ZERO OR MORE`, `ONE OR MORE` or no repetition, since a node that fits no element is already kept in `errors` and the rest still decode; use `ZERO OR MORE`
+  ENTRY: ANY ORDER [items: EACH: NUMBER]
+                    ^^^^^^^^^^^^^^^^^^^
+
+## ENTRY: ANY ORDER [errors: OPTIONAL: NUMBER]
+grammar:1:19: error: found a field named `errors` in `ANY ORDER`; expected another name, since `errors` holds the nodes that fit no element; rename the field
+  ENTRY: ANY ORDER [errors: OPTIONAL: NUMBER]
+                    ^^^^^^^^^^^^^^^^^^^^^^^^
+
+## ENTRY: ANY ORDER [name: OPTIONAL: STRING [MATCHING REGEX "^a"], text: ZERO OR MORE: STRING]
+grammar:1:65: warning: found the elements `name` and `text` able to match the same input; expected at most one element to fit any input, since `name` comes first and always wins it; make one of them more specific, or put the more specific one first
+  ENTRY: ANY ORDER [name: OPTIONAL: STRING [MATCHING REGEX "^a"], text: ZERO OR MORE: STRING]
+                                                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+## ENTRY: thing, thing: CURLY BRACE: ANY ORDER [text: STRING, name: STRING [MATCHING REGEX "^a"]]
+grammar:1:60: warning: found the elements `text` and `name` able to match the same input; expected at most one element to fit any input, since `text` comes first and always wins it; make one of them more specific, or put the more specific one first
+  ENTRY: thing, thing: CURLY BRACE: ANY ORDER [text: STRING, name: STRING [MATCHING REGEX "^a"]]
+                                                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+## ENTRY: ANY ORDER [count: NUMBER, label: OPTIONAL: STRING, tag: ZERO OR MORE: SPECIFIC ANYFIX CALL [WORD "tag", value: STRING]]
+nothing to report
+

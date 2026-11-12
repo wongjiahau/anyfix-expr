@@ -14,8 +14,14 @@ named: ANYFIX CALL [
   ARGUMENTS: pattern,
 ],
 
-# What a container or the entry holds: one element, or a list of them in order.
-contents: ONE OF [list: SQUARE BRACKET [ZERO OR MORE: element], element],
+# What a container or the entry holds: one element, a list of them in order,
+# or a list of them in any order.
+contents: ONE OF [list: SQUARE BRACKET [ZERO OR MORE: element], any order, element],
+
+any order: SPECIFIC ANYFIX CALL [
+  WORD "ANY", WORD "ORDER",
+  elements: SQUARE BRACKET [ONE OR MORE: element],
+],
 
 element: ONE OF [field: named, pattern],
 
