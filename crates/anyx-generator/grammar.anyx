@@ -62,10 +62,25 @@ container: ONE OF [
 ],
 
 ## Words in the list name the call; every other element fills a slot.
-specific call: ANYFIX CALL [
-  WORD "ANYFIX", WORD "CALL",
-  parts: SQUARE BRACKET [ONE OR MORE: element],
+## `FORMAT` says how the formatter lays the call out.
+specific call: ONE OF [
+  formatted: ANYFIX CALL [
+    WORD "ANYFIX", WORD "CALL",
+    parts: SQUARE BRACKET [ONE OR MORE: element],
+    WORD "FORMAT",
+    format: SQUARE BRACKET [ONE OR MORE: format rule],
+  ],
+  plain: ANYFIX CALL [
+    WORD "ANYFIX", WORD "CALL",
+    parts: SQUARE BRACKET [ONE OR MORE: element],
+  ],
 ],
+
+## `BREAK BEFORE WORD "RETURNS"`: when the call is too long for its line,
+## `RETURNS` starts a new one, indented.
+format rule: break before,
+
+break before: ANYFIX CALL [WORD "BREAK", WORD "BEFORE", WORD "WORD", text: STRING],
 
 any call: ANYFIX CALL [
   WORD "ANYFIX", WORD "CALL",

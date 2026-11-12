@@ -255,6 +255,30 @@ fn json_decodes_into_its_tree() {
 }
 
 #[test]
+fn a_grammar_lays_out_its_calls_with_format() {
+    assert_eq!(
+        language::LAYOUT
+            .iter()
+            .map(|rule| (rule.words, rule.break_before))
+            .collect::<Vec<_>>(),
+        [(&["IF", "THEN", "ELSE"][..], &["THEN", "ELSE"][..])]
+    );
+    let short = "IF total < 3 THEN print \"small\" ELSE print \"big\"";
+    assert_eq!(language::format(short).unwrap(), format!("{short}\n"));
+    let long = "IF total < limit THEN print \"the total is still well below the limit, so carry on\" ELSE { RETURN total }";
+    assert_eq!(
+        language::format(long).unwrap(),
+        "IF total < limit\n    THEN print \"the total is still well below the limit, so carry on\"\n    ELSE { RETURN total }\n"
+    );
+    // A call that isn't the grammar's `IF` keeps the plain layout.
+    let other = "WHEN total < limit THEN print \"the total is still well below the limit, so carry on\" ELSE { RETURN total }";
+    assert_eq!(
+        anyx::format(other).unwrap(),
+        language::format(other).unwrap()
+    );
+}
+
+#[test]
 fn the_keyword_language_decodes() {
     use language::{Expression, Statement};
 

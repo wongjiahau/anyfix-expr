@@ -46,6 +46,8 @@ fn the_grammar_of_grammars_decodes() {
             "repetition _",
             "container _",
             "specific call _",
+            "format rule _",
+            "break before _",
             "any call _",
             "call condition _",
             "name condition _",
@@ -213,7 +215,7 @@ fn bad_grammars_say_what_was_found_and_what_was_expected() {
         ),
         (
             "ENTRY: value, value: (a, b)",
-            "grammar:1:22: found `(...)`; expected the word `STRING`, `NUMBER`, the call `ONE OF _`, `ZERO OR MORE _`, `ONE OR MORE _`, `OPTIONAL _`, `EACH _`, `CURLY BRACE _`, `SQUARE BRACKET _`, `PARENTHESIS _`, `ANYFIX CALL _`, `ANYFIX CALL _?`, `WORD _`, `ANY WORD _?`, `WORDS _?`, `STRING _`, `NUMBER _`, `ANY NODE` or a call whose name matches the regex `^[a-z][a-z0-9]*( [a-z][a-z0-9]*)*$`
+            "grammar:1:22: found `(...)`; expected the word `STRING`, `NUMBER`, the call `ONE OF _`, `ZERO OR MORE _`, `ONE OR MORE _`, `OPTIONAL _`, `EACH _`, `CURLY BRACE _`, `SQUARE BRACKET _`, `PARENTHESIS _`, `ANYFIX CALL _ FORMAT _`, `ANYFIX CALL _`, `ANYFIX CALL _?`, `WORD _`, `ANY WORD _?`, `WORDS _?`, `STRING _`, `NUMBER _`, `ANY NODE` or a call whose name matches the regex `^[a-z][a-z0-9]*( [a-z][a-z0-9]*)*$`
   ENTRY: value, value: (a, b)
                        ^^^^^^",
         ),

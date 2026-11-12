@@ -469,6 +469,11 @@ formatting it again changes nothing.
   other.
 - **Raw strings** are re-indented one level past the line they open on. Their
   values are unchanged.
+- **A layout** from whoever knows what the document means. `format_with(source,
+  &layout)` also lets a line break before the words the `Layout` marks: when
+  their call doesn't fit, each marked word starts a line, one level in. A
+  parser generated with `FORMAT` (see the generator's README) marks them for
+  you.
 
 ## Usage
 

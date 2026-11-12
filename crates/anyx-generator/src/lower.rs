@@ -9,8 +9,8 @@ use crate::diagnostic::Diagnostic;
 use crate::grammar as ast;
 use crate::grammar::support::number_value;
 use crate::model::{
-    Choice, ContainerKind, Element, Grammar, NumberPattern, Order, Pattern, Repetition, Rule,
-    StringCondition, WordKind, values,
+    Choice, ContainerKind, Element, Grammar, LayoutRule, NumberPattern, Order, Pattern, Repetition,
+    Rule, StringCondition, WordKind, values,
 };
 
 /// Names that can't be turned into a Rust field, type or variant.
@@ -21,6 +21,7 @@ pub fn lower(document: &ast::Document, source: &str) -> (Grammar, Vec<Diagnostic
         source,
         rule_names: document.rule.iter().map(rule_name).collect(),
         diagnostics: Vec::new(),
+        layouts: Vec::new(),
     };
     lowerer.check_rule_names(document);
     let (entry, entry_order) = lowerer.contents(&document.entry.contents, Names::Required);
@@ -38,6 +39,7 @@ pub fn lower(document: &ast::Document, source: &str) -> (Grammar, Vec<Diagnostic
             entry,
             entry_order,
             rules,
+            layouts: lowerer.layouts,
         },
         lowerer.diagnostics,
     )
@@ -54,6 +56,7 @@ struct Lowerer<'a> {
     source: &'a str,
     rule_names: Vec<String>,
     diagnostics: Vec<Diagnostic>,
+    layouts: Vec<LayoutRule>,
 }
 
 /// Where a pattern stands, which decides whether a bracket becomes a struct.
@@ -408,7 +411,11 @@ impl Lowerer<'_> {
     }
 
     fn specific_call(&mut self, call: &ast::SpecificCall) -> Pattern {
-        let mut parts: Vec<Element> = call.parts.iter().map(|part| self.call_part(part)).collect();
+        let (call_parts, span) = match call {
+            ast::SpecificCall::Formatted { parts, span, .. }
+            | ast::SpecificCall::Plain { parts, span } => (parts, *span),
+        };
+        let mut parts: Vec<Element> = call_parts.iter().map(|part| self.call_part(part)).collect();
         self.check_each_is_last(&parts);
         for part in &parts {
             let what = match part.pattern {
@@ -451,11 +458,63 @@ impl Lowerer<'_> {
             .sum();
         if !has_word && most_items < 2 {
             self.error(
-                call.span,
+                span,
                 "found a call of one slot and no word; expected a `WORD`, or at least two parts, since one item alone is never a call; write the part's pattern on its own",
             );
         }
+        if let ast::SpecificCall::Formatted { format, .. } = call {
+            self.layout(&parts, format);
+        }
         Pattern::SpecificCall(parts)
+    }
+
+    /// Checks a call's `FORMAT` against its parts and keeps it.
+    fn layout(&mut self, parts: &[Element], format: &[ast::FormatRule]) {
+        let words: Vec<String> = parts
+            .iter()
+            .filter_map(|part| match &part.pattern {
+                Pattern::Word(text) => Some(text.clone()),
+                _ => None,
+            })
+            .collect();
+        let mut break_before = Vec::new();
+        for rule in format {
+            let text = rule.text.value.value.clone();
+            let span = rule.text.span;
+            let position = parts
+                .iter()
+                .position(|part| matches!(&part.pattern, Pattern::Word(word) if *word == text));
+            match position {
+                None => self.error(
+                    span,
+                    format!(
+                        "found `BREAK BEFORE WORD {text:?}`, which is not a word of the call; expected one of its `WORD` parts{}",
+                        match words.is_empty() {
+                            true => String::new(),
+                            false => format!(
+                                ": {}",
+                                words.iter().map(|word| format!("{word:?}")).collect::<Vec<_>>().join(", ")
+                            ),
+                        }
+                    ),
+                ),
+                Some(0) => self.error(
+                    span,
+                    format!(
+                        "found `BREAK BEFORE WORD {text:?}`, the call's first part; expected a later word, since a call can't break before it starts"
+                    ),
+                ),
+                Some(_) if break_before.contains(&text) => self.error(
+                    span,
+                    format!("found `BREAK BEFORE WORD {text:?}` twice; expected each word once"),
+                ),
+                Some(_) => break_before.push(text),
+            }
+        }
+        self.layouts.push(LayoutRule {
+            words,
+            break_before,
+        });
     }
 
     /// One of the parts of an `ANYFIX CALL [...]`, where `WORDS` may stand.

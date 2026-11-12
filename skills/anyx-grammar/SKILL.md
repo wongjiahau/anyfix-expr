@@ -109,6 +109,7 @@ choice: ONE OF [first: pattern, second: pattern],   ## first match wins
 | `ANYFIX CALL [NAME [MATCHING REGEX "^[a-z]+ _$"], ARGUMENTS: x]` | any call whose name fits | a struct with `name: CallName` and `arguments` |
 | `ANYFIX CALL [NO ARGUMENTS]` | a call of words alone: `sans serif` | a struct with `name: CallName` |
 | `ANYFIX CALL [name: WORDS [NO KEYWORD], value: x]` | a call of the user's own words and a slot: `max size _` | a struct; `name` is `Spanned<String>`, `"max size"` |
+| `ANYFIX CALL [...] FORMAT [BREAK BEFORE WORD "THEN"]` | the same call; the generated `format` starts `THEN` on a new line when the call is too long | |
 | `ANY NODE` | any one node, for your own code to decode | `anyx::Node` |
 
 Every built-in part needs a name: `key: STRING`, not `STRING`. A rule
@@ -217,11 +218,12 @@ statement: ONE OF [
 binding: ANYFIX CALL [name: ANY WORD [NAME], WORD "=", value: expression],
 
 expression: ONE OF [
+  ## A long one starts `THEN` and `ELSE` on lines of their own.
   if: ANYFIX CALL [
     WORD "IF", condition: expression,
     WORD "THEN", then: expression,
     WORD "ELSE", else: expression,
-  ],
+  ] FORMAT [BREAK BEFORE WORD "THEN", BREAK BEFORE WORD "ELSE"],
   not: ANYFIX CALL [WORD "NOT", expression],
   less: ANYFIX CALL [left: expression, WORD "<", right: expression],
   sum: ANYFIX CALL [left: expression, WORD "+", right: expression],

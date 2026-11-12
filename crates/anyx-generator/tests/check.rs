@@ -131,6 +131,9 @@ fn patterns_must_be_able_to_match() {
             "ENTRY: value, value: ANYFIX CALL [WORD \"set\", name: WORDS, x: STRING]",
             "ENTRY: value, value: ANYFIX CALL [name: WORDS [NO KEYWORD, STARTS WITH \"x\"], x: STRING]",
             "ENTRY: value, value: ANYFIX CALL [NAME [NO KEYWORD, ENDS WITH \" _\"]]",
+            "ENTRY: value, value: ANYFIX CALL [WORD \"IF\", x: STRING, WORD \"THEN\", y: STRING] FORMAT [BREAK BEFORE WORD \"ELSE\"]",
+            "ENTRY: value, value: ANYFIX CALL [WORD \"IF\", x: STRING, WORD \"THEN\", y: STRING] FORMAT [BREAK BEFORE WORD \"IF\"]",
+            "ENTRY: value, value: ANYFIX CALL [WORD \"IF\", x: STRING, WORD \"THEN\", y: STRING] FORMAT [BREAK BEFORE WORD \"THEN\", BREAK BEFORE WORD \"THEN\"]",
         ]),
     );
 }

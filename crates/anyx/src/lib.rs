@@ -26,7 +26,7 @@ mod string;
 mod syntax;
 
 pub use error::{Error, ErrorCode};
-pub use format::{WIDTH, format};
+pub use format::{Layout, WIDTH, format, format_with};
 pub use lexer::{is_keyword, is_symbol_word};
 pub use migrate::migrate_comments;
 pub use node::{Call, FlatWord, FlatWordKind, NamePart, Node, NodeKind, flat_words};

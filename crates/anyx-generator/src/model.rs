@@ -11,6 +11,17 @@ pub struct Grammar {
     pub entry: Vec<Element>,
     pub entry_order: Order,
     pub rules: Vec<Rule>,
+    /// How the formatter lays out calls, from each `ANYFIX CALL [...]
+    /// FORMAT [...]`.
+    pub layouts: Vec<LayoutRule>,
+}
+
+/// The `FORMAT` of one `ANYFIX CALL`: a call whose name words include
+/// `words`, in order, may break its line before each of `break_before`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct LayoutRule {
+    pub words: Vec<String>,
+    pub break_before: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]

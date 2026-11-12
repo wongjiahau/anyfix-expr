@@ -199,6 +199,31 @@ Without parts, the AST keeps the call's name text, with `_` for each slot:
 
 A word is a call with no arguments, so `ANYFIX CALL` matches words too.
 
+#### `FORMAT [...]`
+
+After the parts of one call, `FORMAT` says how the generated `format`
+function lays the call out:
+
+```text
+ANYFIX CALL [
+  WORD "IF", condition: expression,
+  WORD "THEN", then: expression,
+  WORD "ELSE", else: expression,
+] FORMAT [BREAK BEFORE WORD "THEN", BREAK BEFORE WORD "ELSE"]
+```
+
+- `BREAK BEFORE WORD "THEN"`: when the call doesn't fit on its line, `THEN`
+  starts a new one, indented. The word must be one of the call's `WORD`
+  parts, and not its first part.
+
+A call too long for its line then reads
+
+```text
+IF total < limit
+    THEN print "the total is still well below the limit, so carry on"
+    ELSE { RETURN total }
+```
+
 ### `WORD "x"` and `ANY WORD`
 
 ```text
@@ -335,6 +360,12 @@ match parsed.document {
 `parse_document` parses the source with anyx and decodes what `ENTRY`
 describes. To decode nodes you already have, `decode_document` takes them.
 Each rule also has a decoder of its own, `decode_<rule>`, from one node.
+
+`format(source)` is `anyx::format` laid out by the grammar's `FORMAT`s, which
+`LAYOUT` lists. A call takes the layout of the `ANYFIX CALL` whose words it
+has, in order; when several fit, the one with the most words. A call that only
+looks like one of the grammar's gets its layout too, which changes nothing
+but whitespace.
 
 ### The types
 

@@ -3,7 +3,7 @@
 
 mod common;
 
-use anyx::{ErrorCode, TriviaKind, format, parse};
+use anyx::{ErrorCode, Layout, TriviaKind, format, format_with, parse};
 use common::tree;
 
 /// Formats `source`, asserting the result has the same tree, keeps every
@@ -330,4 +330,70 @@ fn line_strings_in_a_row_stay_apart() {
     // Without the blank line, the second would continue the first.
     assert_eq!(fmt("# a\n\n# b\nx"), "# a\n\n# b\nx\n");
     assert_eq!(fmt("y # a\n# b\nx"), "y # a\n\n    # b\n    x\n");
+}
+
+/// Formats `source`, letting lines break before each of `words`.
+fn fmt_breaking_before(source: &str, words: &[&str]) -> String {
+    let mut layout = Layout::new();
+    for word in words {
+        for (offset, _) in source.match_indices(word) {
+            layout.break_before(offset);
+        }
+    }
+    let formatted = format_with(source, &layout).unwrap();
+    assert_eq!(tree(&formatted), tree(source), "tree of {source:?}");
+    formatted
+}
+
+#[test]
+fn a_layout_breaks_a_call_only_when_it_is_too_long() {
+    let short = "METHOD list files RETURNS files: LIST file summary";
+    assert_eq!(
+        fmt_breaking_before(short, &["RETURNS"]),
+        format!("{short}\n")
+    );
+    let long = "METHOD write (path: TEXT) at revision (revision: INTEGER) content (content: TEXT) \
+                RETURNS (new revision: INTEGER) ERRORS [conflict at revision content, rejected, file errors]";
+    assert_eq!(
+        fmt_breaking_before(long, &["RETURNS", "ERRORS"]),
+        "METHOD write (path: TEXT) at revision (revision: INTEGER) content (content: TEXT)\n    \
+         RETURNS (new revision: INTEGER)\n    \
+         ERRORS [conflict at revision content, rejected, file errors]\n"
+    );
+}
+
+#[test]
+fn a_layout_breaks_calls_inside_a_sequence_one_level_deeper() {
+    let source = "[METHOD write (path: TEXT) at revision (revision: INTEGER) content (content: TEXT) \
+                  RETURNS (new revision: INTEGER), METHOD list files RETURNS (files: LIST: file)]";
+    assert_eq!(
+        fmt_breaking_before(source, &["RETURNS"]),
+        "[\n    METHOD write (path: TEXT) at revision (revision: INTEGER) content (content: TEXT)\n        \
+         RETURNS new revision: INTEGER,\n    METHOD list files RETURNS files: LIST file,\n]\n"
+    );
+}
+
+#[test]
+fn a_mark_on_the_first_item_of_a_call_is_ignored() {
+    assert_eq!(
+        fmt_breaking_before("RETURNS x", &["RETURNS"]),
+        "RETURNS x\n"
+    );
+}
+
+/// Marks only move line breaks, wherever they are.
+#[test]
+fn random_layouts_keep_the_tree() {
+    for name in ["config", "grammar", "json", "rg"] {
+        let path = format!("{}/tests/fixtures/{name}.anyx", env!("CARGO_MANIFEST_DIR"));
+        let source = std::fs::read_to_string(path).unwrap();
+        for step in 1..8 {
+            let mut layout = Layout::new();
+            (0..source.len())
+                .step_by(step)
+                .for_each(|offset| layout.break_before(offset));
+            let formatted = format_with(&source, &layout).unwrap();
+            assert_eq!(tree(&formatted), tree(&source), "{name}, every {step}");
+        }
+    }
 }

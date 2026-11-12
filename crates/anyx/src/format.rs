@@ -5,7 +5,7 @@
 //! re-parsing the element it sits in to check. The second lays the remaining
 //! tokens out at [`WIDTH`] columns, with comments attached where they were.
 
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 use crate::error::Error;
 use crate::lexer::is_symbol_word;
@@ -20,6 +20,31 @@ use crate::syntax::{
 pub const WIDTH: usize = 100;
 const INDENT: usize = 4;
 
+/// Where a layout may break lines, beyond what [`format`] does by itself.
+/// A consumer that knows what a document means, such as a decoder generated
+/// from a grammar, marks words to start a line when their call is too long.
+///
+/// Marks only move line breaks, so the formatted document has the same tree
+/// whatever they are. A mark that isn't at the start of a word, or is the
+/// first item of its call, is ignored.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Layout {
+    break_before: BTreeSet<usize>,
+}
+
+impl Layout {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Lets the line break before the item that starts at byte `offset` of
+    /// the source. The breaks in one call go together: when the call doesn't
+    /// fit on its line, each of them starts a new line, indented one level.
+    pub fn break_before(&mut self, offset: usize) {
+        self.break_before.insert(offset);
+    }
+}
+
 /// Formats a document canonically, or returns its parse errors.
 ///
 /// A `.`, `:` or `( )` is removed only when the tree stays the same, so
@@ -32,6 +57,24 @@ const INDENT: usize = 4;
 /// assert_eq!(formatted, "f: 1 g,\n(x) y,\n");
 /// ```
 pub fn format(source: &str) -> Result<String, Vec<Error>> {
+    format_with(source, &Layout::default())
+}
+
+/// Formats a document like [`format`], also breaking lines where `layout`
+/// allows.
+///
+/// ```
+/// let source = "METHOD read (path: TEXT) RETURNS (file: file) ERRORS [trashed, missing, gone, renamed, locked, moved]";
+/// let mut layout = anyx::Layout::new();
+/// layout.break_before(source.find("RETURNS").unwrap());
+/// layout.break_before(source.find("ERRORS").unwrap());
+/// let formatted = anyx::format_with(source, &layout).unwrap();
+/// assert_eq!(
+///     formatted,
+///     "METHOD read (path: TEXT)\n    RETURNS (file: file)\n    ERRORS [trashed, missing, gone, renamed, locked, moved]\n"
+/// );
+/// ```
+pub fn format_with(source: &str, layout: &Layout) -> Result<String, Vec<Error>> {
     let parsed = parse(source);
     if !parsed.errors.is_empty() {
         return Err(parsed.errors);
@@ -59,6 +102,12 @@ pub fn format(source: &str) -> Result<String, Vec<Error>> {
             .collect(),
         comments: &comments,
         start: None,
+        breaks: kept_ids
+            .iter()
+            .enumerate()
+            .filter(|&(_, &i)| layout.break_before.contains(&original.tokens[i].span.start))
+            .map(|(k, _)| k)
+            .collect(),
     };
     let output = print(&builder.document(&reparsed.syntax));
     let check = parse(&output);
@@ -430,6 +479,8 @@ struct Builder<'a> {
     /// Set at the start of an element, holding whether a blank line may come
     /// before it. Taken by the element's first token.
     start: Option<bool>,
+    /// The kept tokens a line may break before, from the [`Layout`].
+    breaks: HashSet<usize>,
 }
 
 impl Builder<'_> {
@@ -465,10 +516,32 @@ impl Builder<'_> {
     fn expression(&mut self, expression: &Expression) -> Doc {
         match expression {
             Expression::Run(run) => {
-                let mut parts = Vec::new();
+                let breaks: Vec<bool> = run
+                    .items
+                    .iter()
+                    .enumerate()
+                    .map(|(i, item)| {
+                        let first = match item {
+                            Item::Atom(token) | Item::Skipped(token) => token,
+                            Item::Group(group) => &group.open,
+                        };
+                        i > 0 && self.breaks.contains(&self.index[&first.span.start])
+                    })
+                    .collect();
+                // The items up to the first break, then the rest indented,
+                // each break a line break when the run doesn't fit.
+                let mut head = Vec::new();
+                let mut tail = Vec::new();
                 for (i, item) in run.items.iter().enumerate() {
+                    let parts = match breaks[..=i].contains(&true) {
+                        true => &mut tail,
+                        false => &mut head,
+                    };
                     if i > 0 {
-                        parts.push(Doc::Text(" ".into()));
+                        parts.push(match breaks[i] {
+                            true => Doc::Line,
+                            false => Doc::Text(" ".into()),
+                        });
                     }
                     parts.push(match item {
                         Item::Atom(token) => self.token(token),
@@ -476,7 +549,13 @@ impl Builder<'_> {
                         Item::Skipped(_) => unreachable!("a document with errors is not formatted"),
                     });
                 }
-                Doc::Concat(parts)
+                match tail.is_empty() {
+                    true => Doc::Concat(head),
+                    false => {
+                        head.push(indent(Doc::Concat(tail)));
+                        chain_group(Doc::Concat(head))
+                    }
+                }
             }
             Expression::Dot(_) => {
                 let mut links = Vec::new();

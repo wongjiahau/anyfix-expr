@@ -92,3 +92,18 @@ nothing to report
 ## ENTRY: value, value: ANYFIX CALL [NAME [NO KEYWORD, ENDS WITH " _"]]
 nothing to report
 
+## ENTRY: value, value: ANYFIX CALL [WORD "IF", x: STRING, WORD "THEN", y: STRING] FORMAT [BREAK BEFORE WORD "ELSE"]
+grammar:1:107: error: found `BREAK BEFORE WORD "ELSE"`, which is not a word of the call; expected one of its `WORD` parts: "IF", "THEN"
+  ENTRY: value, value: ANYFIX CALL [WORD "IF", x: STRING, WORD "THEN", y: STRING] FORMAT [BREAK BEFORE WORD "ELSE"]
+                                                                                                            ^^^^^^
+
+## ENTRY: value, value: ANYFIX CALL [WORD "IF", x: STRING, WORD "THEN", y: STRING] FORMAT [BREAK BEFORE WORD "IF"]
+grammar:1:107: error: found `BREAK BEFORE WORD "IF"`, the call's first part; expected a later word, since a call can't break before it starts
+  ENTRY: value, value: ANYFIX CALL [WORD "IF", x: STRING, WORD "THEN", y: STRING] FORMAT [BREAK BEFORE WORD "IF"]
+                                                                                                            ^^^^
+
+## ENTRY: value, value: ANYFIX CALL [WORD "IF", x: STRING, WORD "THEN", y: STRING] FORMAT [BREAK BEFORE WORD "THEN", BREAK BEFORE WORD "THEN"]
+grammar:1:133: error: found `BREAK BEFORE WORD "THEN"` twice; expected each word once
+  ENTRY: value, value: ANYFIX CALL [WORD "IF", x: STRING, WORD "THEN", y: STRING] FORMAT [BREAK BEFORE WORD "THEN", BREAK BEFORE WORD "THEN"]
+                                                                                                                                      ^^^^^^
+

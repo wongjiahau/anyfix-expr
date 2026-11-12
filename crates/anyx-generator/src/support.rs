@@ -774,3 +774,61 @@ pub fn float(
     }
     Err(mismatch(node, expected))
 }
+
+/// The `FORMAT` of one `ANYFIX CALL` in the grammar: a call whose name words
+/// include `words`, in order, may break its line before each of
+/// `break_before`.
+#[derive(Clone, Copy, Debug)]
+pub struct LayoutRule {
+    pub words: &'static [&'static str],
+    pub break_before: &'static [&'static str],
+}
+
+/// Formats `source` with anyx, laying out each call by the rule of `rules`
+/// that names most of its words. A call that only looks like one of the
+/// grammar's gets its layout too, which changes nothing but whitespace.
+pub fn format(source: &str, rules: &[LayoutRule]) -> Result<String, Vec<anyx::Error>> {
+    let parsed = anyx::parse(source);
+    let mut layout = anyx::Layout::new();
+    if parsed.errors.is_empty() {
+        mark_breaks(&parsed.syntax.nodes(), rules, &mut layout);
+    }
+    anyx::format_with(source, &layout)
+}
+
+fn mark_breaks(nodes: &[Node], rules: &[LayoutRule], layout: &mut anyx::Layout) {
+    for node in nodes {
+        match &node.kind {
+            NodeKind::Call(call) => {
+                let words: Vec<(&str, Span)> = call
+                    .name
+                    .iter()
+                    .filter_map(|part| match part {
+                        NamePart::Word { text, span } => Some((text.as_str(), *span)),
+                        NamePart::Slot => None,
+                    })
+                    .collect();
+                let rule = rules
+                    .iter()
+                    .filter(|rule| {
+                        let mut remaining = words.iter();
+                        rule.words
+                            .iter()
+                            .all(|word| remaining.any(|(text, _)| text == word))
+                    })
+                    .max_by_key(|rule| rule.words.len());
+                if let Some(rule) = rule {
+                    words
+                        .iter()
+                        .filter(|(text, _)| rule.break_before.contains(text))
+                        .for_each(|(_, span)| layout.break_before(span.start));
+                }
+                mark_breaks(&call.arguments, rules, layout);
+            }
+            NodeKind::Parens(nodes) | NodeKind::Brackets(nodes) | NodeKind::Braces(nodes) => {
+                mark_breaks(nodes, rules, layout)
+            }
+            _ => {}
+        }
+    }
+}

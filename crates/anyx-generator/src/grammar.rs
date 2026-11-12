@@ -99,8 +99,23 @@ pub enum Container {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct SpecificCall {
-    pub parts: Spanned<Vec<Element>>,
+pub enum SpecificCall {
+    Formatted {
+        parts: Spanned<Vec<Element>>,
+        format: Spanned<Vec<FormatRule>>,
+        span: Span,
+    },
+    Plain {
+        parts: Spanned<Vec<Element>>,
+        span: Span,
+    },
+}
+
+pub type FormatRule = BreakBefore;
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct BreakBefore {
+    pub text: Spanned<StringLiteral>,
     pub span: Span,
 }
 
@@ -242,7 +257,7 @@ impl Pattern {
             Pattern::OneOf(value) => value.span,
             Pattern::Repetition(value) => value.span(),
             Pattern::Container(value) => value.span(),
-            Pattern::SpecificCall(value) => value.span,
+            Pattern::SpecificCall(value) => value.span(),
             Pattern::AnyCall(value) => value.span,
             Pattern::Word(value) => value.span,
             Pattern::AnyWord(value) => value.span,
@@ -271,6 +286,14 @@ impl Container {
             Container::CurlyBrace { span, .. }
             | Container::SquareBracket { span, .. }
             | Container::Parenthesis { span, .. } => *span,
+        }
+    }
+}
+
+impl SpecificCall {
+    pub fn span(&self) -> Span {
+        match self {
+            SpecificCall::Formatted { span, .. } | SpecificCall::Plain { span, .. } => *span,
         }
     }
 }
@@ -590,19 +613,26 @@ fn decode_container_parenthesis(node: &Node) -> Result<Container, DecodeError> {
 }
 
 pub fn decode_specific_call(node: &Node) -> Result<SpecificCall, DecodeError> {
-    let mut parts = support::call(node, "the call `ANYFIX CALL _`")?;
-    let decoded = SpecificCall {
+    decode_specific_call_formatted(node).or_else(|error| error.or(decode_specific_call_plain(node)))
+}
+
+fn decode_specific_call_formatted(node: &Node) -> Result<SpecificCall, DecodeError> {
+    let mut parts = support::call(node, "the call `ANYFIX CALL _ FORMAT _`")?;
+    let decoded = SpecificCall::Formatted {
         parts: parts
             .word("ANYFIX")?
             .word("CALL")?
-            .one(decode_specific_call_parts, "`[...]`")?,
+            .one(decode_specific_call_formatted_parts, "`[...]`")?,
+        format: parts
+            .word("FORMAT")?
+            .one(decode_specific_call_formatted_format, "`[...]`")?,
         span: node.span,
     };
     parts.finish()?;
     Ok(decoded)
 }
 
-fn decode_specific_call_parts(node: &Node) -> Result<Spanned<Vec<Element>>, DecodeError> {
+fn decode_specific_call_formatted_parts(node: &Node) -> Result<Spanned<Vec<Element>>, DecodeError> {
     let mut elements = support::square_bracket(node)?;
     let value = elements.one_or_more(decode_element, "an element")?;
     elements.finish()?;
@@ -610,6 +640,58 @@ fn decode_specific_call_parts(node: &Node) -> Result<Spanned<Vec<Element>>, Deco
         value,
         span: node.span,
     })
+}
+
+fn decode_specific_call_formatted_format(
+    node: &Node,
+) -> Result<Spanned<Vec<FormatRule>>, DecodeError> {
+    let mut elements = support::square_bracket(node)?;
+    let value = elements.one_or_more(decode_format_rule, "a format rule")?;
+    elements.finish()?;
+    Ok(Spanned {
+        value,
+        span: node.span,
+    })
+}
+
+fn decode_specific_call_plain(node: &Node) -> Result<SpecificCall, DecodeError> {
+    let mut parts = support::call(node, "the call `ANYFIX CALL _`")?;
+    let decoded = SpecificCall::Plain {
+        parts: parts
+            .word("ANYFIX")?
+            .word("CALL")?
+            .one(decode_specific_call_plain_parts, "`[...]`")?,
+        span: node.span,
+    };
+    parts.finish()?;
+    Ok(decoded)
+}
+
+fn decode_specific_call_plain_parts(node: &Node) -> Result<Spanned<Vec<Element>>, DecodeError> {
+    let mut elements = support::square_bracket(node)?;
+    let value = elements.one_or_more(decode_element, "an element")?;
+    elements.finish()?;
+    Ok(Spanned {
+        value,
+        span: node.span,
+    })
+}
+
+pub fn decode_format_rule(node: &Node) -> Result<FormatRule, DecodeError> {
+    decode_break_before(node)
+}
+
+pub fn decode_break_before(node: &Node) -> Result<BreakBefore, DecodeError> {
+    let mut parts = support::call(node, "the call `BREAK BEFORE WORD _`")?;
+    let decoded = BreakBefore {
+        text: parts.word("BREAK")?.word("BEFORE")?.word("WORD")?.one(
+            |node| support::string(node, |_| true, "a string"),
+            "a string",
+        )?,
+        span: node.span,
+    };
+    parts.finish()?;
+    Ok(decoded)
 }
 
 pub fn decode_any_call(node: &Node) -> Result<AnyCall, DecodeError> {
@@ -955,6 +1037,16 @@ fn decode_number_condition_at_most(node: &Node) -> Result<NumberCondition, Decod
 /// Parses `source` with anyx and decodes its document.
 pub fn parse_document(source: &str) -> support::Parsed<Document> {
     support::parse(source, decode_document)
+}
+
+/// How [`format`] lays out calls, from the grammar's `FORMAT`s.
+pub const LAYOUT: &[support::LayoutRule] = &[];
+
+/// Formats `source` canonically, laying calls out as the grammar says.
+pub fn format(
+    source: &str,
+) -> std::result::Result<std::string::String, std::vec::Vec<anyx::Error>> {
+    support::format(source, LAYOUT)
 }
 
 pub mod support {
@@ -1747,5 +1839,63 @@ pub mod support {
             }
         }
         Err(mismatch(node, expected))
+    }
+
+    /// The `FORMAT` of one `ANYFIX CALL` in the grammar: a call whose name words
+    /// include `words`, in order, may break its line before each of
+    /// `break_before`.
+    #[derive(Clone, Copy, Debug)]
+    pub struct LayoutRule {
+        pub words: &'static [&'static str],
+        pub break_before: &'static [&'static str],
+    }
+
+    /// Formats `source` with anyx, laying out each call by the rule of `rules`
+    /// that names most of its words. A call that only looks like one of the
+    /// grammar's gets its layout too, which changes nothing but whitespace.
+    pub fn format(source: &str, rules: &[LayoutRule]) -> Result<String, Vec<anyx::Error>> {
+        let parsed = anyx::parse(source);
+        let mut layout = anyx::Layout::new();
+        if parsed.errors.is_empty() {
+            mark_breaks(&parsed.syntax.nodes(), rules, &mut layout);
+        }
+        anyx::format_with(source, &layout)
+    }
+
+    fn mark_breaks(nodes: &[Node], rules: &[LayoutRule], layout: &mut anyx::Layout) {
+        for node in nodes {
+            match &node.kind {
+                NodeKind::Call(call) => {
+                    let words: Vec<(&str, Span)> = call
+                        .name
+                        .iter()
+                        .filter_map(|part| match part {
+                            NamePart::Word { text, span } => Some((text.as_str(), *span)),
+                            NamePart::Slot => None,
+                        })
+                        .collect();
+                    let rule = rules
+                        .iter()
+                        .filter(|rule| {
+                            let mut remaining = words.iter();
+                            rule.words
+                                .iter()
+                                .all(|word| remaining.any(|(text, _)| text == word))
+                        })
+                        .max_by_key(|rule| rule.words.len());
+                    if let Some(rule) = rule {
+                        words
+                            .iter()
+                            .filter(|(text, _)| rule.break_before.contains(text))
+                            .for_each(|(_, span)| layout.break_before(span.start));
+                    }
+                    mark_breaks(&call.arguments, rules, layout);
+                }
+                NodeKind::Parens(nodes) | NodeKind::Brackets(nodes) | NodeKind::Braces(nodes) => {
+                    mark_breaks(nodes, rules, layout)
+                }
+                _ => {}
+            }
+        }
     }
 }
