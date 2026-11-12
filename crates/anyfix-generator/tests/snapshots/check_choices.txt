@@ -88,6 +88,17 @@ grammar:1:50: warning: found the choices `other` and `null` able to match the sa
   ENTRY: value, value: ONE OF [other: ANYFIX CALL, null: WORD "null"]
                                                    ^^^^^^^^^^^^^^^^^
 
+## ENTRY: value, value: ONE OF [words: ANYFIX CALL [NO ARGUMENTS], field: ANYFIX CALL [NAME [ENDS WITH " _"]]]
+nothing to report
+
+## ENTRY: value, value: ONE OF [words: ANYFIX CALL [NO ARGUMENTS], null: WORD "null"]
+grammar:1:65: warning: found the choices `words` and `null` able to match the same input; expected at most one choice to fit any input, since `words` comes first and always wins it; make one of them more specific, or put the more specific one first
+  ENTRY: value, value: ONE OF [words: ANYFIX CALL [NO ARGUMENTS], null: WORD "null"]
+                                                                  ^^^^^^^^^^^^^^^^^
+
+## ENTRY: value, value: ONE OF [null: WORD "null", words: ANYFIX CALL [NO ARGUMENTS]]
+nothing to report
+
 ## ENTRY: value, value: ONE OF [integer: integer, other: ANYFIX CALL], integer: ONE OF [number: NUMBER, minus: SPECIFIC ANYFIX CALL [WORD "-", n: NUMBER]]
 nothing to report
 

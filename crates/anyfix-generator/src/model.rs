@@ -143,6 +143,8 @@ pub enum StringCondition {
     EndsWith(String),
     Contains(String),
     MatchingRegex(String),
+    /// No word of a call's name is a `_` slot: `NO ARGUMENTS`.
+    NoSlots,
 }
 
 impl StringCondition {
@@ -155,6 +157,7 @@ impl StringCondition {
             StringCondition::MatchingRegex(regex) => {
                 regex::Regex::new(regex).is_ok_and(|regex| regex.is_match(text))
             }
+            StringCondition::NoSlots => !text.split(' ').any(|word| word == "_"),
         }
     }
 }
@@ -295,6 +298,7 @@ fn conditions_text(conditions: &[StringCondition]) -> String {
             StringCondition::EndsWith(text) => format!("ends with {text:?}"),
             StringCondition::Contains(text) => format!("contains {text:?}"),
             StringCondition::MatchingRegex(regex) => format!("matches the regex `{regex}`"),
+            StringCondition::NoSlots => "has no `_`".to_string(),
         })
         .collect();
     join_and(&parts)
@@ -319,6 +323,9 @@ impl Grammar {
             Pattern::Container { kind, .. } => kind.picture().to_string(),
             Pattern::SpecificCall(parts) => format!("the call `{}`", call_picture(parts)),
             Pattern::AnyCall { name, .. } if name.is_empty() => "a call".to_string(),
+            Pattern::AnyCall { name, .. } if name[..] == [StringCondition::NoSlots] => {
+                "a call with no arguments".to_string()
+            }
             Pattern::AnyCall { name, .. } => {
                 format!("a call whose name {}", conditions_text(name))
             }

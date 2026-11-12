@@ -43,23 +43,28 @@ input:1:17: found the string "other"; expected the word `span`, `type`, `NOT_NUL
   "#a!", "exact", "other"
                   ^^^^^^^
 
-## WORDS [IF, name, +, x, ->, |, |, end]
+## WORDS [IF, name, +, x, sans serif, ->, |, |, end]
 decodes
 
-## WORDS [if, name, +, x, ->, end]
+## WORDS [if, name, +, x, y, ->, end]
 input:1:8: found the word `if`; expected a keyword
-  WORDS [if, name, +, x, ->, end]
+  WORDS [if, name, +, x, y, ->, end]
          ^^
 
-## WORDS [IF, Name, +, x, ->, end]
+## WORDS [IF, Name, +, x, y, ->, end]
 input:1:12: found the word `Name`; expected a name that matches the regex `^[a-z]+$`
-  WORDS [IF, Name, +, x, ->, end]
+  WORDS [IF, Name, +, x, y, ->, end]
              ^^^^
 
-## WORDS [IF, name, +, x, ->]
-input:1:26: found the closing `]`; expected the word `end`
-  WORDS [IF, name, +, x, ->]
-                           ^
+## WORDS [IF, name, +, x, y, ->]
+input:1:29: found the closing `]`; expected the word `end`
+  WORDS [IF, name, +, x, y, ->]
+                              ^
+
+## WORDS [IF, name, +, x, print 1, ->, end]
+input:1:24: found the call `print _`; expected a call with no arguments
+  WORDS [IF, name, +, x, print 1, ->, end]
+                         ^^^^^^^
 
 ## (wrap, [type], finish)
 input:1:16: found the word `finish`; expected the word `end`

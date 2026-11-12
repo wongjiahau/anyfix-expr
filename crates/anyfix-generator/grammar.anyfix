@@ -70,6 +70,7 @@ call condition: ONE OF [
     conditions: SQUARE BRACKET [ONE OR MORE: string condition],
   ],
   arguments: SPECIFIC ANYFIX CALL [WORD "ARGUMENTS", pattern],
+  no arguments: SPECIFIC ANYFIX CALL [WORD "NO", WORD "ARGUMENTS"],
 ],
 
 word: SPECIFIC ANYFIX CALL [WORD "WORD", text: STRING],

@@ -1,7 +1,7 @@
 # The corners of the generator: rules named like the types its output uses,
 # every kind of number and word, fields named like Rust keywords, brackets
-# with and without fields, recursion through an optional field, and `EACH`
-# among the parts of a call.
+# with and without fields, recursion through an optional field, `EACH`
+# among the parts of a call, and a call with no arguments.
 
 ENTRY [header: OPTIONAL: string, ZERO OR MORE: node],
 
@@ -49,6 +49,7 @@ words: SPECIFIC ANYFIX CALL [
     name: ANY WORD [NAME, MATCHING REGEX "^[a-z]+$"],
     symbol: ANY WORD [SYMBOL],
     any: ANY WORD,
+    phrase: ANYFIX CALL [NO ARGUMENTS],
     arrow: WORD "->",
     bars: ZERO OR MORE: WORD "|",
     WORD "end",

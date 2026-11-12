@@ -419,6 +419,7 @@ fn conditions_overlap(a: &[StringCondition], b: &[StringCondition]) -> bool {
             StringCondition::EndsWith(text) => format!("(?:{})$", regex::escape(text)),
             StringCondition::Contains(text) => regex::escape(text),
             StringCondition::MatchingRegex(regex) => regex.clone(),
+            StringCondition::NoSlots => "^(?:(?:[^ _][^ ]*|_[^ ]+)(?: |$))*$".to_string(),
         })
         .collect();
     some_text_matches_all(&regexes)

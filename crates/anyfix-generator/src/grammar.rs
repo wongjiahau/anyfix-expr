@@ -111,6 +111,9 @@ pub enum CallCondition {
         pattern: Pattern,
         span: Span,
     },
+    NoArguments {
+        span: Span,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -245,7 +248,9 @@ impl Container {
 impl CallCondition {
     pub fn span(&self) -> Span {
         match self {
-            CallCondition::Name { span, .. } | CallCondition::Arguments { span, .. } => *span,
+            CallCondition::Name { span, .. }
+            | CallCondition::Arguments { span, .. }
+            | CallCondition::NoArguments { span, .. } => *span,
         }
     }
 }
@@ -568,6 +573,7 @@ fn decode_any_call_conditions(node: &Node) -> Result<Spanned<Vec<CallCondition>>
 pub fn decode_call_condition(node: &Node) -> Result<CallCondition, DecodeError> {
     decode_call_condition_name(node)
         .or_else(|error| error.or(decode_call_condition_arguments(node)))
+        .or_else(|error| error.or(decode_call_condition_no_arguments(node)))
 }
 
 fn decode_call_condition_name(node: &Node) -> Result<CallCondition, DecodeError> {
@@ -600,6 +606,14 @@ fn decode_call_condition_arguments(node: &Node) -> Result<CallCondition, DecodeE
         pattern: parts.word("ARGUMENTS")?.one(decode_pattern, "a pattern")?,
         span: node.span,
     };
+    parts.finish()?;
+    Ok(decoded)
+}
+
+fn decode_call_condition_no_arguments(node: &Node) -> Result<CallCondition, DecodeError> {
+    let mut parts = support::call(node, "the call `NO ARGUMENTS`")?;
+    let decoded = CallCondition::NoArguments { span: node.span };
+    parts.word("NO")?.word("ARGUMENTS")?;
     parts.finish()?;
     Ok(decoded)
 }

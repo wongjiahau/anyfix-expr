@@ -141,6 +141,7 @@ ANYFIX CALL                                             # any call
 ANYFIX CALL [NAME [STARTS WITH "get "]]                 # by its name
 ANYFIX CALL [ARGUMENTS: ZERO OR MORE: expression]       # with typed arguments
 ANYFIX CALL [NAME [ENDS WITH " _"], ARGUMENTS: expression]
+ANYFIX CALL [NO ARGUMENTS]                              # words alone: `sans serif`
 ```
 
 `ANYFIX CALL` matches any call, which is how a language lets its users
@@ -150,6 +151,9 @@ slot: `list file in _`.
 - `NAME [string conditions]` puts conditions on that name text.
 - `ARGUMENTS: pattern` describes the arguments. Without it, they stay raw
   `anyfix_expr::Node`s.
+- `NO ARGUMENTS` takes only a call with none, which is one or more words
+  with no `_` in its name. Unlike a regex on the name, it needs no `regex`
+  crate in the output.
 
 A word is a call with no arguments, so `ANYFIX CALL` matches words too.
 

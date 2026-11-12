@@ -385,6 +385,7 @@ impl Lowerer<'_> {
     fn any_call(&mut self, call: &ast::AnyCall) -> Pattern {
         let mut name = None;
         let mut arguments = None;
+        let mut no_arguments = None;
         for condition in call.conditions.iter().flat_map(|list| list.iter()) {
             match condition {
                 ast::CallCondition::Name { conditions, span } => {
@@ -411,12 +412,21 @@ impl Lowerer<'_> {
                         span: *span,
                     }));
                 }
+                ast::CallCondition::NoArguments { span } => no_arguments = Some(*span),
             }
         }
-        Pattern::AnyCall {
-            name: name.unwrap_or_default(),
-            arguments,
+        let mut name = name.unwrap_or_default();
+        if let Some(span) = no_arguments {
+            if arguments.is_some() {
+                self.error(
+                    span,
+                    "found both `ARGUMENTS` and `NO ARGUMENTS`; expected at most one of them; remove one",
+                );
+            }
+            // A call has an argument for each `_` in its name.
+            name.push(StringCondition::NoSlots);
         }
+        Pattern::AnyCall { name, arguments }
     }
 
     fn any_word(&mut self, any_word: &ast::AnyWord) -> Pattern {

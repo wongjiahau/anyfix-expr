@@ -456,6 +456,9 @@ impl Builder<'_> {
                     };
                     format!("REGEX_{}.is_match({variable})", index + 1)
                 }
+                StringCondition::NoSlots => {
+                    format!("!{variable}.split(' ').any(|word| word == \"_\")")
+                }
             })
             .collect()
     }

@@ -80,8 +80,16 @@ pub struct WordsList {
     pub name: Spanned<std::string::String>,
     pub symbol: Spanned<std::string::String>,
     pub any: Spanned<std::string::String>,
+    pub phrase: WordsListPhrase,
     pub arrow: anyfix_expr::Span,
     pub bars: Vec<anyfix_expr::Span>,
+    pub span: anyfix_expr::Span,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct WordsListPhrase {
+    pub name: Spanned<std::string::String>,
+    pub arguments: Vec<anyfix_expr::Node>,
     pub span: anyfix_expr::Span,
 }
 
@@ -335,6 +343,7 @@ fn decode_words_list(node: &anyfix_expr::Node) -> Result<WordsList, DecodeError>
             "a symbol",
         )?,
         any: elements.one(|node| support::any_word(node, |_| true, "a word"), "a word")?,
+        phrase: elements.one(decode_words_list_phrase, "a call with no arguments")?,
         arrow: elements.word_span("->")?,
         bars: elements.zero_or_more(|node| support::word(node, "|")),
         span: node.span,
@@ -342,6 +351,19 @@ fn decode_words_list(node: &anyfix_expr::Node) -> Result<WordsList, DecodeError>
     elements.word("end")?;
     elements.finish()?;
     Ok(decoded)
+}
+
+fn decode_words_list_phrase(node: &anyfix_expr::Node) -> Result<WordsListPhrase, DecodeError> {
+    let (name, arguments) = support::any_call(
+        node,
+        |name| !name.split(' ').any(|word| word == "_"),
+        "a call with no arguments",
+    )?;
+    Ok(WordsListPhrase {
+        name,
+        arguments: arguments.to_vec(),
+        span: node.span,
+    })
 }
 
 pub fn decode_box(node: &anyfix_expr::Node) -> Result<Box, DecodeError> {

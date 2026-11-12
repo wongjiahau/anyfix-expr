@@ -116,6 +116,7 @@ fn patterns_must_be_able_to_match() {
             "ENTRY: value, value: ANY WORD [KEYWORD, SYMBOL]",
             "ENTRY: value, value: SPECIFIC ANYFIX CALL [x: STRING]",
             "ENTRY: value, value: ANYFIX CALL [NAME [CONTAINS \"a\"], NAME [CONTAINS \"b\"]]",
+            "ENTRY: value, value: ANYFIX CALL [NO ARGUMENTS, ARGUMENTS: STRING]",
             "ENTRY: value, value: ONE OF [x: STRING, group: PARENTHESIS: value]",
             "ENTRY: value, value: ONE OF [x: STRING, pair: PARENTHESIS [value, other: value]]",
         ]),
@@ -149,6 +150,9 @@ fn choices_that_compete_get_a_warning() {
             "ENTRY: value, value: ONE OF [field: ANYFIX CALL [NAME [ENDS WITH \" _\"], ARGUMENTS: STRING], other: ANYFIX CALL [NAME [ENDS WITH \" _\"]]]",
             "ENTRY: value, value: ONE OF [a: SPECIFIC ANYFIX CALL [WORD \"f\", x: ZERO OR MORE: STRING], other: ANYFIX CALL [NAME [STARTS WITH \"f\"]]]",
             "ENTRY: value, value: ONE OF [other: ANYFIX CALL, null: WORD \"null\"]",
+            "ENTRY: value, value: ONE OF [words: ANYFIX CALL [NO ARGUMENTS], field: ANYFIX CALL [NAME [ENDS WITH \" _\"]]]",
+            "ENTRY: value, value: ONE OF [words: ANYFIX CALL [NO ARGUMENTS], null: WORD \"null\"]",
+            "ENTRY: value, value: ONE OF [null: WORD \"null\", words: ANYFIX CALL [NO ARGUMENTS]]",
             "ENTRY: value, value: ONE OF [integer: integer, other: ANYFIX CALL], integer: ONE OF [number: NUMBER, minus: SPECIFIC ANYFIX CALL [WORD \"-\", n: NUMBER]]",
         ]),
     );
