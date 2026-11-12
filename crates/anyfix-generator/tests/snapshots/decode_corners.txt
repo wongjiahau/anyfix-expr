@@ -29,7 +29,7 @@ input:1:22: found the number `43`; expected the number 42
                        ^^
 
 ## [1, 0, 0, 0, 0, 0.5, 42, "x"]
-input:1:26: found the string "x"; expected a number or the closing `]`
+input:1:26: found the string "x"; expected an integer from -10 to 10
   [1, 0, 0, 0, 0, 0.5, 42, "x"]
                            ^^^
 

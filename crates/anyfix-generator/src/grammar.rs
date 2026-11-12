@@ -191,6 +191,7 @@ pub enum Number {
 #[derive(Clone, Debug, PartialEq)]
 pub enum NumberCondition {
     Integer(Span),
+    Signed(Span),
     AtLeast { bound: Spanned<f64>, span: Span },
     AtMost { bound: Spanned<f64>, span: Span },
 }
@@ -308,6 +309,7 @@ impl NumberCondition {
     pub fn span(&self) -> Span {
         match self {
             NumberCondition::Integer(span)
+            | NumberCondition::Signed(span)
             | NumberCondition::AtLeast { span, .. }
             | NumberCondition::AtMost { span, .. } => *span,
         }
@@ -794,7 +796,7 @@ fn decode_number_exact(node: &Node) -> Result<Number, DecodeError> {
     let mut parts = support::call(node, "the call `NUMBER _`")?;
     let decoded = Number::Exact {
         value: parts.word("NUMBER")?.one(
-            |node| support::float(node, f64::NEG_INFINITY, f64::INFINITY, "a number"),
+            |node| support::float(node, f64::NEG_INFINITY, f64::INFINITY, false, "a number"),
             "a number",
         )?,
         span: node.span,
@@ -830,6 +832,7 @@ fn decode_number_conditions_conditions(
 pub fn decode_number_condition(node: &Node) -> Result<NumberCondition, DecodeError> {
     support::word(node, "INTEGER")
         .map(NumberCondition::Integer)
+        .or_else(|error| error.or(support::word(node, "SIGNED").map(NumberCondition::Signed)))
         .or_else(|error| error.or(decode_number_condition_at_least(node)))
         .or_else(|error| error.or(decode_number_condition_at_most(node)))
 }
@@ -838,7 +841,7 @@ fn decode_number_condition_at_least(node: &Node) -> Result<NumberCondition, Deco
     let mut parts = support::call(node, "the call `AT LEAST _`")?;
     let decoded = NumberCondition::AtLeast {
         bound: parts.word("AT")?.word("LEAST")?.one(
-            |node| support::float(node, f64::NEG_INFINITY, f64::INFINITY, "a number"),
+            |node| support::float(node, f64::NEG_INFINITY, f64::INFINITY, false, "a number"),
             "a number",
         )?,
         span: node.span,
@@ -851,7 +854,7 @@ fn decode_number_condition_at_most(node: &Node) -> Result<NumberCondition, Decod
     let mut parts = support::call(node, "the call `AT MOST _`")?;
     let decoded = NumberCondition::AtMost {
         bound: parts.word("AT")?.word("MOST")?.one(
-            |node| support::float(node, f64::NEG_INFINITY, f64::INFINITY, "a number"),
+            |node| support::float(node, f64::NEG_INFINITY, f64::INFINITY, false, "a number"),
             "a number",
         )?,
         span: node.span,
@@ -1439,20 +1442,41 @@ pub mod support {
         }
     }
 
-    /// An integer from `minimum` to `maximum`.
+    /// The value of a number node, or when `signed` also of `+ n` and `- n`.
+    fn number_of(node: &Node, signed: bool) -> Option<NumberValue> {
+        match &node.kind {
+            NodeKind::Number(text) => Some(number_value(text)),
+            NodeKind::Call(call) if signed => match (&call.name[..], &call.arguments[..]) {
+                ([NamePart::Word { text, .. }, NamePart::Slot], [number]) => {
+                    let NodeKind::Number(digits) = &number.kind else {
+                        return None;
+                    };
+                    match (text.as_str(), number_value(digits)) {
+                        ("+", value) => Some(value),
+                        ("-", NumberValue::Integer(value)) => Some(NumberValue::Integer(-value)),
+                        ("-", NumberValue::Float(value)) => Some(NumberValue::Float(-value)),
+                        _ => None,
+                    }
+                }
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    /// An integer from `minimum` to `maximum`. When `signed`, a sign written
+    /// apart from the number, as in `+ 4` or `- 4`, is taken too.
     pub fn integer<T: TryFrom<i128>>(
         node: &Node,
         minimum: i128,
         maximum: i128,
+        signed: bool,
         expected: &str,
     ) -> Result<Spanned<T>, DecodeError> {
-        let value = match &node.kind {
-            NodeKind::Number(text) => match number_value(text) {
-                NumberValue::Integer(value) if (minimum..=maximum).contains(&value) => {
-                    T::try_from(value).ok()
-                }
-                _ => None,
-            },
+        let value = match number_of(node, signed) {
+            Some(NumberValue::Integer(value)) if (minimum..=maximum).contains(&value) => {
+                T::try_from(value).ok()
+            }
             _ => None,
         };
         match value {
@@ -1464,15 +1488,17 @@ pub mod support {
         }
     }
 
-    /// A number from `minimum` to `maximum`.
+    /// A number from `minimum` to `maximum`, taking `+ n` and `- n` when
+    /// `signed`.
     pub fn float(
         node: &Node,
         minimum: f64,
         maximum: f64,
+        signed: bool,
         expected: &str,
     ) -> Result<Spanned<f64>, DecodeError> {
-        if let NodeKind::Number(text) = &node.kind {
-            let value = number_value(text).as_float();
+        if let Some(value) = number_of(node, signed) {
+            let value = value.as_float();
             if minimum <= value && value <= maximum {
                 return Ok(Spanned {
                     value,

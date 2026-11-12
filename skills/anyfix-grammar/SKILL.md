@@ -97,6 +97,7 @@ choice: ONE OF [first: pattern, second: pattern],   # first match wins
 | `other rule` (a bare name) | what the rule matches | the rule's type |
 | `STRING`, `STRING "x"`, `STRING [STARTS WITH "a"]` | a string | `Spanned<String>` |
 | `NUMBER`, `NUMBER [INTEGER, AT LEAST 0, AT MOST 65535]` | a number | `Spanned<u16>`, chosen from the conditions |
+| `NUMBER [INTEGER, SIGNED]` | a number, or `+ n` / `- n` | `Spanned<i64>`, the sign applied |
 | `WORD "null"` | that one word | a unit variant, or nothing in a call |
 | `ANY WORD [NAME]` (also `KEYWORD`, `SYMBOL`) | one word | `Spanned<String>` |
 | `CURLY BRACE: pattern` / `SQUARE BRACKET: pattern` / `PARENTHESIS: pattern` | a bracket of one element | |

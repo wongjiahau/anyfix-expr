@@ -165,10 +165,12 @@ impl StringCondition {
 }
 
 /// The numbers a `NUMBER` pattern matches: those from `minimum` to
-/// `maximum`, and only whole ones when `integer`.
+/// `maximum`, and only whole ones when `integer`. When `signed`, a sign
+/// written apart from the number, as in `+ 4` or `- 4`, is taken too.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct NumberPattern {
     pub integer: bool,
+    pub signed: bool,
     pub minimum: Option<NumberValue>,
     pub maximum: Option<NumberValue>,
 }

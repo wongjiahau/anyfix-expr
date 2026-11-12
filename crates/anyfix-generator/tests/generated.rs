@@ -327,7 +327,7 @@ RETURN";
 
 #[test]
 fn numbers_decode_to_the_type_their_conditions_allow() {
-    let source = "[255, -1000, 0x10, 1_000, 7, 0.5, 42, 1e3, -2.5]";
+    let source = "[255, -1000, 0x10, 1_000, 7, 0.5, 42, - 3, 1e3, -2.5]";
     let document = corners::decode_document(&parse(source)).unwrap();
     let corners::Node::Numbers(numbers) = &document.node[0] else {
         panic!("{:?}", document.node);
@@ -337,6 +337,8 @@ fn numbers_decode_to_the_type_their_conditions_allow() {
     let count: u64 = numbers.count.value;
     let whole: i64 = numbers.whole.value;
     let ratio: f64 = numbers.ratio.value;
+    let signed: i8 = numbers.signed.value;
+    assert_eq!(signed, -3);
     assert_eq!(
         (byte, offset, count, whole, ratio),
         (255, -1000, 16, 1000, 0.5)

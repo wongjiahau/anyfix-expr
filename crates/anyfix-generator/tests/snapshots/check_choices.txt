@@ -110,3 +110,16 @@ nothing to report
 ## ENTRY: value, value: ONE OF [integer: integer, other: ANYFIX CALL], integer: ONE OF [number: NUMBER, minus: SPECIFIC ANYFIX CALL [WORD "-", n: NUMBER]]
 nothing to report
 
+## ENTRY: value, value: ONE OF [signed: NUMBER [SIGNED], minus: SPECIFIC ANYFIX CALL [WORD "-", n: NUMBER]]
+grammar:1:55: warning: found the choices `signed` and `minus` able to match the same input; expected at most one choice to fit any input, since `signed` comes first and always wins it; make one of them more specific, or put the more specific one first
+  ENTRY: value, value: ONE OF [signed: NUMBER [SIGNED], minus: SPECIFIC ANYFIX CALL [WORD "-", n: NUMBER]]
+                                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+## ENTRY: value, value: ONE OF [signed: NUMBER [SIGNED], other: ANYFIX CALL]
+grammar:1:55: warning: found the choices `signed` and `other` able to match the same input; expected at most one choice to fit any input, since `signed` comes first and always wins it; make one of them more specific, or put the more specific one first
+  ENTRY: value, value: ONE OF [signed: NUMBER [SIGNED], other: ANYFIX CALL]
+                                                        ^^^^^^^^^^^^^^^^^^
+
+## ENTRY: value, value: ONE OF [signed: NUMBER [SIGNED], words: ANYFIX CALL [NO ARGUMENTS]]
+nothing to report
+

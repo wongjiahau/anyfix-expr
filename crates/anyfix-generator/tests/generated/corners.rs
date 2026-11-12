@@ -68,6 +68,7 @@ pub struct Numbers {
     pub huge: Spanned<i128>,
     pub ratio: Spanned<f64>,
     pub answer: Spanned<u8>,
+    pub signed: Spanned<i8>,
     pub rest: Vec<Spanned<f64>>,
     pub span: anyfix_expr::Span,
 }
@@ -271,16 +272,24 @@ pub fn decode_numbers(node: &anyfix_expr::Node) -> Result<Numbers, DecodeError> 
     let mut elements = support::square_bracket(node)?;
     let decoded = Numbers {
         byte: elements.one(
-            |node| support::integer::<u8>(node, 0, 255, "an integer from 0 to 255"),
+            |node| support::integer::<u8>(node, 0, 255, false, "an integer from 0 to 255"),
             "an integer from 0 to 255",
         )?,
         offset: elements.one(
-            |node| support::integer::<i16>(node, -1000, 1000, "an integer from -1000 to 1000"),
+            |node| {
+                support::integer::<i16>(node, -1000, 1000, false, "an integer from -1000 to 1000")
+            },
             "an integer from -1000 to 1000",
         )?,
         count: elements.one(
             |node| {
-                support::integer::<u64>(node, 0, i128::from(u64::MAX), "an integer of at least 0")
+                support::integer::<u64>(
+                    node,
+                    0,
+                    i128::from(u64::MAX),
+                    false,
+                    "an integer of at least 0",
+                )
             },
             "an integer of at least 0",
         )?,
@@ -290,6 +299,7 @@ pub fn decode_numbers(node: &anyfix_expr::Node) -> Result<Numbers, DecodeError> 
                     node,
                     i128::from(i64::MIN),
                     i128::from(i64::MAX),
+                    false,
                     "an integer",
                 )
             },
@@ -301,21 +311,26 @@ pub fn decode_numbers(node: &anyfix_expr::Node) -> Result<Numbers, DecodeError> 
                     node,
                     i128::MIN,
                     1000000000000000019884624838656,
+                    false,
                     "an integer of at most 1000000000000000000000000000000",
                 )
             },
             "an integer of at most 1000000000000000000000000000000",
         )?,
         ratio: elements.one(
-            |node| support::float(node, 0.0, 1.0, "a number from 0 to 1"),
+            |node| support::float(node, 0.0, 1.0, false, "a number from 0 to 1"),
             "a number from 0 to 1",
         )?,
         answer: elements.one(
-            |node| support::integer::<u8>(node, 42, 42, "the number 42"),
+            |node| support::integer::<u8>(node, 42, 42, false, "the number 42"),
             "the number 42",
         )?,
+        signed: elements.one(
+            |node| support::integer::<i8>(node, -10, 10, true, "an integer from -10 to 10"),
+            "an integer from -10 to 10",
+        )?,
         rest: elements.zero_or_more(|node| {
-            support::float(node, f64::NEG_INFINITY, f64::INFINITY, "a number")
+            support::float(node, f64::NEG_INFINITY, f64::INFINITY, false, "a number")
         }),
         span: node.span,
     };
@@ -972,20 +987,41 @@ pub mod support {
         }
     }
 
-    /// An integer from `minimum` to `maximum`.
+    /// The value of a number node, or when `signed` also of `+ n` and `- n`.
+    fn number_of(node: &Node, signed: bool) -> Option<NumberValue> {
+        match &node.kind {
+            NodeKind::Number(text) => Some(number_value(text)),
+            NodeKind::Call(call) if signed => match (&call.name[..], &call.arguments[..]) {
+                ([NamePart::Word { text, .. }, NamePart::Slot], [number]) => {
+                    let NodeKind::Number(digits) = &number.kind else {
+                        return None;
+                    };
+                    match (text.as_str(), number_value(digits)) {
+                        ("+", value) => Some(value),
+                        ("-", NumberValue::Integer(value)) => Some(NumberValue::Integer(-value)),
+                        ("-", NumberValue::Float(value)) => Some(NumberValue::Float(-value)),
+                        _ => None,
+                    }
+                }
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    /// An integer from `minimum` to `maximum`. When `signed`, a sign written
+    /// apart from the number, as in `+ 4` or `- 4`, is taken too.
     pub fn integer<T: TryFrom<i128>>(
         node: &Node,
         minimum: i128,
         maximum: i128,
+        signed: bool,
         expected: &str,
     ) -> Result<Spanned<T>, DecodeError> {
-        let value = match &node.kind {
-            NodeKind::Number(text) => match number_value(text) {
-                NumberValue::Integer(value) if (minimum..=maximum).contains(&value) => {
-                    T::try_from(value).ok()
-                }
-                _ => None,
-            },
+        let value = match number_of(node, signed) {
+            Some(NumberValue::Integer(value)) if (minimum..=maximum).contains(&value) => {
+                T::try_from(value).ok()
+            }
             _ => None,
         };
         match value {
@@ -997,15 +1033,17 @@ pub mod support {
         }
     }
 
-    /// A number from `minimum` to `maximum`.
+    /// A number from `minimum` to `maximum`, taking `+ n` and `- n` when
+    /// `signed`.
     pub fn float(
         node: &Node,
         minimum: f64,
         maximum: f64,
+        signed: bool,
         expected: &str,
     ) -> Result<Spanned<f64>, DecodeError> {
-        if let NodeKind::Number(text) = &node.kind {
-            let value = number_value(text).as_float();
+        if let Some(value) = number_of(node, signed) {
+            let value = value.as_float();
             if minimum <= value && value <= maximum {
                 return Ok(Spanned {
                     value,

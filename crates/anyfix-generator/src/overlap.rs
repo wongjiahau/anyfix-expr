@@ -2,6 +2,7 @@
 //! order of a `ONE OF` matter. The answer leans towards yes: when it can't
 //! tell, it says they can.
 
+use anyfix_expr::Span;
 use std::collections::HashSet;
 
 use regex_automata::Anchored;
@@ -134,6 +135,15 @@ impl<'a> Overlap<'a> {
             }
             (Pattern::String(a), Pattern::String(b)) => conditions_overlap(a, b),
             (Pattern::Number(a), Pattern::Number(b)) => numbers_overlap(a, b),
+            // `+ 4` and `- 4` are calls.
+            (Pattern::Number(number), other) | (other, Pattern::Number(number))
+                if number.signed
+                    && !matches!(other, Pattern::Container { .. } | Pattern::String(_)) =>
+            {
+                sign_calls(number)
+                    .iter()
+                    .any(|call| self.patterns(call, other))
+            }
             (Pattern::Container { .. } | Pattern::String(_) | Pattern::Number(_), _)
             | (_, Pattern::Container { .. } | Pattern::String(_) | Pattern::Number(_)) => false,
             _ => self.calls(a, b) || self.calls(b, a),
@@ -378,6 +388,27 @@ fn word_kind(text: &str) -> WordKind {
     }
 }
 
+/// The calls a `SIGNED` number also matches: `+ _` and `- _` of a number.
+fn sign_calls(number: &NumberPattern) -> [Pattern; 2] {
+    let call = |sign: &str| {
+        let element = |name: Option<&str>, pattern| Element {
+            name: name.map(str::to_string),
+            repetition: Repetition::One,
+            pattern,
+            span: Span::empty(0),
+        };
+        let unsigned = NumberPattern {
+            signed: false,
+            ..*number
+        };
+        Pattern::SpecificCall(vec![
+            element(None, Pattern::Word(sign.to_string())),
+            element(Some("number"), Pattern::Number(unsigned)),
+        ])
+    };
+    [call("+"), call("-")]
+}
+
 fn numbers_overlap(a: &NumberPattern, b: &NumberPattern) -> bool {
     let highest_minimum = match (a.minimum, b.minimum) {
         (Some(a), Some(b)) if a.as_float() < b.as_float() => Some(b),
@@ -391,6 +422,7 @@ fn numbers_overlap(a: &NumberPattern, b: &NumberPattern) -> bool {
     };
     let both = NumberPattern {
         integer: a.integer || b.integer,
+        signed: false,
         minimum: highest_minimum,
         maximum: lowest_maximum,
     };
@@ -527,6 +559,7 @@ mod tests {
     fn numbers_overlap_when_their_ranges_share_a_value() {
         let number = |integer, minimum: Option<f64>, maximum: Option<f64>| NumberPattern {
             integer,
+            signed: false,
             minimum: minimum.map(NumberValue::Float),
             maximum: maximum.map(NumberValue::Float),
         };

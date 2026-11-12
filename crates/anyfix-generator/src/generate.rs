@@ -342,17 +342,19 @@ impl Builder<'_> {
                 } => Value::Leaf {
                     kind: Leaf::Number(rust),
                     call: format!(
-                        "support::integer::<{rust}>(node, {}, {}, {expected:?})",
+                        "support::integer::<{rust}>(node, {}, {}, {}, {expected:?})",
                         integer_text(minimum),
-                        integer_text(maximum)
+                        integer_text(maximum),
+                        number.signed
                     ),
                 },
                 NumberType::Float { minimum, maximum } => Value::Leaf {
                     kind: Leaf::Number("f64"),
                     call: format!(
-                        "support::float(node, {}, {}, {expected:?})",
+                        "support::float(node, {}, {}, {}, {expected:?})",
                         float_text(minimum),
-                        float_text(maximum)
+                        float_text(maximum),
+                        number.signed
                     ),
                 },
             },

@@ -515,6 +515,7 @@ impl Lowerer<'_> {
     fn number(&mut self, number: &ast::Number) -> NumberPattern {
         let mut pattern = NumberPattern {
             integer: false,
+            signed: false,
             minimum: None,
             maximum: None,
         };
@@ -524,15 +525,17 @@ impl Lowerer<'_> {
                 let value = number_value(self.text(value.span));
                 pattern = NumberPattern {
                     integer: matches!(value, crate::grammar::support::NumberValue::Integer(_)),
+                    signed: false,
                     minimum: Some(value),
                     maximum: Some(value),
                 };
             }
             ast::Number::Conditions { conditions, span } => {
-                let mut seen = [false; 3];
+                let mut seen = [false; 4];
                 for condition in conditions.iter() {
                     let (index, keyword) = match condition {
                         ast::NumberCondition::Integer(_) => (0, "INTEGER"),
+                        ast::NumberCondition::Signed(_) => (3, "SIGNED"),
                         ast::NumberCondition::AtLeast { .. } => (1, "AT LEAST"),
                         ast::NumberCondition::AtMost { .. } => (2, "AT MOST"),
                     };
@@ -546,6 +549,7 @@ impl Lowerer<'_> {
                     }
                     match condition {
                         ast::NumberCondition::Integer(_) => pattern.integer = true,
+                        ast::NumberCondition::Signed(_) => pattern.signed = true,
                         ast::NumberCondition::AtLeast { bound, .. } => {
                             pattern.minimum = Some(number_value(self.text(bound.span)));
                         }

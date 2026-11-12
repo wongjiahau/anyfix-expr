@@ -196,11 +196,16 @@ backslash twice: `"^\\d+$"`.
 NUMBER                                    # any number
 NUMBER 2                                  # exactly this number
 NUMBER [INTEGER, AT LEAST 0, AT MOST 255] # an integer from 0 to 255
+NUMBER [INTEGER, SIGNED]                  # also `+ 4` and `- 4`
 ```
 
 The conditions are on the number's value, not its text: `0xFF`, `255`,
 `2.55e2` and `25_5` are all the integer 255. A number that breaks a
 condition is a decode error at that number.
+
+`-4` is one number, but `+4`, `+ 4` and `- 4` are the calls `+ _` and
+`- _`. `SIGNED` takes those too, as the number with its sign, so a
+grammar needs no `ONE OF` of its own to read a signed value.
 
 ### `ANY NODE`
 

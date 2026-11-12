@@ -111,6 +111,7 @@ fn patterns_must_be_able_to_match() {
             "ENTRY: value, value: NUMBER [AT LEAST 5, AT MOST 1]",
             "ENTRY: value, value: NUMBER [INTEGER, AT LEAST 0.2, AT MOST 0.8]",
             "ENTRY: value, value: NUMBER [INTEGER, INTEGER]",
+            "ENTRY: value, value: NUMBER [SIGNED, SIGNED]",
             "ENTRY: value, value: WORD \"a b\"",
             "ENTRY: value, value: WORD \"\"",
             "ENTRY: value, value: ANY WORD [KEYWORD, SYMBOL]",
@@ -156,6 +157,9 @@ fn choices_that_compete_get_a_warning() {
             "ENTRY: value, value: ONE OF [any: ANY NODE, text: STRING]",
             "ENTRY: value, value: ONE OF [text: STRING, list: SQUARE BRACKET [ZERO OR MORE: value], any: ANY NODE]",
             "ENTRY: value, value: ONE OF [integer: integer, other: ANYFIX CALL], integer: ONE OF [number: NUMBER, minus: SPECIFIC ANYFIX CALL [WORD \"-\", n: NUMBER]]",
+            "ENTRY: value, value: ONE OF [signed: NUMBER [SIGNED], minus: SPECIFIC ANYFIX CALL [WORD \"-\", n: NUMBER]]",
+            "ENTRY: value, value: ONE OF [signed: NUMBER [SIGNED], other: ANYFIX CALL]",
+            "ENTRY: value, value: ONE OF [signed: NUMBER [SIGNED], words: ANYFIX CALL [NO ARGUMENTS]]",
         ]),
     );
 }

@@ -18,6 +18,11 @@ grammar:1:39: error: found a second `INTEGER`; expected each condition at most o
   ENTRY: value, value: NUMBER [INTEGER, INTEGER]
                                         ^^^^^^^
 
+## ENTRY: value, value: NUMBER [SIGNED, SIGNED]
+grammar:1:38: error: found a second `SIGNED`; expected each condition at most once; remove one of them
+  ENTRY: value, value: NUMBER [SIGNED, SIGNED]
+                                       ^^^^^^
+
 ## ENTRY: value, value: WORD "a b"
 grammar:1:27: error: found `WORD "a b"`, which is not one word; expected a single word, made of only name characters or only symbol characters; write one `WORD` for each word
   ENTRY: value, value: WORD "a b"

@@ -41,6 +41,7 @@ numbers: SQUARE BRACKET [
   huge: NUMBER [INTEGER, AT MOST 1e30],
   ratio: NUMBER [AT LEAST 0, AT MOST 1],
   answer: NUMBER 42,
+  signed: NUMBER [INTEGER, SIGNED, AT LEAST -10, AT MOST 10],
   rest: ZERO OR MORE: NUMBER,
 ],
 

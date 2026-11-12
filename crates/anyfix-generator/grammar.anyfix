@@ -113,6 +113,8 @@ number: ONE OF [
 
 number condition: ONE OF [
   WORD "INTEGER",
+  # Also `+ 4` and `- 4`, a sign written apart from its number.
+  WORD "SIGNED",
   at least: SPECIFIC ANYFIX CALL [WORD "AT", WORD "LEAST", bound: NUMBER],
   at most: SPECIFIC ANYFIX CALL [WORD "AT", WORD "MOST", bound: NUMBER],
 ],
