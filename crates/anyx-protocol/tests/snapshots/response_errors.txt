@@ -1,0 +1,14 @@
+ERROR conflict at revision 1 content "x"
+=> 1:7: found the call `conflict at revision _ content _`; expected an error of `read _`: `trashed`, `missing`
+
+ERROR gone
+=> 1:7: found the call `gone`; expected an error of `read _`: `trashed`, `missing`
+
+missing
+=> 1:1: found the call `missing`; expected the record `file`, as in `{ path …, revision …, content … }`; an error is written after `ERROR`, as in `ERROR missing`
+
+NOT RUN, NOT RUN
+=> 1:1: found 2 outcomes; expected one per call, 1
+
+INVALID REQUEST { line 1 }
+=> 1:1: found an `INVALID REQUEST` without a line, column and message

@@ -1,0 +1,29 @@
+apply { mode: dim }
+=> 1:15: in `options` of `apply _`: in `mode`: found the call `dim`; expected a variant of `mode`: `dark`, `light`, `custom hue _`, `_ dimmed`
+
+apply { strict: true }
+=> 1:7: in `options` of `apply _`: found no `mode`; expected every field that is not `OPTIONAL`
+
+apply { mode: dark, mode: dark }
+=> 1:21: in `options` of `apply _`: found the field `mode` twice; expected each field once
+
+apply { mode: dark, colour: dark }
+=> 1:21: in `options` of `apply _`: found the field `colour`; expected one of `mode`, `strict`
+
+apply { mode: custom hue }
+=> 1:15: in `options` of `apply _`: in `mode`: found the call `custom hue`; expected a variant of `mode`: `dark`, `light`, `custom hue _`, `_ dimmed`
+
+apply { mode: dark hue 1 }
+=> 1:15: in `options` of `apply _`: in `mode`: found the call `dark hue _`; expected a variant of `mode`: `dark`, `light`, `custom hue _`, `_ dimmed`
+
+apply { mode: custom hue "red" }
+=> 1:26: in `options` of `apply _`: in `mode`: in `hue` of `custom hue _`: found a string; expected a number, as in `1.5`
+
+apply { mode dark }
+=> 1:9: in `options` of `apply _`: found the call `mode dark`; expected a field written as its name and value, as in `mode …`; put a `:` after the name when the value is a word, as in `status: done`
+
+apply { mode: dark, strict: yes }
+=> 1:29: in `options` of `apply _`: in `strict`: found the call `yes`; expected `true` or `false`
+
+set dark strict (true)
+=> 1:1: found the call `set dark strict _`; expected one of the methods `set _ strict _`, `apply _`; a word in a slot, such as a choice's variant or `true`, goes in parentheses

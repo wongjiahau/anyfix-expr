@@ -1,0 +1,10 @@
+list files,
+read "Hymns/a.poentaro",
+write "Hymns/a.poentaro" at revision -3 content """"
+    title "Ode"
+
+    melody """
+        1 2 3 -
+        """
+
+    """",

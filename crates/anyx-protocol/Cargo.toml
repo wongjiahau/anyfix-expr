@@ -1,0 +1,26 @@
+[package]
+name = "anyx-protocol"
+version.workspace = true
+edition.workspace = true
+description = "An RPC protocol written in anyx: a schema declares the methods, and requests and responses are anyx documents"
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme = "README.md"
+keywords = ["rpc", "protocol", "schema", "anyx"]
+categories = ["encoding", "network-programming"]
+
+[features]
+## Converts values to and from JSON, for the wasm bindings a TypeScript client calls.
+json = ["dep:serde_json"]
+
+[dependencies]
+anyx = { path = "../anyx", version = "0.1.0" }
+serde_json = { version = "1", optional = true }
+
+[dev-dependencies]
+anyx-generator = { path = "../anyx-generator" }
+
+[[test]]
+name = "json"
+required-features = ["json"]

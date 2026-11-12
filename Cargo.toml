@@ -1,6 +1,11 @@
 [workspace]
 resolver = "3"
-members = ["crates/anyx", "crates/anyx-generator", "crates/edition-2021-check"]
+members = [
+    "crates/anyx",
+    "crates/anyx-generator",
+    "crates/anyx-protocol",
+    "crates/edition-2021-check",
+]
 
 [workspace.package]
 version = "0.1.0"

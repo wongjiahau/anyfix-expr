@@ -1,0 +1,24 @@
+
+=> 1:1: found an empty request; expected at least one call, such as `list files`
+
+reed "a"
+=> 1:1: found the call `reed _`; expected one of the methods `list files`, `read _`, `write _ at revision _ content _`, `create _ content _`; a word in a slot, such as a choice's variant or `true`, goes in parentheses
+
+read 3
+=> 1:6: in `path` of `read _`: found the number `3`; expected a string, as in `"text"`
+
+write "a" at revision 1.5 content "x"
+=> 1:23: in `revision` of `write _ at revision _ content _`: found the number `1.5`; expected a whole number that fits in 64 bits
+
+write "a" at revision 99999999999999999999 content "x"
+=> 1:23: in `revision` of `write _ at revision _ content _`: found the number `99999999999999999999`; expected a whole number that fits in 64 bits
+
+read "a",
+"loose"
+=> 2:1: found a string; expected one of the methods `list files`, `read _`, `write _ at revision _ content _`, `create _ content _`; a word in a slot, such as a choice's variant or `true`, goes in parentheses
+
+read "a
+=> 1:6: found a string that runs to the end of input; expected a closing `"`; add `"` where the string ends
+
+list files, read ["a"]
+=> 1:18: in `path` of `read _`: found a list `[…]`; expected a string, as in `"text"`

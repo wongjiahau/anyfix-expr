@@ -1,0 +1,77 @@
+## The schema language of the anyx protocol, in the grammar language.
+## `src/grammar.rs` is generated from it; `tests/schema.rs` checks that it is
+## up to date.
+
+ENTRY [protocol, ZERO OR MORE: definition],
+
+protocol: ANYFIX CALL [
+  doc: OPTIONAL: STRING,
+  WORD "PROTOCOL", name: type name,
+  WORD "VERSION", version: NUMBER [INTEGER, AT LEAST 1, AT MOST 4294967295],
+],
+
+definition: ONE OF [record, choice, error, errors, method],
+
+record: ANYFIX CALL [doc: OPTIONAL: STRING, WORD "RECORD", body: record body],
+
+record body: ANYFIX CALL [name: WORDS [NO KEYWORD], fields: CURLY BRACE [ZERO OR MORE: field]],
+
+field: ANYFIX CALL [doc: OPTIONAL: STRING, name: WORDS [NO KEYWORD], type: field type],
+
+field type: ONE OF [optional: ANYFIX CALL [WORD "OPTIONAL", type], type],
+
+choice: ANYFIX CALL [doc: OPTIONAL: STRING, WORD "CHOICE", body: choice body],
+
+choice body: ANYFIX CALL [
+  name: WORDS [NO KEYWORD],
+  variants: CURLY BRACE [ONE OR MORE: variant],
+],
+
+## A variant is written in the shape it takes on the wire. Its doc comes
+## first, so it fills the call's first slot.
+variant: ANYFIX CALL [NAME [NO KEYWORD], ARGUMENTS: ZERO OR MORE: variant slot],
+
+variant slot: ONE OF [doc: STRING, parameter],
+
+error: ANYFIX CALL [doc: OPTIONAL: STRING, WORD "ERROR", shape: shape],
+
+errors: ANYFIX CALL [doc: OPTIONAL: STRING, WORD "ERRORS", body: errors body],
+
+errors body: ANYFIX CALL [
+  name: WORDS [NO KEYWORD],
+  members: SQUARE BRACKET [ONE OR MORE: type name],
+],
+
+method: ONE OF [
+  with errors: ANYFIX CALL [
+    doc: OPTIONAL: STRING,
+    WORD "METHOD", shape: shape,
+    WORD "RETURNS", returns: returns,
+    WORD "ERRORS", errors: error list,
+  ] FORMAT [BREAK BEFORE WORD "RETURNS", BREAK BEFORE WORD "ERRORS"],
+  without errors: ANYFIX CALL [
+    doc: OPTIONAL: STRING,
+    WORD "METHOD", shape: shape,
+    WORD "RETURNS", returns: returns,
+  ] FORMAT [BREAK BEFORE WORD "RETURNS"],
+],
+
+## What a method returns is named too: `RETURNS (new revision: INTEGER)`.
+returns: parameter,
+
+error list: ONE OF [several: SQUARE BRACKET [ONE OR MORE: type name], one: type name],
+
+shape: ANYFIX CALL [NAME [NO KEYWORD], ARGUMENTS: ZERO OR MORE: parameter],
+
+parameter: ANYFIX CALL [name: WORDS [NO KEYWORD], type],
+
+type: ONE OF [
+  WORD "TEXT",
+  WORD "INTEGER",
+  WORD "NUMBER",
+  WORD "BOOLEAN",
+  list: ANYFIX CALL [WORD "LIST", item: type],
+  named: type name,
+],
+
+type name: ANYFIX CALL [NAME [NO KEYWORD], NO ARGUMENTS],

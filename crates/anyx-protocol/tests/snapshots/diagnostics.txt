@@ -1,0 +1,122 @@
+== an unknown type
+PROTOCOL a VERSION 1, METHOD f (x: thing) RETURNS (y: TEXT),
+schema:1:36: found `thing`, which is not a type of this schema; expected `TEXT`, `INTEGER`, `NUMBER`, `BOOLEAN`, `LIST: type`, or a `RECORD` or `CHOICE` defined here; define `thing`, or fix the name
+  PROTOCOL a VERSION 1, METHOD f (x: thing) RETURNS (y: TEXT),
+                                     ^^^^^
+
+== an unnamed return
+PROTOCOL a VERSION 1, METHOD f RETURNS (TEXT),
+schema:1:41: found a `RETURNS` without a name; expected `RETURNS (name: TYPE)`, such as `RETURNS (new revision: INTEGER)`, since the name says what the value is
+  PROTOCOL a VERSION 1, METHOD f RETURNS (TEXT),
+                                          ^^^^
+
+== a type defined twice
+PROTOCOL a VERSION 1, RECORD x { a: TEXT }, CHOICE x { b },
+schema:1:52: found a second type named `x`; expected each type to be defined once; rename or remove one of them
+  PROTOCOL a VERSION 1, RECORD x { a: TEXT }, CHOICE x { b },
+                                                     ^
+
+== a field twice
+PROTOCOL a VERSION 1, RECORD x { a: TEXT, a: INTEGER },
+schema:1:43: found a second field named `a`; expected each field once; rename or remove one of them
+  PROTOCOL a VERSION 1, RECORD x { a: TEXT, a: INTEGER },
+                                            ^
+
+== a variant twice
+PROTOCOL a VERSION 1, CHOICE x { a, a (b: TEXT) },
+schema:1:37: found a second variant named `a`; expected each variant's words once; rename or remove one of them
+  PROTOCOL a VERSION 1, CHOICE x { a, a (b: TEXT) },
+                                      ^
+
+== a parameter twice
+PROTOCOL a VERSION 1, METHOD f (x: TEXT) g (x: TEXT) RETURNS (y: TEXT),
+schema:1:45: found a second parameter named `x`; expected each parameter once; rename one of them
+  PROTOCOL a VERSION 1, METHOD f (x: TEXT) g (x: TEXT) RETURNS (y: TEXT),
+                                              ^
+
+== a method twice
+PROTOCOL a VERSION 1, METHOD f RETURNS (y: TEXT), METHOD f RETURNS (z: TEXT),
+schema:1:58: found a second method `f`; expected each method shape once; rename or remove one of them
+  PROTOCOL a VERSION 1, METHOD f RETURNS (y: TEXT), METHOD f RETURNS (z: TEXT),
+                                                           ^
+
+== a type holding itself
+PROTOCOL a VERSION 1, RECORD node { next: node }, RECORD tree { children: LIST: tree },
+schema:1:30: found the type `node` holding itself; expected a type that holds itself to do so through a `LIST`, so that its values end; make the field a `LIST`
+  PROTOCOL a VERSION 1, RECORD node { next: node }, RECORD tree { children: LIST: tree },
+                               ^^^^
+
+== a cycle through a choice
+PROTOCOL a VERSION 1, RECORD a { b: b }, CHOICE b { has (a: a), none },
+schema:1:30: found the type `a` holding itself; expected a type that holds itself to do so through a `LIST`, so that its values end; make the field a `LIST`
+  PROTOCOL a VERSION 1, RECORD a { b: b }, CHOICE b { has (a: a), none },
+                               ^
+schema:1:49: found the type `b` holding itself; expected a type that holds itself to do so through a `LIST`, so that its values end; make the field a `LIST`
+  PROTOCOL a VERSION 1, RECORD a { b: b }, CHOICE b { has (a: a), none },
+                                                  ^
+
+== names that are not lowercase ASCII
+PROTOCOL a VERSION 1, RECORD x { Path: TEXT, café: TEXT },
+schema:1:34: found `Path` as the name of a field; expected words of lowercase ASCII letters and digits, each starting with a letter, since names become Rust and TypeScript identifiers; rename it
+  PROTOCOL a VERSION 1, RECORD x { Path: TEXT, café: TEXT },
+                                   ^^^^
+schema:1:46: found `café` as the name of a field; expected words of lowercase ASCII letters and digits, each starting with a letter, since names become Rust and TypeScript identifiers; rename it
+  PROTOCOL a VERSION 1, RECORD x { Path: TEXT, café: TEXT },
+                                               ^^^^
+
+== a parameter named kind
+PROTOCOL a VERSION 1, CHOICE x { y (kind: TEXT) },
+schema:1:37: found a parameter named `kind`; expected another name, since a variant's JSON form keeps its name in `kind`; rename it
+  PROTOCOL a VERSION 1, CHOICE x { y (kind: TEXT) },
+                                      ^^^^
+
+== a missing protocol line
+RECORD x { a: TEXT },
+schema:1:1: found the word `RECORD`; expected the word `PROTOCOL`
+  RECORD x { a: TEXT },
+  ^^^^^^
+
+== a keyword in a name
+PROTOCOL a VERSION 1, RECORD x { a TEXT b: TEXT },
+schema:1:34: found the call `_ TEXT _`; expected the call `_? … _` or the closing `}`
+  PROTOCOL a VERSION 1, RECORD x { a TEXT b: TEXT },
+                                   ^^^^^^^^^^^^^^
+
+== an unknown error
+PROTOCOL a VERSION 1, METHOD f RETURNS (y: TEXT) ERRORS [gone],
+schema:1:58: found `gone`, which is not an error of this schema; expected the words of an `ERROR`, such as `conflict at revision` for `ERROR conflict at revision (revision: INTEGER)`, or an `ERRORS` alias
+  PROTOCOL a VERSION 1, METHOD f RETURNS (y: TEXT) ERRORS [gone],
+                                                           ^^^^
+
+== an error and an alias of one name
+PROTOCOL a VERSION 1, ERROR gone, ERRORS gone [gone],
+schema:1:42: found a second error or error alias named `gone`; expected each name once, since an `ERRORS` list refers to them by name; rename one of them
+  PROTOCOL a VERSION 1, ERROR gone, ERRORS gone [gone],
+                                           ^^^^
+
+== aliases including each other
+PROTOCOL a VERSION 1, ERROR gone, ERRORS x [gone, y], ERRORS y [x],
+schema:1:42: found the error alias `x` including itself; expected an alias to name errors, or aliases that don't lead back to it
+  PROTOCOL a VERSION 1, ERROR gone, ERRORS x [gone, y], ERRORS y [x],
+                                           ^
+schema:1:62: found the error alias `y` including itself; expected an alias to name errors, or aliases that don't lead back to it
+  PROTOCOL a VERSION 1, ERROR gone, ERRORS x [gone, y], ERRORS y [x],
+                                                               ^
+
+== an error listed twice through an alias
+PROTOCOL a VERSION 1, ERROR gone, ERRORS x [gone], METHOD f RETURNS (y: TEXT) ERRORS [gone, x],
+schema:1:93: found the error `gone` listed twice for this method, counting the errors in its aliases; expected each error once; remove one
+  PROTOCOL a VERSION 1, ERROR gone, ERRORS x [gone], METHOD f RETURNS (y: TEXT) ERRORS [gone, x],
+                                                                                              ^
+
+== an unknown alias member
+PROTOCOL a VERSION 1, ERRORS x [lost], METHOD f RETURNS (y: TEXT) ERRORS: x,
+schema:1:33: found `lost`, which is not an error of this schema; expected the words of an `ERROR`, such as `conflict at revision` for `ERROR conflict at revision (revision: INTEGER)`, or an `ERRORS` alias
+  PROTOCOL a VERSION 1, ERRORS x [lost], METHOD f RETURNS (y: TEXT) ERRORS: x,
+                                  ^^^^
+
+== a string inside a variant
+PROTOCOL a VERSION 1, CHOICE x { y (a: TEXT) "doc" },
+schema:1:46: found a string in a variant's slot; expected a parameter, as in `(revision: INTEGER)`; a variant's `#` doc goes on the lines before it
+  PROTOCOL a VERSION 1, CHOICE x { y (a: TEXT) "doc" },
+                                               ^^^^^

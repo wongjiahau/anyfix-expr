@@ -1,0 +1,25 @@
+[{ path "a.poentaro", revision 1 }, { path "b/c.poentaro", revision 7 }],
+{
+    path "a.poentaro",
+    revision 1,
+    content """"
+        title "Ode"
+
+        melody """
+            1 2 3 -
+            """
+
+        """",
+},
+ERROR conflict at revision 4 content """"
+    title "Ode"
+
+    melody """
+        1 2 3 -
+        """
+
+    """",
+ERROR rejected [{ line 2, column 5, code "E1", message "found \"x\"; expected a note" }],
+ERROR trashed,
+INTERNAL ERROR,
+NOT RUN,
