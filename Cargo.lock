@@ -34,6 +34,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "anyx-protocol-generate"
+version = "0.1.0"
+dependencies = [
+ "anyx-generator",
+ "anyx-protocol",
+]
+
+[[package]]
 name = "edition-2021-check"
 version = "0.0.0"
 dependencies = [

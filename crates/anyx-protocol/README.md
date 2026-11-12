@@ -13,3 +13,6 @@ let response = anyx_protocol::encode_response(&schema, &methods, &outcomes)?;
 
 `guide(schema, how_to_send)` is the markdown to hand an agent first. See
 [`PROTOCOL.md`](PROTOCOL.md) for the schema language and the wire format.
+
+Rather than calling the codec by hand, generate a typed server and client
+with [`anyx-protocol-generate`](../anyx-protocol-generate).

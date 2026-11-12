@@ -4,6 +4,7 @@ members = [
     "crates/anyx",
     "crates/anyx-generator",
     "crates/anyx-protocol",
+    "crates/anyx-protocol-generate",
     "crates/edition-2021-check",
 ]
 

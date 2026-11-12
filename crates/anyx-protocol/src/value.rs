@@ -94,6 +94,13 @@ impl FromValue for bool {
     }
 }
 
+/// The errors of a method that has none.
+impl FromValue for std::convert::Infallible {
+    fn from_value(_: Value) -> Option<Self> {
+        None
+    }
+}
+
 impl<T: IntoValue> IntoValue for Vec<T> {
     fn into_value(self) -> Value {
         Value::List(self.into_iter().map(IntoValue::into_value).collect())

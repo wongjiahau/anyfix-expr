@@ -1,0 +1,22 @@
+[package]
+name = "anyx-protocol-generate"
+version.workspace = true
+edition.workspace = true
+description = "Generates the Rust server and client, wasm bindings and TypeScript client of an anyx-protocol schema"
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme = "README.md"
+keywords = ["rpc", "protocol", "codegen", "anyx"]
+categories = ["development-tools", "encoding"]
+
+[[bin]]
+name = "anyx-protocol-generate"
+path = "src/bin/anyx-protocol-generate.rs"
+
+[dependencies]
+anyx-generator = { path = "../anyx-generator", version = "0.1.0" }
+anyx-protocol = { path = "../anyx-protocol", version = "0.1.0" }
+
+[dev-dependencies]
+anyx-protocol = { path = "../anyx-protocol", version = "0.1.0", features = ["json"] }
