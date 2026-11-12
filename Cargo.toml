@@ -1,10 +1,10 @@
 [workspace]
 resolver = "3"
-members = ["crates/anyfix-expr", "crates/anyfix-generator", "crates/edition-2021-check"]
+members = ["crates/anyx", "crates/anyx-generator", "crates/edition-2021-check"]
 
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/wongjiahau/anyfix-expr"
-homepage = "https://github.com/wongjiahau/anyfix-expr"
+repository = "https://github.com/wongjiahau/anyx"
+homepage = "https://github.com/wongjiahau/anyx"

@@ -1,0 +1,13 @@
+[package]
+name = "anyx"
+version.workspace = true
+edition.workspace = true
+description = "A lossless parser for anyx expressions, a notation that only describes grouping"
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme = "../../README.md"
+keywords = ["parser", "syntax", "notation", "lossless", "expression"]
+categories = ["parser-implementations"]
+
+[dependencies]

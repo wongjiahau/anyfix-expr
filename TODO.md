@@ -1,19 +1,19 @@
-# TODO: the anyfix parser generator
+# TODO: the anyx parser generator
 
-A parser generator whose grammar language is anyfix, described in itself.
+A parser generator whose grammar language is anyx, described in itself.
 It reads a grammar and writes Rust: a typed AST, plus a decoder that turns
 the tree from `SyntaxTree::nodes()` into that AST.
 
 ## 1. Workspace
 
-- [x] Move today's crate to `crates/anyfix-expr`, with a root `Cargo.toml` workspace
-- [x] Create `crates/anyfix-generator` (library + command line)
+- [x] Move today's crate to `crates/anyx`, with a root `Cargo.toml` workspace
+- [x] Create `crates/anyx-generator` (library + command line)
 - [x] Keep `cargo test`, `cargo clippy` and lefthook working from the root
 
 ## 2. The grammar language
 
-- [x] Put the grammar of grammars in `crates/anyfix-generator/grammar.anyfix`
-- [x] Put the JSON grammar in `crates/anyfix-generator/tests/fixtures/json.anyfix`
+- [x] Put the grammar of grammars in `crates/anyx-generator/grammar.anyx`
+- [x] Put the JSON grammar in `crates/anyx-generator/tests/fixtures/json.anyx`
 - [x] Write the grammar language reference (README), covering:
   - [x] `ENTRY` first, then rules: `name: pattern`, lowercase names
   - [x] Rule references: bare lowercase words
@@ -29,10 +29,10 @@ the tree from `SyntaxTree::nodes()` into that AST.
 
 ## 3. Handwritten decoder for the grammar language
 
-- [x] Typed AST for `grammar.anyfix`, with a span on every node
-- [x] Decoder from `anyfix_expr::Node` to that AST
+- [x] Typed AST for `grammar.anyx`, with a span on every node
+- [x] Decoder from `anyx::Node` to that AST
 - [x] Decode errors with spans: "expected `ONE OF [...]`, found ..."
-- [x] Tests: `grammar.anyfix` and `json.anyfix` decode, and bad grammars give good errors
+- [x] Tests: `grammar.anyx` and `json.anyx` decode, and bad grammars give good errors
 
 ## 4. Checking a grammar
 
@@ -48,42 +48,42 @@ the tree from `SyntaxTree::nodes()` into that AST.
 - [x] Spans everywhere: `span: Span` on structs, `span()` on enums, `Spanned<T>` for built-ins
 - [x] `STRING` → `Spanned<String>`, keeping the `StringLiteral` pieces
 - [x] `NUMBER` → type chosen by its conditions (`u8`, `i64`, `f64`), with errors when out of range
-- [x] `ANYFIX CALL` without `ARGUMENTS` → raw `anyfix_expr::Node` arguments
+- [x] `ANYFIX CALL` without `ARGUMENTS` → raw `anyx::Node` arguments
 - [x] Recursive types boxed where needed
 - [x] Decoder functions, one per rule, with errors pointing at the source
 - [x] Generated code is formatted (rustfmt) and passes clippy
 
 ## 6. Command line
 
-- [x] `anyfix-generate grammar.anyfix > src/parser.rs`
+- [x] `anyx-generate grammar.anyx > src/parser.rs`
 - [x] Errors and warnings show line:column and the source line
 - [x] Output is deterministic, so committed files diff cleanly
 
 ## 7. Bootstrapping
 
-- [x] Generate the grammar language's decoder from `grammar.anyfix`
+- [x] Generate the grammar language's decoder from `grammar.anyx`
 - [x] Replace the handwritten decoder (step 3) with the generated one
-- [x] Test: regenerating from `grammar.anyfix` gives the committed file byte for byte
+- [x] Test: regenerating from `grammar.anyx` gives the committed file byte for byte
 
 ## 8. Examples and tests
 
-- [x] JSON: decode `tests/fixtures/json.anyfix` (the anyfix crate's) into the generated AST
+- [x] JSON: decode `tests/fixtures/json.anyx` (the anyx crate's) into the generated AST
 - [x] A keyword language example (`IF _ THEN _ ELSE _`, user-defined calls via `ANYFIX CALL`)
 - [x] Error snapshot tests for decode failures
 
 ## 9. Skill for AI agents
 
 - [x] A SKILL that teaches an agent to write a grammar and run the generator
-      (`skills/anyfix-grammar/SKILL.md`), with `anyfix-generate --tree` to
-      see how anyfix groups a sample before writing rules for it
+      (`skills/anyx-grammar/SKILL.md`), with `anyx-generate --tree` to
+      see how anyx groups a sample before writing rules for it
 - [x] Worked examples: JSON, a config format, a keyword language
 - [x] Common mistakes and how to read the generator's warnings
 
-## Related changes in anyfix-expr
+## Related changes in anyx
 
 - [x] Negative number literals (`-` before a digit always starts a number)
 - [x] Every number has a value (`1mb` is `1 mb`)
-- [ ] One-line raw strings, for regexes ([#2](https://github.com/wongjiahau/anyfix-expr/issues/2))
+- [ ] One-line raw strings, for regexes ([#2](https://github.com/wongjiahau/anyx/issues/2))
 
 ## Open questions
 

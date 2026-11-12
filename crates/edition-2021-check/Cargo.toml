@@ -6,5 +6,5 @@ publish = false
 description = "Builds the generator's test output on edition 2021, since a generated parser is copied into crates of any edition"
 
 [dependencies]
-anyfix-expr = { path = "../anyfix-expr" }
+anyx = { path = "../anyx" }
 regex = "1"

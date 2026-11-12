@@ -1,11 +1,11 @@
-# anyfix-expr
+# anyx
 
-A lexer, parser and lossless tree for **anyfix expressions**: a notation that
+A lexer, parser and lossless tree for **anyx expressions**: a notation that
 only describes grouping and gives nothing a meaning.
 
 ## Motivation
 
-Anyfix expressions are to a language what S-expressions are to Lisp and WAT: a
+Anyx expressions are to a language what S-expressions are to Lisp and WAT: a
 consumer-neutral notation. The crate builds tree structure and nothing else.
 Deciding what a word means is the consumer's job.
 [resh](https://github.com/wongjiahau/resh) is the first consumer, but this
@@ -57,7 +57,7 @@ document   = sequence ;
 sequence   = [ expr { "," expr } [ "," ] ] ;     (* top level and inside every bracket *)
 expr       = dotted [ ":" expr ] ;                (* ":" right-assoc, loosest *)
 dotted     = run { "." run } ;                    (* "." left-assoc *)
-run        = item { item } ;                      (* the anyfix run *)
+run        = item { item } ;                      (* the anyx run *)
 item       = word | number | string
            | "(" sequence ")"
            | "[" sequence "]"
@@ -131,7 +131,7 @@ digit      = "0" … "9" ;                          (* ASCII only *)
 
 ## Raw strings
 
-A raw string holds text that is not anyfix, such as an embedded language,
+A raw string holds text that is not anyx, such as an embedded language,
 as written:
 
 ```text
@@ -334,17 +334,17 @@ found, what was expected, and the fix.
 The notation never reports semantic problems. An unknown word or a `:` in an
 odd place is the consumer's job.
 
-## The grammar in anyfix expressions
+## The grammar in anyx expressions
 
-The grammar written in anyfix expressions
-(`crates/anyfix-expr/tests/fixtures/grammar.anyfix`). A grammar consumer
+The grammar written in anyx expressions
+(`crates/anyx/tests/fixtures/grammar.anyx`). A grammar consumer
 would read each `name _` call as a rule, a `_ | _` call as alternation, any
 other call as a sequence of its words and arguments in order, `( )` as
 grouping, `[ ]` as optional and `{ }` as repetition. This crate only has to
 parse it.
 
 ```text
-# Anyfix expressions — described in anyfix expressions.
+# Anyx expressions — described in anyx expressions.
 
 document : sequence,
 
@@ -390,14 +390,14 @@ digit      : "0" to "9",
 
 ## JSON
 
-Every JSON document is an anyfix document. Objects are braces of `_ _`
+Every JSON document is an anyx document. Objects are braces of `_ _`
 calls (`"key" : value` is the call `_ _` of the key and the value), arrays are
 brackets, `true`, `false` and `null` are calls with no arguments, and
 numbers (negative ones included) are numbers. JSON's exponents (`1e-5`),
 escapes (`\/`, `\b`, `\f`, `\uXXXX` with surrogate pairs) and a leading byte
 order mark all parse.
 
-`crates/anyfix-expr/tests/json.rs` generates documents covering every escape, number form and
+`crates/anyx/tests/json.rs` generates documents covering every escape, number form and
 whitespace character JSON allows, parses each with no errors, and reads its
 tree back as the same JSON value. As with any input, folding the tree into
 values is the consumer's job; `read` in that test shows how.
@@ -431,22 +431,22 @@ formatting it again changes nothing.
 ## Usage
 
 ```rust
-let parsed = anyfix_expr::parse("search { max depth : 3 }");
+let parsed = anyx::parse("search { max depth : 3 }");
 assert!(parsed.errors.is_empty());
 let nodes = parsed.syntax.nodes();
-let anyfix_expr::NodeKind::Call(call) = &nodes[0].kind else { unreachable!() };
+let anyx::NodeKind::Call(call) = &nodes[0].kind else { unreachable!() };
 assert_eq!(call.name_text(), "search _");
 assert_eq!(parsed.syntax.to_source(), "search { max depth : 3 }");
 ```
 
 ## Parser generator
 
-[`anyfix-generator`](crates/anyfix-generator/README.md) turns a grammar,
-itself written in anyfix, into a typed Rust AST and a decoder from the tree
+[`anyx-generator`](crates/anyx-generator/README.md) turns a grammar,
+itself written in anyx, into a typed Rust AST and a decoder from the tree
 above into it:
 
 ```sh
-anyfix-generate grammar.anyfix > src/parser.rs
+anyx-generate grammar.anyx > src/parser.rs
 ```
 
 ## License

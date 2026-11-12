@@ -12,14 +12,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "anyfix-expr"
+name = "anyx"
 version = "0.1.0"
 
 [[package]]
-name = "anyfix-generator"
+name = "anyx-generator"
 version = "0.1.0"
 dependencies = [
- "anyfix-expr",
+ "anyx",
  "regex",
  "regex-automata",
 ]
@@ -28,7 +28,7 @@ dependencies = [
 name = "edition-2021-check"
 version = "0.0.0"
 dependencies = [
- "anyfix-expr",
+ "anyx",
  "regex",
 ]
 

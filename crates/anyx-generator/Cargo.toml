@@ -1,0 +1,20 @@
+[package]
+name = "anyx-generator"
+version.workspace = true
+edition.workspace = true
+description = "A parser generator for anyx expressions: reads a grammar written in anyx and writes a typed Rust AST with its decoder"
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme = "README.md"
+keywords = ["parser", "generator", "grammar", "anyx"]
+categories = ["parser-implementations", "command-line-utilities"]
+
+[[bin]]
+name = "anyx-generate"
+path = "src/bin/anyx-generate.rs"
+
+[dependencies]
+anyx = { path = "../anyx", version = "0.1.0" }
+regex = "1"
+regex-automata = "0.4"
