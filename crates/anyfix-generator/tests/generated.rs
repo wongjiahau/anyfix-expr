@@ -448,6 +448,7 @@ fn conditions_are_checked_where_the_value_is() {
             "WORDS [IF, Name, +, x, y, ->, end]",
             "WORDS [IF, name, +, x, y, ->]",
             "WORDS [IF, name, +, x, print 1, ->, end]",
+            "KEEP [1, x], KEEP 3, KEEP",
             "(wrap, [type], finish)",
             "(only, word)",
             "raw 1 2, rawer 1",

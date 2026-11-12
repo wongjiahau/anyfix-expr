@@ -59,6 +59,7 @@ pub enum Pattern {
     AnyWord(AnyWord),
     String(String),
     Number(Number),
+    AnyNode(AnyNode),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -119,6 +120,11 @@ pub enum CallCondition {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Word {
     pub text: Spanned<StringLiteral>,
+    pub span: Span,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct AnyNode {
     pub span: Span,
 }
 
@@ -220,6 +226,7 @@ impl Pattern {
             Pattern::AnyWord(value) => value.span,
             Pattern::String(value) => value.span(),
             Pattern::Number(value) => value.span(),
+            Pattern::AnyNode(value) => value.span,
         }
     }
 }
@@ -382,6 +389,7 @@ pub fn decode_pattern(node: &Node) -> Result<Pattern, DecodeError> {
         .or_else(|error| error.or(decode_any_word(node).map(Pattern::AnyWord)))
         .or_else(|error| error.or(decode_string(node).map(Pattern::String)))
         .or_else(|error| error.or(decode_number(node).map(Pattern::Number)))
+        .or_else(|error| error.or(decode_any_node(node).map(Pattern::AnyNode)))
 }
 
 pub fn decode_reference(node: &Node) -> Result<Reference, DecodeError> {
@@ -627,6 +635,14 @@ pub fn decode_word(node: &Node) -> Result<Word, DecodeError> {
         )?,
         span: node.span,
     };
+    parts.finish()?;
+    Ok(decoded)
+}
+
+pub fn decode_any_node(node: &Node) -> Result<AnyNode, DecodeError> {
+    let mut parts = support::call(node, "the call `ANY NODE`")?;
+    let decoded = AnyNode { span: node.span };
+    parts.word("ANY")?.word("NODE")?;
     parts.finish()?;
     Ok(decoded)
 }
@@ -1288,6 +1304,11 @@ pub mod support {
             true => Ok(node.span),
             false => Err(mismatch(node, &format!("the word `{text}`"))),
         }
+    }
+
+    /// Any node, as it is.
+    pub fn any_node(node: &Node) -> Result<Node, DecodeError> {
+        Ok(node.clone())
     }
 
     /// Any word standing alone whose text passes `condition`.

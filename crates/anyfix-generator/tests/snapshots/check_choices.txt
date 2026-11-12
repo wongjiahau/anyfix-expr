@@ -99,6 +99,14 @@ grammar:1:65: warning: found the choices `words` and `null` able to match the sa
 ## ENTRY: value, value: ONE OF [null: WORD "null", words: ANYFIX CALL [NO ARGUMENTS]]
 nothing to report
 
+## ENTRY: value, value: ONE OF [any: ANY NODE, text: STRING]
+grammar:1:45: warning: found the choices `any` and `text` able to match the same input; expected at most one choice to fit any input, since `any` comes first and always wins it; make one of them more specific, or put the more specific one first
+  ENTRY: value, value: ONE OF [any: ANY NODE, text: STRING]
+                                              ^^^^^^^^^^^^
+
+## ENTRY: value, value: ONE OF [text: STRING, list: SQUARE BRACKET [ZERO OR MORE: value], any: ANY NODE]
+nothing to report
+
 ## ENTRY: value, value: ONE OF [integer: integer, other: ANYFIX CALL], integer: ONE OF [number: NUMBER, minus: SPECIFIC ANYFIX CALL [WORD "-", n: NUMBER]]
 nothing to report
 

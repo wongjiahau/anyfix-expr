@@ -34,6 +34,10 @@ pub enum Node {
         node: Vec<Result<Node, DecodeError>>,
         span: anyfix_expr::Span,
     },
+    Kept {
+        node: anyfix_expr::Node,
+        span: anyfix_expr::Span,
+    },
     Raw {
         name: Spanned<std::string::String>,
         arguments: Vec<anyfix_expr::Node>,
@@ -106,6 +110,7 @@ impl Node {
             Node::Nothing(span)
             | Node::OnlyWords(span)
             | Node::Each { span, .. }
+            | Node::Kept { span, .. }
             | Node::Raw { span, .. }
             | Node::Spanned(span)
             | Node::Type(span)
@@ -160,6 +165,7 @@ pub fn decode_node(node: &anyfix_expr::Node) -> Result<Node, DecodeError> {
                 .map(Node::Wrapped))
         })
         .or_else(|error| error.or(decode_node_each(node)))
+        .or_else(|error| error.or(decode_node_kept(node)))
         .or_else(|error| error.or(decode_node_raw(node)))
         .or_else(|error| {
             error.or(
@@ -212,6 +218,16 @@ fn decode_node_each(node: &anyfix_expr::Node) -> Result<Node, DecodeError> {
     let mut parts = support::call(node, "the call `EACH _*`")?;
     let decoded = Node::Each {
         node: parts.word("EACH")?.each(decode_node),
+        span: node.span,
+    };
+    parts.finish()?;
+    Ok(decoded)
+}
+
+fn decode_node_kept(node: &anyfix_expr::Node) -> Result<Node, DecodeError> {
+    let mut parts = support::call(node, "the call `KEEP _`")?;
+    let decoded = Node::Kept {
+        node: parts.word("KEEP")?.one(support::any_node, "a node")?,
         span: node.span,
     };
     parts.finish()?;
@@ -821,6 +837,11 @@ pub mod support {
             true => Ok(node.span),
             false => Err(mismatch(node, &format!("the word `{text}`"))),
         }
+    }
+
+    /// Any node, as it is.
+    pub fn any_node(node: &Node) -> Result<Node, DecodeError> {
+        Ok(node.clone())
     }
 
     /// Any word standing alone whose text passes `condition`.

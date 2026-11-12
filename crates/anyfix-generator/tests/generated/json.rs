@@ -559,6 +559,11 @@ pub mod support {
         }
     }
 
+    /// Any node, as it is.
+    pub fn any_node(node: &Node) -> Result<Node, DecodeError> {
+        Ok(node.clone())
+    }
+
     /// Any word standing alone whose text passes `condition`.
     pub fn any_word(
         node: &Node,

@@ -68,7 +68,7 @@ impl<'a> Overlap<'a> {
 
     fn compare_cover(&mut self, general: &Pattern, specific: &Pattern) -> bool {
         let grammar = self.grammar;
-        if general == specific {
+        if general == specific || *general == Pattern::AnyNode {
             return true;
         }
         match (general, specific) {
@@ -121,6 +121,7 @@ impl<'a> Overlap<'a> {
             (other, Pattern::OneOf(choices)) => choices
                 .iter()
                 .any(|choice| self.patterns(other, &choice.pattern)),
+            (Pattern::AnyNode, _) | (_, Pattern::AnyNode) => true,
             (
                 Pattern::Container { kind, elements },
                 Pattern::Container {

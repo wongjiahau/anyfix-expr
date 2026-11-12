@@ -149,6 +149,7 @@ enum Leaf {
     StringLiteral,
     Text,
     Number(&'static str),
+    Node,
 }
 
 /// How to get the span of a decoded value.
@@ -228,7 +229,8 @@ impl Builder<'_> {
                 | Pattern::Word(_)
                 | Pattern::AnyWord { .. }
                 | Pattern::String(_)
-                | Pattern::Number(_) => {
+                | Pattern::Number(_)
+                | Pattern::AnyNode => {
                     let definition = self.reserve(&path, true, rule.name_span);
                     let value = self.value(&rule.pattern, &path, rule.name_span, true);
                     self.definitions[definition].body = Body::Alias(value);
@@ -318,6 +320,10 @@ impl Builder<'_> {
                     ),
                 }
             }
+            Pattern::AnyNode => Value::Leaf {
+                kind: Leaf::Node,
+                call: "support::any_node(node)".to_string(),
+            },
             Pattern::String(conditions) => {
                 let terms = self.terms(conditions, "text");
                 Value::Leaf {
@@ -751,6 +757,7 @@ impl Printer<'_> {
                 Leaf::StringLiteral => spanned(self.names.get("StringLiteral")),
                 Leaf::Text => spanned(self.names.get("String")),
                 Leaf::Number(rust) => spanned(rust),
+                Leaf::Node => self.names.get("Node").to_string(),
             },
             Value::Rule(rule) => self.type_name(self.rule_definitions[*rule]),
             Value::Definition(definition) => match &self.definitions[*definition].body {
@@ -829,6 +836,18 @@ impl Printer<'_> {
     fn decoder(&self, value: &Value, boxed: bool) -> String {
         match (self.value_definition(value), boxed) {
             (Some(definition), false) => self.function_name(definition),
+            // Taking only the node, it needs no closure around it.
+            (None, false)
+                if matches!(
+                    value,
+                    Value::Leaf {
+                        kind: Leaf::Node,
+                        ..
+                    }
+                ) =>
+            {
+                "support::any_node".to_string()
+            }
             _ => format!("|node| {}", self.boxed_call(value, boxed)),
         }
     }

@@ -172,6 +172,7 @@ impl Lowerer<'_> {
                 ast::String::Conditions { conditions, .. } => self.string_conditions(conditions),
             }),
             ast::Pattern::Number(number) => Pattern::Number(self.number(number)),
+            ast::Pattern::AnyNode(_) => Pattern::AnyNode,
         }
     }
 

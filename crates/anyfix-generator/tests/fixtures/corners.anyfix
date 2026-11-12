@@ -1,7 +1,8 @@
 # The corners of the generator: rules named like the types its output uses,
 # every kind of number and word, fields named like Rust keywords, brackets
 # with and without fields, recursion through an optional field, `EACH`
-# among the parts of a call, and a call with no arguments.
+# among the parts of a call, a call with no arguments, and a node kept as
+# it is.
 
 ENTRY [header: OPTIONAL: string, ZERO OR MORE: node],
 
@@ -17,6 +18,7 @@ node: ONE OF [
   only words: PARENTHESIS [WORD "only", WORD "words"],
   wrapped: PARENTHESIS [WORD "wrap", OPTIONAL: node, WORD "end"],
   each: SPECIFIC ANYFIX CALL [WORD "EACH", EACH: node],
+  kept: SPECIFIC ANYFIX CALL [WORD "KEEP", node: ANY NODE],
   raw: ANYFIX CALL [NAME [STARTS WITH "raw "]],
   exact: STRING "exact",
   spanned: span,

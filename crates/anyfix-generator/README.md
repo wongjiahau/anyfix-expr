@@ -202,6 +202,17 @@ The conditions are on the number's value, not its text: `0xFF`, `255`,
 `2.55e2` and `25_5` are all the integer 255. A number that breaks a
 condition is a decode error at that number.
 
+### `ANY NODE`
+
+```text
+SPECIFIC ANYFIX CALL [WORD "range", value: ANY NODE]
+```
+
+`ANY NODE` matches any one node and keeps it as an `anyfix_expr::Node`,
+for you to decode. Use it for a value whose shape the grammar can't say
+well, as you would an `ANYFIX CALL`'s raw arguments. Since it matches
+everything, it belongs last in a `ONE OF`, as the fallback.
+
 ### Names
 
 `name: pattern` at the top level defines a rule. Inside a list it names a
@@ -334,6 +345,8 @@ type that holds them. `INTEGER` alone is an `i64`, with only `AT LEAST 0` a
 as `move _ to _`. With `ARGUMENTS: pattern` its `arguments` are decoded:
 one value, or a `Vec` or `Option` for a repetition. Without it they stay
 `Vec<anyfix_expr::Node>`, for you to decode.
+
+**`ANY NODE`** is the `anyfix_expr::Node` itself, which has its own `span`.
 
 **Recursion** is boxed where a type would otherwise contain itself.
 

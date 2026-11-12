@@ -30,6 +30,7 @@ pattern: ONE OF [
   any word,
   string,
   number,
+  any node,
 ],
 
 # A rule's name: lowercase words, no arguments.
@@ -74,6 +75,9 @@ call condition: ONE OF [
 ],
 
 word: SPECIFIC ANYFIX CALL [WORD "WORD", text: STRING],
+
+# Any one node, kept as it is for the caller to decode.
+any node: SPECIFIC ANYFIX CALL [WORD "ANY", WORD "NODE"],
 
 any word: SPECIFIC ANYFIX CALL [
   WORD "ANY", WORD "WORD",

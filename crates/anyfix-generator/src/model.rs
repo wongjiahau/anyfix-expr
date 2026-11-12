@@ -43,6 +43,8 @@ pub enum Pattern {
     },
     String(Vec<StringCondition>),
     Number(NumberPattern),
+    /// Any one node, decoded to itself.
+    AnyNode,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -348,6 +350,7 @@ impl Grammar {
                 _ => format!("a string that {}", conditions_text(conditions)),
             },
             Pattern::Number(number) => describe_number(number),
+            Pattern::AnyNode => "a node".to_string(),
         };
         vec![one]
     }

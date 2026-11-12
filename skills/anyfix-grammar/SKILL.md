@@ -55,7 +55,8 @@ way of working, the examples and the mistakes to avoid.
    `error.render(source, path)` gives the message with the source line.
 6. **Commit the generated file.** It is the same text for the same grammar.
    It needs `anyfix-expr` as a dependency, and `regex` when the grammar uses
-   `MATCHING REGEX`.
+   `MATCHING REGEX`. To keep `regex` out (it is large, in wasm especially),
+   say it with `NO ARGUMENTS`, `STARTS WITH` or `ENDS WITH` instead.
 
 ## How anyfix groups a source
 
@@ -104,6 +105,8 @@ choice: ONE OF [first: pattern, second: pattern],   # first match wins
 | `EACH:` | every element left, each decoded on its own | `Vec<Result<T, DecodeError>>` |
 | `SPECIFIC ANYFIX CALL [WORD "IF", condition: x, WORD "THEN", then: y]` | the call `IF _ THEN _` | a struct |
 | `ANYFIX CALL [NAME [MATCHING REGEX "^[a-z]+ _$"], ARGUMENTS: x]` | any call whose name fits | a struct with `name` and `arguments` |
+| `ANYFIX CALL [NO ARGUMENTS]` | a call of words alone: `sans serif` | a struct with `name` |
+| `ANY NODE` | any one node, for your own code to decode | `anyfix_expr::Node` |
 
 Every built-in part needs a name: `key: STRING`, not `STRING`. A rule
 reference and a `WORD` of letters name themselves. The names become the Rust
