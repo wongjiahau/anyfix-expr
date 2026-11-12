@@ -128,12 +128,9 @@ impl Lowerer<'_> {
             ast::Pattern::Repetition(repetition) => {
                 self.error(
                     repetition.span(),
-                    "found a repetition where exactly one node is matched; expected `ZERO OR MORE`, `ONE OR MORE` and `OPTIONAL` only on an element of `ENTRY`, of a bracket or of a `SPECIFIC ANYFIX CALL`, or after `ARGUMENTS:`; move it into a list, as in `SQUARE BRACKET [ZERO OR MORE: value]`",
+                    "found a repetition where exactly one node is matched; expected `ZERO OR MORE`, `ONE OR MORE`, `OPTIONAL` and `EACH` only on an element of `ENTRY`, of a bracket or of a `SPECIFIC ANYFIX CALL`, or after `ARGUMENTS:`; move it into a list, as in `SQUARE BRACKET [ZERO OR MORE: value]`",
                 );
-                let (ast::Repetition::ZeroOrMore { pattern, .. }
-                | ast::Repetition::OneOrMore { pattern, .. }
-                | ast::Repetition::Optional { pattern, .. }) = repetition;
-                self.pattern(pattern, position)
+                self.pattern(repetition_of(pattern).1, position)
             }
             ast::Pattern::Container(container) => {
                 let (kind, contents) = match container {
@@ -175,6 +172,7 @@ impl Lowerer<'_> {
                 ast::String::Conditions { conditions, .. } => self.string_conditions(conditions),
             }),
             ast::Pattern::Number(number) => Pattern::Number(self.number(number)),
+            ast::Pattern::AnyNode(_) => Pattern::AnyNode,
         }
     }
 
@@ -270,14 +268,7 @@ impl Lowerer<'_> {
             ast::Element::Field(field) => (Some(rule_name(field)), &field.arguments, field.span),
             ast::Element::Pattern(pattern) => (None, pattern, pattern.span()),
         };
-        let (repetition, pattern) = match pattern {
-            ast::Pattern::Repetition(repetition) => match repetition {
-                ast::Repetition::ZeroOrMore { pattern, .. } => (Repetition::ZeroOrMore, &**pattern),
-                ast::Repetition::OneOrMore { pattern, .. } => (Repetition::OneOrMore, &**pattern),
-                ast::Repetition::Optional { pattern, .. } => (Repetition::Optional, &**pattern),
-            },
-            pattern => (Repetition::One, pattern),
-        };
+        let (repetition, pattern) = repetition_of(pattern);
         Element {
             name,
             repetition,
@@ -292,6 +283,7 @@ impl Lowerer<'_> {
             .iter()
             .map(|element| self.element(element))
             .collect();
+        self.check_each_is_last(&elements);
         let names = match values(&elements).count() {
             0 | 1 => names,
             _ => Names::Required,
@@ -346,8 +338,23 @@ impl Lowerer<'_> {
         }
     }
 
+    /// `EACH` takes every element left, so nothing after it would ever match.
+    fn check_each_is_last(&mut self, elements: &[Element]) {
+        let after_each = elements
+            .iter()
+            .skip_while(|element| element.repetition != Repetition::Each)
+            .nth(1);
+        if let Some(after) = after_each {
+            self.error(
+                after.span,
+                "found an element after `EACH`; expected `EACH` last, since it takes every element that is left; move it to the end, or use `ZERO OR MORE`, which stops at the first element that does not fit",
+            );
+        }
+    }
+
     fn specific_call(&mut self, call: &ast::SpecificCall) -> Pattern {
         let mut parts: Vec<Element> = call.parts.iter().map(|part| self.element(part)).collect();
+        self.check_each_is_last(&parts);
         for part in &parts {
             if matches!(part.pattern, Pattern::Word(_)) && part.repetition != Repetition::One {
                 self.error(
@@ -379,6 +386,7 @@ impl Lowerer<'_> {
     fn any_call(&mut self, call: &ast::AnyCall) -> Pattern {
         let mut name = None;
         let mut arguments = None;
+        let mut no_arguments = None;
         for condition in call.conditions.iter().flat_map(|list| list.iter()) {
             match condition {
                 ast::CallCondition::Name { conditions, span } => {
@@ -397,20 +405,7 @@ impl Lowerer<'_> {
                             "found a second `ARGUMENTS`; expected one pattern for the arguments; remove one of them",
                         );
                     }
-                    let (repetition, pattern) = match pattern {
-                        ast::Pattern::Repetition(repetition) => match repetition {
-                            ast::Repetition::ZeroOrMore { pattern, .. } => {
-                                (Repetition::ZeroOrMore, &**pattern)
-                            }
-                            ast::Repetition::OneOrMore { pattern, .. } => {
-                                (Repetition::OneOrMore, &**pattern)
-                            }
-                            ast::Repetition::Optional { pattern, .. } => {
-                                (Repetition::Optional, &**pattern)
-                            }
-                        },
-                        pattern => (Repetition::One, pattern),
-                    };
+                    let (repetition, pattern) = repetition_of(pattern);
                     arguments = Some(Box::new(Element {
                         name: None,
                         repetition,
@@ -418,12 +413,21 @@ impl Lowerer<'_> {
                         span: *span,
                     }));
                 }
+                ast::CallCondition::NoArguments { span } => no_arguments = Some(*span),
             }
         }
-        Pattern::AnyCall {
-            name: name.unwrap_or_default(),
-            arguments,
+        let mut name = name.unwrap_or_default();
+        if let Some(span) = no_arguments {
+            if arguments.is_some() {
+                self.error(
+                    span,
+                    "found both `ARGUMENTS` and `NO ARGUMENTS`; expected at most one of them; remove one",
+                );
+            }
+            // A call has an argument for each `_` in its name.
+            name.push(StringCondition::NoSlots);
         }
+        Pattern::AnyCall { name, arguments }
     }
 
     fn any_word(&mut self, any_word: &ast::AnyWord) -> Pattern {
@@ -594,4 +598,18 @@ fn edit_distance(a: &str, b: &str) -> usize {
         }
     }
     row[b.len()]
+}
+
+/// A pattern's repetition, and the pattern it repeats: `ZERO OR MORE: x` is
+/// `x` zero or more times, and `x` alone is `x` once.
+fn repetition_of(pattern: &ast::Pattern) -> (Repetition, &ast::Pattern) {
+    match pattern {
+        ast::Pattern::Repetition(repetition) => match repetition {
+            ast::Repetition::ZeroOrMore { pattern, .. } => (Repetition::ZeroOrMore, pattern),
+            ast::Repetition::OneOrMore { pattern, .. } => (Repetition::OneOrMore, pattern),
+            ast::Repetition::Optional { pattern, .. } => (Repetition::Optional, pattern),
+            ast::Repetition::Each { pattern, .. } => (Repetition::Each, pattern),
+        },
+        pattern => (Repetition::One, pattern),
+    }
 }

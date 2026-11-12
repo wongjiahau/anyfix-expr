@@ -43,6 +43,8 @@ pub enum Pattern {
     },
     String(Vec<StringCondition>),
     Number(NumberPattern),
+    /// Any one node, decoded to itself.
+    AnyNode,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -87,17 +89,26 @@ pub enum Repetition {
     Optional,
     ZeroOrMore,
     OneOrMore,
+    /// Every element left, each decoded on its own, so that one that does
+    /// not fit is kept as its error and the rest still decode.
+    Each,
 }
 
 impl Repetition {
     /// Whether no node at all satisfies it.
     pub fn may_be_empty(self) -> bool {
-        matches!(self, Repetition::Optional | Repetition::ZeroOrMore)
+        matches!(
+            self,
+            Repetition::Optional | Repetition::ZeroOrMore | Repetition::Each
+        )
     }
 
     /// Whether it takes more than one node.
     pub fn may_repeat(self) -> bool {
-        matches!(self, Repetition::ZeroOrMore | Repetition::OneOrMore)
+        matches!(
+            self,
+            Repetition::ZeroOrMore | Repetition::OneOrMore | Repetition::Each
+        )
     }
 }
 
@@ -134,6 +145,8 @@ pub enum StringCondition {
     EndsWith(String),
     Contains(String),
     MatchingRegex(String),
+    /// No word of a call's name is a `_` slot: `NO ARGUMENTS`.
+    NoSlots,
 }
 
 impl StringCondition {
@@ -146,6 +159,7 @@ impl StringCondition {
             StringCondition::MatchingRegex(regex) => {
                 regex::Regex::new(regex).is_ok_and(|regex| regex.is_match(text))
             }
+            StringCondition::NoSlots => !text.split(' ').any(|word| word == "_"),
         }
     }
 }
@@ -286,6 +300,7 @@ fn conditions_text(conditions: &[StringCondition]) -> String {
             StringCondition::EndsWith(text) => format!("ends with {text:?}"),
             StringCondition::Contains(text) => format!("contains {text:?}"),
             StringCondition::MatchingRegex(regex) => format!("matches the regex `{regex}`"),
+            StringCondition::NoSlots => "has no `_`".to_string(),
         })
         .collect();
     join_and(&parts)
@@ -310,6 +325,9 @@ impl Grammar {
             Pattern::Container { kind, .. } => kind.picture().to_string(),
             Pattern::SpecificCall(parts) => format!("the call `{}`", call_picture(parts)),
             Pattern::AnyCall { name, .. } if name.is_empty() => "a call".to_string(),
+            Pattern::AnyCall { name, .. } if name[..] == [StringCondition::NoSlots] => {
+                "a call with no arguments".to_string()
+            }
             Pattern::AnyCall { name, .. } => {
                 format!("a call whose name {}", conditions_text(name))
             }
@@ -332,6 +350,7 @@ impl Grammar {
                 _ => format!("a string that {}", conditions_text(conditions)),
             },
             Pattern::Number(number) => describe_number(number),
+            Pattern::AnyNode => "a node".to_string(),
         };
         vec![one]
     }
@@ -376,7 +395,7 @@ pub fn call_picture(parts: &[Element]) -> String {
             (Pattern::Word(text), _) => text.clone(),
             (_, Repetition::One) => "_".to_string(),
             (_, Repetition::Optional) => "_?".to_string(),
-            (_, Repetition::ZeroOrMore) => "_*".to_string(),
+            (_, Repetition::ZeroOrMore | Repetition::Each) => "_*".to_string(),
             (_, Repetition::OneOrMore) => "_+".to_string(),
         })
         .collect::<Vec<_>>()

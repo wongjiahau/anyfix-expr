@@ -59,6 +59,7 @@ pub enum Pattern {
     AnyWord(AnyWord),
     String(String),
     Number(Number),
+    AnyNode(AnyNode),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -79,6 +80,7 @@ pub enum Repetition {
     ZeroOrMore { pattern: Box<Pattern>, span: Span },
     OneOrMore { pattern: Box<Pattern>, span: Span },
     Optional { pattern: Box<Pattern>, span: Span },
+    Each { pattern: Box<Pattern>, span: Span },
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -110,11 +112,19 @@ pub enum CallCondition {
         pattern: Pattern,
         span: Span,
     },
+    NoArguments {
+        span: Span,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Word {
     pub text: Spanned<StringLiteral>,
+    pub span: Span,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct AnyNode {
     pub span: Span,
 }
 
@@ -216,6 +226,7 @@ impl Pattern {
             Pattern::AnyWord(value) => value.span,
             Pattern::String(value) => value.span(),
             Pattern::Number(value) => value.span(),
+            Pattern::AnyNode(value) => value.span,
         }
     }
 }
@@ -225,7 +236,8 @@ impl Repetition {
         match self {
             Repetition::ZeroOrMore { span, .. }
             | Repetition::OneOrMore { span, .. }
-            | Repetition::Optional { span, .. } => *span,
+            | Repetition::Optional { span, .. }
+            | Repetition::Each { span, .. } => *span,
         }
     }
 }
@@ -243,7 +255,9 @@ impl Container {
 impl CallCondition {
     pub fn span(&self) -> Span {
         match self {
-            CallCondition::Name { span, .. } | CallCondition::Arguments { span, .. } => *span,
+            CallCondition::Name { span, .. }
+            | CallCondition::Arguments { span, .. }
+            | CallCondition::NoArguments { span, .. } => *span,
         }
     }
 }
@@ -375,6 +389,7 @@ pub fn decode_pattern(node: &Node) -> Result<Pattern, DecodeError> {
         .or_else(|error| error.or(decode_any_word(node).map(Pattern::AnyWord)))
         .or_else(|error| error.or(decode_string(node).map(Pattern::String)))
         .or_else(|error| error.or(decode_number(node).map(Pattern::Number)))
+        .or_else(|error| error.or(decode_any_node(node).map(Pattern::AnyNode)))
 }
 
 pub fn decode_reference(node: &Node) -> Result<Reference, DecodeError> {
@@ -417,6 +432,7 @@ pub fn decode_repetition(node: &Node) -> Result<Repetition, DecodeError> {
     decode_repetition_zero_or_more(node)
         .or_else(|error| error.or(decode_repetition_one_or_more(node)))
         .or_else(|error| error.or(decode_repetition_optional(node)))
+        .or_else(|error| error.or(decode_repetition_each(node)))
 }
 
 fn decode_repetition_zero_or_more(node: &Node) -> Result<Repetition, DecodeError> {
@@ -452,6 +468,18 @@ fn decode_repetition_optional(node: &Node) -> Result<Repetition, DecodeError> {
     let decoded = Repetition::Optional {
         pattern: parts
             .word("OPTIONAL")?
+            .one(|node| decode_pattern(node).map(Box::new), "a pattern")?,
+        span: node.span,
+    };
+    parts.finish()?;
+    Ok(decoded)
+}
+
+fn decode_repetition_each(node: &Node) -> Result<Repetition, DecodeError> {
+    let mut parts = support::call(node, "the call `EACH _`")?;
+    let decoded = Repetition::Each {
+        pattern: parts
+            .word("EACH")?
             .one(|node| decode_pattern(node).map(Box::new), "a pattern")?,
         span: node.span,
     };
@@ -553,6 +581,7 @@ fn decode_any_call_conditions(node: &Node) -> Result<Spanned<Vec<CallCondition>>
 pub fn decode_call_condition(node: &Node) -> Result<CallCondition, DecodeError> {
     decode_call_condition_name(node)
         .or_else(|error| error.or(decode_call_condition_arguments(node)))
+        .or_else(|error| error.or(decode_call_condition_no_arguments(node)))
 }
 
 fn decode_call_condition_name(node: &Node) -> Result<CallCondition, DecodeError> {
@@ -589,6 +618,14 @@ fn decode_call_condition_arguments(node: &Node) -> Result<CallCondition, DecodeE
     Ok(decoded)
 }
 
+fn decode_call_condition_no_arguments(node: &Node) -> Result<CallCondition, DecodeError> {
+    let mut parts = support::call(node, "the call `NO ARGUMENTS`")?;
+    let decoded = CallCondition::NoArguments { span: node.span };
+    parts.word("NO")?.word("ARGUMENTS")?;
+    parts.finish()?;
+    Ok(decoded)
+}
+
 pub fn decode_word(node: &Node) -> Result<Word, DecodeError> {
     let mut parts = support::call(node, "the call `WORD _`")?;
     let decoded = Word {
@@ -598,6 +635,14 @@ pub fn decode_word(node: &Node) -> Result<Word, DecodeError> {
         )?,
         span: node.span,
     };
+    parts.finish()?;
+    Ok(decoded)
+}
+
+pub fn decode_any_node(node: &Node) -> Result<AnyNode, DecodeError> {
+    let mut parts = support::call(node, "the call `ANY NODE`")?;
+    let decoded = AnyNode { span: node.span };
+    parts.word("ANY")?.word("NODE")?;
     parts.finish()?;
     Ok(decoded)
 }
@@ -1208,6 +1253,22 @@ pub mod support {
             values
         }
 
+        /// Decodes every node left, each on its own. A node that does not fit is
+        /// kept as its error, and the nodes after it still decode, so one
+        /// mistake in a list does not hide the rest. A word stops it: in a call,
+        /// a name word after the nodes is matched next.
+        pub fn each<T>(
+            &mut self,
+            decode: impl Fn(&'a Node) -> Result<T, DecodeError>,
+        ) -> Vec<Result<T, DecodeError>> {
+            let mut values = Vec::new();
+            while let Some(Item::Node(node)) = self.items.get(self.index) {
+                values.push(decode(node));
+                self.index += 1;
+            }
+            values
+        }
+
         /// Matches one node, then more for as long as they fit.
         pub fn one_or_more<T>(
             &mut self,
@@ -1245,22 +1306,31 @@ pub mod support {
         }
     }
 
+    /// Any node, as it is.
+    pub fn any_node(node: &Node) -> Result<Node, DecodeError> {
+        Ok(node.clone())
+    }
+
     /// Any word standing alone whose text passes `condition`.
     pub fn any_word(
         node: &Node,
         condition: impl Fn(&str) -> bool,
         expected: &str,
     ) -> Result<Spanned<String>, DecodeError> {
-        if let NodeKind::Call(call) = &node.kind
-            && let [NamePart::Word { text, .. }] = &call.name[..]
-            && condition(text)
-        {
-            return Ok(Spanned {
+        let text = match &node.kind {
+            NodeKind::Call(call) => match &call.name[..] {
+                [NamePart::Word { text, .. }] => Some(text),
+                _ => None,
+            },
+            _ => None,
+        };
+        match text {
+            Some(text) if condition(text) => Ok(Spanned {
                 value: text.clone(),
                 span: node.span,
-            });
+            }),
+            _ => Err(mismatch(node, expected)),
         }
-        Err(mismatch(node, expected))
     }
 
     /// A string whose value passes `condition`.
@@ -1341,17 +1411,22 @@ pub mod support {
         maximum: i128,
         expected: &str,
     ) -> Result<Spanned<T>, DecodeError> {
-        if let NodeKind::Number(text) = &node.kind
-            && let NumberValue::Integer(value) = number_value(text)
-            && (minimum..=maximum).contains(&value)
-            && let Ok(value) = T::try_from(value)
-        {
-            return Ok(Spanned {
+        let value = match &node.kind {
+            NodeKind::Number(text) => match number_value(text) {
+                NumberValue::Integer(value) if (minimum..=maximum).contains(&value) => {
+                    T::try_from(value).ok()
+                }
+                _ => None,
+            },
+            _ => None,
+        };
+        match value {
+            Some(value) => Ok(Spanned {
                 value,
                 span: node.span,
-            });
+            }),
+            None => Err(mismatch(node, expected)),
         }
-        Err(mismatch(node, expected))
     }
 
     /// A number from `minimum` to `maximum`.

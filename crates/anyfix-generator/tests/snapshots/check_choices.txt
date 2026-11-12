@@ -46,6 +46,11 @@ grammar:1:72: warning: found the choices `a` and `b` able to match the same inpu
 ## ENTRY: value, value: ONE OF [a: SQUARE BRACKET [ONE OR MORE: STRING], b: SQUARE BRACKET [ONE OR MORE: NUMBER]]
 nothing to report
 
+## ENTRY: value, value: ONE OF [a: SQUARE BRACKET [EACH: STRING], b: SQUARE BRACKET [ONE OR MORE: NUMBER]]
+grammar:1:64: warning: found the choices `a` and `b` able to match the same input; expected at most one choice to fit any input, since `a` comes first and always wins it; make one of them more specific, or put the more specific one first
+  ENTRY: value, value: ONE OF [a: SQUARE BRACKET [EACH: STRING], b: SQUARE BRACKET [ONE OR MORE: NUMBER]]
+                                                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
 ## ENTRY: value, value: ONE OF [a: ANYFIX CALL [NAME [STARTS WITH "get "]], b: SPECIFIC ANYFIX CALL [WORD "set", value]]
 nothing to report
 
@@ -66,4 +71,42 @@ nothing to report
 grammar:1:80: warning: found the choices `a` and `b` able to match the same input; expected at most one choice to fit any input, since `a` comes first and always wins it; make one of them more specific, or put the more specific one first
   ENTRY: value, value: ONE OF [a: ANYFIX CALL [NAME [MATCHING REGEX "^[a-z]+"]], b: ANYFIX CALL [NAME [MATCHING REGEX "[a-z]+$"]]]
                                                                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+## ENTRY: value, value: ONE OF [null: WORD "null", minus: SPECIFIC ANYFIX CALL [WORD "-", n: NUMBER], words: ANYFIX CALL [NAME [MATCHING REGEX "^[a-z]+$"]], other: ANYFIX CALL]
+nothing to report
+
+## ENTRY: value, value: ONE OF [field: ANYFIX CALL [NAME [ENDS WITH " _"], ARGUMENTS: STRING], other: ANYFIX CALL [NAME [ENDS WITH " _"]]]
+nothing to report
+
+## ENTRY: value, value: ONE OF [a: SPECIFIC ANYFIX CALL [WORD "f", x: ZERO OR MORE: STRING], other: ANYFIX CALL [NAME [STARTS WITH "f"]]]
+grammar:1:91: warning: found the choices `a` and `other` able to match the same input; expected at most one choice to fit any input, since `a` comes first and always wins it; make one of them more specific, or put the more specific one first
+  ENTRY: value, value: ONE OF [a: SPECIFIC ANYFIX CALL [WORD "f", x: ZERO OR MORE: STRING], other: ANYFIX CALL [NAME [STARTS WITH "f"]]]
+                                                                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+## ENTRY: value, value: ONE OF [other: ANYFIX CALL, null: WORD "null"]
+grammar:1:50: warning: found the choices `other` and `null` able to match the same input; expected at most one choice to fit any input, since `other` comes first and always wins it; make one of them more specific, or put the more specific one first
+  ENTRY: value, value: ONE OF [other: ANYFIX CALL, null: WORD "null"]
+                                                   ^^^^^^^^^^^^^^^^^
+
+## ENTRY: value, value: ONE OF [words: ANYFIX CALL [NO ARGUMENTS], field: ANYFIX CALL [NAME [ENDS WITH " _"]]]
+nothing to report
+
+## ENTRY: value, value: ONE OF [words: ANYFIX CALL [NO ARGUMENTS], null: WORD "null"]
+grammar:1:65: warning: found the choices `words` and `null` able to match the same input; expected at most one choice to fit any input, since `words` comes first and always wins it; make one of them more specific, or put the more specific one first
+  ENTRY: value, value: ONE OF [words: ANYFIX CALL [NO ARGUMENTS], null: WORD "null"]
+                                                                  ^^^^^^^^^^^^^^^^^
+
+## ENTRY: value, value: ONE OF [null: WORD "null", words: ANYFIX CALL [NO ARGUMENTS]]
+nothing to report
+
+## ENTRY: value, value: ONE OF [any: ANY NODE, text: STRING]
+grammar:1:45: warning: found the choices `any` and `text` able to match the same input; expected at most one choice to fit any input, since `any` comes first and always wins it; make one of them more specific, or put the more specific one first
+  ENTRY: value, value: ONE OF [any: ANY NODE, text: STRING]
+                                              ^^^^^^^^^^^^
+
+## ENTRY: value, value: ONE OF [text: STRING, list: SQUARE BRACKET [ZERO OR MORE: value], any: ANY NODE]
+nothing to report
+
+## ENTRY: value, value: ONE OF [integer: integer, other: ANYFIX CALL], integer: ONE OF [number: NUMBER, minus: SPECIFIC ANYFIX CALL [WORD "-", n: NUMBER]]
+nothing to report
 

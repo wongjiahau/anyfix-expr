@@ -39,7 +39,8 @@ fn children(pattern: &Pattern) -> Vec<&Pattern> {
         | Pattern::Word(_)
         | Pattern::AnyWord { .. }
         | Pattern::String(_)
-        | Pattern::Number(_) => Vec::new(),
+        | Pattern::Number(_)
+        | Pattern::AnyNode => Vec::new(),
     }
 }
 
@@ -155,9 +156,10 @@ fn cycle_through(start: usize, edges: &[Vec<usize>]) -> Option<Vec<usize>> {
 fn competing_choices(pattern: &Pattern, overlap: &mut Overlap, diagnostics: &mut Vec<Diagnostic>) {
     if let Pattern::OneOf(choices) = pattern {
         for (index, later) in choices.iter().enumerate() {
-            let earlier = choices[..index]
-                .iter()
-                .find(|earlier| overlap.patterns(&earlier.pattern, &later.pattern));
+            let earlier = choices[..index].iter().find(|earlier| {
+                overlap.patterns(&earlier.pattern, &later.pattern)
+                    && !overlap.covers(&later.pattern, &earlier.pattern)
+            });
             if let Some(earlier) = earlier {
                 diagnostics.push(Diagnostic::warning(
                     later.span,

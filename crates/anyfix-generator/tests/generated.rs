@@ -98,7 +98,7 @@ fn the_config_format_decodes() {
         .arguments
         .value
         .iter()
-        .map(|setting| match setting {
+        .map(|setting| match setting.as_ref().unwrap() {
             Setting::Flag { name, .. } => (name.value.as_str(), "flag"),
             Setting::Pair {
                 name, arguments, ..
@@ -121,6 +121,35 @@ fn the_config_format_decodes() {
             ("allowed origins _", "list"),
             ("verbose logging", "flag"),
             ("tls _", "section")
+        ]
+    );
+}
+
+#[test]
+fn each_keeps_a_setting_that_does_not_fit_as_its_error() {
+    let source = "server { port: 8080, \"oops\", tls { certificate: (1, 2) }, verbose logging }";
+    let document = config::decode_document(&parse(source)).unwrap();
+    let [server] = &document.section[..] else {
+        panic!("{:?}", document.section);
+    };
+    let settings: Vec<Result<&str, String>> = server
+        .arguments
+        .value
+        .iter()
+        .map(|setting| match setting {
+            Ok(config::Setting::Pair { name, .. } | config::Setting::Flag { name, .. }) => {
+                Ok(name.value.as_str())
+            }
+            Err(error) => Err(error.render(source, "input")),
+        })
+        .collect();
+    assert_eq!(
+        settings,
+        [
+            Ok("port _"),
+            Err("input:1:22: found the string \"oops\"; expected a call whose name matches the regex `^[a-z][a-z0-9 ]* _$` or a call whose name matches the regex `^[a-z][a-z0-9 ]*$`\n  server { port: 8080, \"oops\", tls { certificate: (1, 2) }, verbose logging }\n                       ^^^^^^".to_string()),
+            Ok("tls _"),
+            Ok("verbose logging"),
         ]
     );
 }
@@ -414,10 +443,12 @@ fn conditions_are_checked_where_the_value_is() {
             "[1, 0, 0, 0, 0, 0.5, 42, \"x\"]",
             "\"#a\", [x]",
             "\"#a!\", \"exact\", \"other\"",
-            "WORDS [IF, name, +, x, ->, |, |, end]",
-            "WORDS [if, name, +, x, ->, end]",
-            "WORDS [IF, Name, +, x, ->, end]",
-            "WORDS [IF, name, +, x, ->]",
+            "WORDS [IF, name, +, x, sans serif, ->, |, |, end]",
+            "WORDS [if, name, +, x, y, ->, end]",
+            "WORDS [IF, Name, +, x, y, ->, end]",
+            "WORDS [IF, name, +, x, y, ->]",
+            "WORDS [IF, name, +, x, print 1, ->, end]",
+            "KEEP [1, x], KEEP 3, KEEP",
             "(wrap, [type], finish)",
             "(only, word)",
             "raw 1 2, rawer 1",

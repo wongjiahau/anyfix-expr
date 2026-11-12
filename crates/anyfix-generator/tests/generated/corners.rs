@@ -30,6 +30,14 @@ pub enum Node {
     Nothing(anyfix_expr::Span),
     OnlyWords(anyfix_expr::Span),
     Wrapped(std::boxed::Box<Spanned<std::option::Option<Node>>>),
+    Each {
+        node: Vec<Result<Node, DecodeError>>,
+        span: anyfix_expr::Span,
+    },
+    Kept {
+        node: anyfix_expr::Node,
+        span: anyfix_expr::Span,
+    },
     Raw {
         name: Spanned<std::string::String>,
         arguments: Vec<anyfix_expr::Node>,
@@ -76,8 +84,16 @@ pub struct WordsList {
     pub name: Spanned<std::string::String>,
     pub symbol: Spanned<std::string::String>,
     pub any: Spanned<std::string::String>,
+    pub phrase: WordsListPhrase,
     pub arrow: anyfix_expr::Span,
     pub bars: Vec<anyfix_expr::Span>,
+    pub span: anyfix_expr::Span,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct WordsListPhrase {
+    pub name: Spanned<std::string::String>,
+    pub arguments: Vec<anyfix_expr::Node>,
     pub span: anyfix_expr::Span,
 }
 
@@ -93,6 +109,8 @@ impl Node {
         match self {
             Node::Nothing(span)
             | Node::OnlyWords(span)
+            | Node::Each { span, .. }
+            | Node::Kept { span, .. }
             | Node::Raw { span, .. }
             | Node::Spanned(span)
             | Node::Type(span)
@@ -146,6 +164,8 @@ pub fn decode_node(node: &anyfix_expr::Node) -> Result<Node, DecodeError> {
                 .map(std::boxed::Box::new)
                 .map(Node::Wrapped))
         })
+        .or_else(|error| error.or(decode_node_each(node)))
+        .or_else(|error| error.or(decode_node_kept(node)))
         .or_else(|error| error.or(decode_node_raw(node)))
         .or_else(|error| {
             error.or(
@@ -192,6 +212,26 @@ fn decode_node_wrapped(
         value,
         span: node.span,
     })
+}
+
+fn decode_node_each(node: &anyfix_expr::Node) -> Result<Node, DecodeError> {
+    let mut parts = support::call(node, "the call `EACH _*`")?;
+    let decoded = Node::Each {
+        node: parts.word("EACH")?.each(decode_node),
+        span: node.span,
+    };
+    parts.finish()?;
+    Ok(decoded)
+}
+
+fn decode_node_kept(node: &anyfix_expr::Node) -> Result<Node, DecodeError> {
+    let mut parts = support::call(node, "the call `KEEP _`")?;
+    let decoded = Node::Kept {
+        node: parts.word("KEEP")?.one(support::any_node, "a node")?,
+        span: node.span,
+    };
+    parts.finish()?;
+    Ok(decoded)
 }
 
 fn decode_node_raw(node: &anyfix_expr::Node) -> Result<Node, DecodeError> {
@@ -319,6 +359,7 @@ fn decode_words_list(node: &anyfix_expr::Node) -> Result<WordsList, DecodeError>
             "a symbol",
         )?,
         any: elements.one(|node| support::any_word(node, |_| true, "a word"), "a word")?,
+        phrase: elements.one(decode_words_list_phrase, "a call with no arguments")?,
         arrow: elements.word_span("->")?,
         bars: elements.zero_or_more(|node| support::word(node, "|")),
         span: node.span,
@@ -326,6 +367,19 @@ fn decode_words_list(node: &anyfix_expr::Node) -> Result<WordsList, DecodeError>
     elements.word("end")?;
     elements.finish()?;
     Ok(decoded)
+}
+
+fn decode_words_list_phrase(node: &anyfix_expr::Node) -> Result<WordsListPhrase, DecodeError> {
+    let (name, arguments) = support::any_call(
+        node,
+        |name| !name.split(' ').any(|word| word == "_"),
+        "a call with no arguments",
+    )?;
+    Ok(WordsListPhrase {
+        name,
+        arguments: arguments.to_vec(),
+        span: node.span,
+    })
 }
 
 pub fn decode_box(node: &anyfix_expr::Node) -> Result<Box, DecodeError> {
@@ -732,6 +786,22 @@ pub mod support {
             values
         }
 
+        /// Decodes every node left, each on its own. A node that does not fit is
+        /// kept as its error, and the nodes after it still decode, so one
+        /// mistake in a list does not hide the rest. A word stops it: in a call,
+        /// a name word after the nodes is matched next.
+        pub fn each<T>(
+            &mut self,
+            decode: impl Fn(&'a Node) -> Result<T, DecodeError>,
+        ) -> Vec<Result<T, DecodeError>> {
+            let mut values = Vec::new();
+            while let Some(Item::Node(node)) = self.items.get(self.index) {
+                values.push(decode(node));
+                self.index += 1;
+            }
+            values
+        }
+
         /// Matches one node, then more for as long as they fit.
         pub fn one_or_more<T>(
             &mut self,
@@ -769,22 +839,31 @@ pub mod support {
         }
     }
 
+    /// Any node, as it is.
+    pub fn any_node(node: &Node) -> Result<Node, DecodeError> {
+        Ok(node.clone())
+    }
+
     /// Any word standing alone whose text passes `condition`.
     pub fn any_word(
         node: &Node,
         condition: impl Fn(&str) -> bool,
         expected: &str,
     ) -> Result<Spanned<String>, DecodeError> {
-        if let NodeKind::Call(call) = &node.kind
-            && let [NamePart::Word { text, .. }] = &call.name[..]
-            && condition(text)
-        {
-            return Ok(Spanned {
+        let text = match &node.kind {
+            NodeKind::Call(call) => match &call.name[..] {
+                [NamePart::Word { text, .. }] => Some(text),
+                _ => None,
+            },
+            _ => None,
+        };
+        match text {
+            Some(text) if condition(text) => Ok(Spanned {
                 value: text.clone(),
                 span: node.span,
-            });
+            }),
+            _ => Err(mismatch(node, expected)),
         }
-        Err(mismatch(node, expected))
     }
 
     /// A string whose value passes `condition`.
@@ -865,17 +944,22 @@ pub mod support {
         maximum: i128,
         expected: &str,
     ) -> Result<Spanned<T>, DecodeError> {
-        if let NodeKind::Number(text) = &node.kind
-            && let NumberValue::Integer(value) = number_value(text)
-            && (minimum..=maximum).contains(&value)
-            && let Ok(value) = T::try_from(value)
-        {
-            return Ok(Spanned {
+        let value = match &node.kind {
+            NodeKind::Number(text) => match number_value(text) {
+                NumberValue::Integer(value) if (minimum..=maximum).contains(&value) => {
+                    T::try_from(value).ok()
+                }
+                _ => None,
+            },
+            _ => None,
+        };
+        match value {
+            Some(value) => Ok(Spanned {
                 value,
                 span: node.span,
-            });
+            }),
+            None => Err(mismatch(node, expected)),
         }
-        Err(mismatch(node, expected))
     }
 
     /// A number from `minimum` to `maximum`.

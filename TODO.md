@@ -87,6 +87,7 @@ the tree from `SyntaxTree::nodes()` into that AST.
 
 ## Open questions
 
+- [x] Decode a list's elements each on its own, keeping the errors (`EACH:`)
 - [ ] A way to say "any node" (no wildcard yet)
 - [ ] More conditions for `ANYFIX CALL` and `ANY WORD` as needs come up
 - [ ] A `build.rs` library entry point, later

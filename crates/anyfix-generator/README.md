@@ -75,14 +75,17 @@ value: ONE OF [object, array, string: STRING, WORD "null"],
 
 The choices are tried in the order written, and the first one that matches
 wins. The generator warns whenever two choices can match the same input,
-since the later one then never sees it.
+since the later one then never sees it, unless the later one matches
+everything the earlier one does: a fallback after the cases it catches,
+such as `[minus: SPECIFIC ANYFIX CALL [WORD "-", n: NUMBER], other: ANYFIX CALL]`.
 
-### `ZERO OR MORE:`, `ONE OR MORE:`, `OPTIONAL:`
+### `ZERO OR MORE:`, `ONE OR MORE:`, `OPTIONAL:`, `EACH:`
 
 ```text
 ZERO OR MORE: member
 ONE OR MORE: digit
 OPTIONAL: label
+EACH: setting
 ```
 
 A repetition is written as a prefix, and stands where a sequence of nodes is
@@ -90,6 +93,17 @@ described: in `ENTRY`, in a bracket, among the parts of a
 `SPECIFIC ANYFIX CALL`, or after `ARGUMENTS:`. It takes as many nodes as
 match, and never gives one back: in `[ZERO OR MORE: STRING, STRING]` the
 repetition takes every string, so the last `STRING` never matches.
+
+`EACH:` is for lists where one mistake should not hide the rest, such as
+the settings of a config file or the statements of a program. It takes
+every element that is left and decodes each one on its own. An element that
+does not fit is kept as its `DecodeError`, in its place, and the elements
+after it still decode. So `EACH` comes last in its list, and the list it is
+in matches whatever its elements are.
+
+```text
+section: SPECIFIC ANYFIX CALL [WORD "server", settings: CURLY BRACE: EACH: setting],
+```
 
 ### `CURLY BRACE`, `SQUARE BRACKET`, `PARENTHESIS`
 
@@ -127,6 +141,7 @@ ANYFIX CALL                                             # any call
 ANYFIX CALL [NAME [STARTS WITH "get "]]                 # by its name
 ANYFIX CALL [ARGUMENTS: ZERO OR MORE: expression]       # with typed arguments
 ANYFIX CALL [NAME [ENDS WITH " _"], ARGUMENTS: expression]
+ANYFIX CALL [NO ARGUMENTS]                              # words alone: `sans serif`
 ```
 
 `ANYFIX CALL` matches any call, which is how a language lets its users
@@ -136,6 +151,9 @@ slot: `list file in _`.
 - `NAME [string conditions]` puts conditions on that name text.
 - `ARGUMENTS: pattern` describes the arguments. Without it, they stay raw
   `anyfix_expr::Node`s.
+- `NO ARGUMENTS` takes only a call with none, which is one or more words
+  with no `_` in its name. Unlike a regex on the name, it needs no `regex`
+  crate in the output.
 
 A word is a call with no arguments, so `ANYFIX CALL` matches words too.
 
@@ -184,6 +202,17 @@ The conditions are on the number's value, not its text: `0xFF`, `255`,
 `2.55e2` and `25_5` are all the integer 255. A number that breaks a
 condition is a decode error at that number.
 
+### `ANY NODE`
+
+```text
+SPECIFIC ANYFIX CALL [WORD "range", value: ANY NODE]
+```
+
+`ANY NODE` matches any one node and keeps it as an `anyfix_expr::Node`,
+for you to decode. Use it for a value whose shape the grammar can't say
+well, as you would an `ANYFIX CALL`'s raw arguments. Since it matches
+everything, it belongs last in a `ONE OF`, as the fallback.
+
 ### Names
 
 `name: pattern` at the top level defines a rule. Inside a list it names a
@@ -215,8 +244,9 @@ name.
 anyfix-generate grammar.anyfix > src/parser.rs
 ```
 
-The output is one Rust file. It needs `anyfix-expr` as a dependency, and
-`regex` when the grammar uses `MATCHING REGEX`. Commit it: the same grammar
+The output is one Rust file, which builds on Rust edition 2021 and later. It
+needs `anyfix-expr` as a dependency, and `regex` when the grammar uses
+`MATCHING REGEX`. Commit it: the same grammar
 always gives the same text, so it only changes when the grammar does.
 
 The file is laid out with `rustfmt`, so `cargo fmt` leaves it alone.
@@ -289,6 +319,7 @@ pub struct Array { pub value: Vec<Value>, pub span: Span }
 | a choice that is a call | a variant with fields: `If { condition, then, r#else, span }` |
 | a choice that is a `WORD` | a variant holding the word's `Span` |
 | `ZERO OR MORE:`, `ONE OR MORE:` | `Vec<T>` |
+| `EACH:` | `Vec<Result<T, DecodeError>>` |
 | `OPTIONAL:` | `Option<T>` |
 | `STRING` | `Spanned<StringLiteral>`: the value, and its pieces as written |
 | `NUMBER` | `Spanned<f64>`, or an integer type (see below) |
@@ -315,6 +346,8 @@ as `move _ to _`. With `ARGUMENTS: pattern` its `arguments` are decoded:
 one value, or a `Vec` or `Option` for a repetition. Without it they stay
 `Vec<anyfix_expr::Node>`, for you to decode.
 
+**`ANY NODE`** is the `anyfix_expr::Node` itself, which has its own `span`.
+
 **Recursion** is boxed where a type would otherwise contain itself.
 
 A rule may be named like a type the output uses itself, such as `string`
@@ -325,10 +358,12 @@ by its full path (`std::string::String`, `anyfix_expr::Node`).
 
 - The choices of a `ONE OF` are tried in order, and the first that matches
   wins. The generator warns when two choices can match the same input,
-  since the later one then never gets it.
+  since the later one then never gets it, except when the later one
+  matches everything the earlier one does, which makes it a fallback.
 - The elements of a list are matched from left to right. A repetition takes
   every node that fits and gives none back, so in `[ZERO OR MORE: value,
-  last: value]` nothing is left for `last`.
+  last: value]` nothing is left for `last`. `EACH` takes every node left,
+  whether it fits or not.
 - A call matches `SPECIFIC ANYFIX CALL` only with exactly its words and
   arguments, and a bracket only when no element is left over.
 
@@ -357,11 +392,13 @@ Errors, which stop the generation:
   field named `span`, a rule named `document`
 - a repetition where exactly one node is matched, such as a whole rule or
   a choice
+- anything after `EACH` in its list, which `EACH` would have taken
 - conditions nothing can meet, and a regex that does not compile
 - a rule that refers to itself with no call or bracket in between
 
 Warnings:
 
-- two choices of a `ONE OF` that can match the same input
+- two choices of a `ONE OF` that can match the same input, unless the
+  later one is a fallback that matches everything the earlier one does
 - a rule that nothing reachable from `ENTRY` refers to
 - a `PARENTHESIS` around exactly one element, which only `(x,)` matches

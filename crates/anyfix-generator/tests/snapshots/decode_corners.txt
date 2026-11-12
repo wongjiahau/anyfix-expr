@@ -1,5 +1,5 @@
 ## [256, 0, 0, 0, 0, 0.5, 42]
-input:1:2: found the number `256`; expected the word `span`, `type`, `NOT_NULL`, the call `OPTION _ _? THEN _? END`, `WORDS _`, an integer from 0 to 255, `[...]`, `{...}`, `(...)`, a call whose name starts with "raw " or the string "exact"
+input:1:2: found the number `256`; expected the word `span`, `type`, `NOT_NULL`, the call `OPTION _ _? THEN _? END`, `WORDS _`, `EACH _*`, `KEEP _`, an integer from 0 to 255, `[...]`, `{...}`, `(...)`, a call whose name starts with "raw " or the string "exact"
   [256, 0, 0, 0, 0, 0.5, 42]
    ^^^
 
@@ -34,31 +34,41 @@ input:1:26: found the string "x"; expected a number or the closing `]`
                            ^^^
 
 ## "#a", [x]
-input:1:1: found the string "#a"; expected the word `span`, `type`, `NOT_NULL`, the call `OPTION _ _? THEN _? END`, `WORDS _`, a string that starts with "#", ends with "!", contains "a" and matches the regex `^.{3,}$`, `[...]`, `{...}`, `(...)`, a call whose name starts with "raw ", the string "exact" or the end of the document
+input:1:1: found the string "#a"; expected the word `span`, `type`, `NOT_NULL`, the call `OPTION _ _? THEN _? END`, `WORDS _`, `EACH _*`, `KEEP _`, a string that starts with "#", ends with "!", contains "a" and matches the regex `^.{3,}$`, `[...]`, `{...}`, `(...)`, a call whose name starts with "raw ", the string "exact" or the end of the document
   "#a", [x]
   ^^^^
 
 ## "#a!", "exact", "other"
-input:1:17: found the string "other"; expected the word `span`, `type`, `NOT_NULL`, the call `OPTION _ _? THEN _? END`, `WORDS _`, `[...]`, `{...}`, `(...)`, a call whose name starts with "raw ", the string "exact" or the end of the document
+input:1:17: found the string "other"; expected the word `span`, `type`, `NOT_NULL`, the call `OPTION _ _? THEN _? END`, `WORDS _`, `EACH _*`, `KEEP _`, `[...]`, `{...}`, `(...)`, a call whose name starts with "raw ", the string "exact" or the end of the document
   "#a!", "exact", "other"
                   ^^^^^^^
 
-## WORDS [IF, name, +, x, ->, |, |, end]
+## WORDS [IF, name, +, x, sans serif, ->, |, |, end]
 decodes
 
-## WORDS [if, name, +, x, ->, end]
+## WORDS [if, name, +, x, y, ->, end]
 input:1:8: found the word `if`; expected a keyword
-  WORDS [if, name, +, x, ->, end]
+  WORDS [if, name, +, x, y, ->, end]
          ^^
 
-## WORDS [IF, Name, +, x, ->, end]
+## WORDS [IF, Name, +, x, y, ->, end]
 input:1:12: found the word `Name`; expected a name that matches the regex `^[a-z]+$`
-  WORDS [IF, Name, +, x, ->, end]
+  WORDS [IF, Name, +, x, y, ->, end]
              ^^^^
 
-## WORDS [IF, name, +, x, ->]
-input:1:26: found the closing `]`; expected the word `end`
-  WORDS [IF, name, +, x, ->]
+## WORDS [IF, name, +, x, y, ->]
+input:1:29: found the closing `]`; expected the word `end`
+  WORDS [IF, name, +, x, y, ->]
+                              ^
+
+## WORDS [IF, name, +, x, print 1, ->, end]
+input:1:24: found the call `print _`; expected a call with no arguments
+  WORDS [IF, name, +, x, print 1, ->, end]
+                         ^^^^^^^
+
+## KEEP [1, x], KEEP 3, KEEP
+input:1:26: found the end of the call; expected a node
+  KEEP [1, x], KEEP 3, KEEP
                            ^
 
 ## (wrap, [type], finish)
@@ -72,7 +82,7 @@ input:1:8: found the word `word`; expected the word `words`
          ^^^^
 
 ## raw 1 2, rawer 1
-input:1:10: found the word `rawer`; expected the word `OPTION` or `WORDS`
+input:1:10: found the word `rawer`; expected the word `OPTION`, `WORDS`, `EACH` or `KEEP`
   raw 1 2, rawer 1
            ^^^^^
 

@@ -30,6 +30,7 @@ pattern: ONE OF [
   any word,
   string,
   number,
+  any node,
 ],
 
 # A rule's name: lowercase words, no arguments.
@@ -44,6 +45,7 @@ repetition: ONE OF [
   zero or more: SPECIFIC ANYFIX CALL [WORD "ZERO", WORD "OR", WORD "MORE", pattern],
   one or more: SPECIFIC ANYFIX CALL [WORD "ONE", WORD "OR", WORD "MORE", pattern],
   optional: SPECIFIC ANYFIX CALL [WORD "OPTIONAL", pattern],
+  each: SPECIFIC ANYFIX CALL [WORD "EACH", pattern],
 ],
 
 container: ONE OF [
@@ -69,9 +71,13 @@ call condition: ONE OF [
     conditions: SQUARE BRACKET [ONE OR MORE: string condition],
   ],
   arguments: SPECIFIC ANYFIX CALL [WORD "ARGUMENTS", pattern],
+  no arguments: SPECIFIC ANYFIX CALL [WORD "NO", WORD "ARGUMENTS"],
 ],
 
 word: SPECIFIC ANYFIX CALL [WORD "WORD", text: STRING],
+
+# Any one node, kept as it is for the caller to decode.
+any node: SPECIFIC ANYFIX CALL [WORD "ANY", WORD "NODE"],
 
 any word: SPECIFIC ANYFIX CALL [
   WORD "ANY", WORD "WORD",
