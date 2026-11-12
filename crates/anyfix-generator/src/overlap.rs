@@ -79,6 +79,18 @@ impl<'a> Overlap<'a> {
             (_, Pattern::OneOf(choices)) => choices.iter().all(|choice| {
                 !self.patterns(general, &choice.pattern) || self.covers(general, &choice.pattern)
             }),
+            // A signed number is the number alone, `+ n` or `- n`: like a
+            // choice, of those only the ones `general` can match count.
+            (_, Pattern::Number(number)) if number.signed => {
+                let unsigned = Pattern::Number(NumberPattern {
+                    signed: false,
+                    ..*number
+                });
+                let [plus, minus] = sign_calls(number);
+                [unsigned, plus, minus]
+                    .iter()
+                    .all(|part| !self.patterns(general, part) || self.covers(general, part))
+            }
             (Pattern::Reference(rule), _) => self.covers(&grammar.rules[*rule].pattern, specific),
             (Pattern::OneOf(choices), _) => choices
                 .iter()
