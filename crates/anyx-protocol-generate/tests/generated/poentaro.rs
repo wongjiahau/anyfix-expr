@@ -73,6 +73,11 @@ METHOD write (path: TEXT) at revision (revision: INTEGER) content (content: TEXT
 METHOD create (path: TEXT) content (content: TEXT)
     RETURNS (revision: INTEGER)
     ERRORS [already exists at revision, invalid path, rejected],
+
+# The score as a Standard MIDI File.
+METHOD export midi (path: TEXT)
+    RETURNS (midi: BYTES)
+    ERRORS file errors,
 "#;
 
 /// The schema, read once.
@@ -341,6 +346,45 @@ impl FromValue for CreateContentError {
     }
 }
 
+/// The errors of `export midi _`.
+#[derive(Clone, Debug, PartialEq)]
+pub enum ExportMidiError {
+    /// The owner moved this file to the trash. Ask them to restore it.
+    Trashed,
+    /// No file has this path. It may have been renamed: run `list files` to see
+    /// the exact paths.
+    Missing,
+}
+
+impl IntoValue for ExportMidiError {
+    fn into_value(self) -> Value {
+        match self {
+            ExportMidiError::Trashed => Value::Variant {
+                shape: "trashed".to_string(),
+                arguments: vec![],
+            },
+            ExportMidiError::Missing => Value::Variant {
+                shape: "missing".to_string(),
+                arguments: vec![],
+            },
+        }
+    }
+}
+
+impl FromValue for ExportMidiError {
+    fn from_value(value: Value) -> Option<Self> {
+        let Value::Variant { shape, arguments } = value else {
+            return None;
+        };
+        let mut arguments = arguments.into_iter();
+        Some(match shape.as_str() {
+            "trashed" => ExportMidiError::Trashed,
+            "missing" => ExportMidiError::Missing,
+            _ => return None,
+        })
+    }
+}
+
 /// The methods of the schema, for a server to implement. An `Err` is the
 /// server's own failure: the caller gets `INTERNAL ERROR`, and the calls
 /// after it don't run.
@@ -374,6 +418,14 @@ pub trait Server {
         path: String,
         content: String,
     ) -> Result<Result<i64, CreateContentError>, Self::Error>;
+
+    /// The score as a Standard MIDI File.
+    ///
+    /// `export midi _`, returning `midi`.
+    async fn export_midi(
+        &self,
+        path: String,
+    ) -> Result<Result<Vec<u8>, ExportMidiError>, Self::Error>;
 }
 
 /// Runs `request` against `implementation` and writes the response. Every
@@ -416,6 +468,11 @@ pub async fn handle<S: Server>(
                         server::argument(&mut arguments),
                         server::argument(&mut arguments),
                     )
+                    .await,
+            ),
+            4 => server::result(
+                implementation
+                    .export_midi(server::argument(&mut arguments))
                     .await,
             ),
             _ => unreachable!("the codec read a method of the schema"),
@@ -491,5 +548,15 @@ impl<T: Transport> Client<T> {
             vec![path.into_value(), content.into_value()],
         )
         .await
+    }
+
+    /// The score as a Standard MIDI File.
+    ///
+    /// `export midi _`, returning `midi`.
+    pub async fn export_midi(
+        &self,
+        path: String,
+    ) -> Result<Vec<u8>, CallError<ExportMidiError, T::Error>> {
+        anyx_protocol::client::call(&self.transport, schema(), 4, vec![path.into_value()]).await
     }
 }

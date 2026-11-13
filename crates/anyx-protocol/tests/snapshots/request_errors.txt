@@ -2,7 +2,7 @@
 => 1:1: found an empty request; expected at least one call, such as `list files`
 
 reed "a"
-=> 1:1: found the call `reed _`; expected one of the methods `list files`, `read _`, `write _ at revision _ content _`, `create _ content _`; a word in a slot, such as a choice's variant or `true`, goes in parentheses
+=> 1:1: found the call `reed _`; expected one of the methods `list files`, `read _`, `write _ at revision _ content _`, `create _ content _`, `export midi _`; a word in a slot, such as a choice's variant or `true`, goes in parentheses
 
 read 3
 => 1:6: in `path` of `read _`: found the number `3`; expected a string, as in `"text"`
@@ -15,7 +15,7 @@ write "a" at revision 99999999999999999999 content "x"
 
 read "a",
 "loose"
-=> 2:1: found a string; expected one of the methods `list files`, `read _`, `write _ at revision _ content _`, `create _ content _`; a word in a slot, such as a choice's variant or `true`, goes in parentheses
+=> 2:1: found a string; expected one of the methods `list files`, `read _`, `write _ at revision _ content _`, `create _ content _`, `export midi _`; a word in a slot, such as a choice's variant or `true`, goes in parentheses
 
 read "a
 => 1:6: found a string that runs to the end of input; expected a closing `"`; add `"` where the string ends

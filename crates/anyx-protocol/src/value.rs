@@ -7,6 +7,7 @@ use std::collections::BTreeMap;
 #[derive(Clone, Debug, PartialEq)]
 pub enum Value {
     Text(String),
+    Bytes(Vec<u8>),
     Integer(i64),
     Number(f64),
     Boolean(bool),
@@ -43,6 +44,23 @@ impl FromValue for String {
     fn from_value(value: Value) -> Option<Self> {
         match value {
             Value::Text(text) => Some(text),
+            _ => None,
+        }
+    }
+}
+
+/// A `BYTES` value. A `LIST: INTEGER` of small numbers is a `Vec<i64>`, so
+/// `Vec<u8>` is never a list.
+impl IntoValue for Vec<u8> {
+    fn into_value(self) -> Value {
+        Value::Bytes(self)
+    }
+}
+
+impl FromValue for Vec<u8> {
+    fn from_value(value: Value) -> Option<Self> {
+        match value {
+            Value::Bytes(bytes) => Some(bytes),
             _ => None,
         }
     }

@@ -41,7 +41,7 @@ METHOD write (path: TEXT) at revision (revision: INTEGER) content (content: TEXT
 - **Names** are lowercase words: `file summary`. All-caps words belong to the
   schema language. Keywords side by side join into one name, so write
   `LIST: TEXT` and `OPTIONAL: TEXT` with the `:`.
-- **Types:** `TEXT`, `INTEGER` (64-bit), `NUMBER` (a finite float),
+- **Types:** `TEXT`, `BYTES` (such as a file), `INTEGER` (64-bit), `NUMBER` (a finite float),
   `BOOLEAN`, `LIST: T`, and the name of a `RECORD` or `CHOICE`. A type may
   hold itself only through a `LIST`.
 - **`RECORD name { field: TYPE, … }`**: fields by name. An `OPTIONAL` field
@@ -81,6 +81,7 @@ Every call runs, in order.
 | Type | Written |
 | --- | --- |
 | `TEXT` | `"text"` with `\"`, `\\`, `\n`, `\r`, `\t` and `\u{…}` escapes; or a raw string of three or more quotes, whose closing quotes' indentation is removed from every line |
+| `BYTES` | its standard base64 (RFC 4648, padded) as a string: `"TVRoZA=="` |
 | `INTEGER`, `NUMBER` | `3`, `-1.5` |
 | `BOOLEAN` | `true`, `false` |
 | `LIST: T` | `[a, b]` |

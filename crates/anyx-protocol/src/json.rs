@@ -118,6 +118,7 @@ fn method_index(schema: &Schema, shape: &str) -> Result<usize, String> {
 pub fn to_json(schema: &Schema, r#type: &Type, value: &Value) -> Json {
     match value {
         Value::Text(text) => Json::String(text.clone()),
+        Value::Bytes(bytes) => Json::String(crate::bytes::encode(bytes)),
         Value::Integer(integer) => json!(integer),
         Value::Number(number) => json!(number),
         Value::Boolean(boolean) => Json::Bool(*boolean),
@@ -203,6 +204,13 @@ pub fn from_json(schema: &Schema, r#type: &Type, json: &Json) -> Result<Value, S
         Type::Text => match json {
             Json::String(text) => Ok(Value::Text(text.clone())),
             _ => mismatch("a string"),
+        },
+        Type::Bytes => match json {
+            Json::String(text) => match crate::bytes::decode(text) {
+                Some(bytes) => Ok(Value::Bytes(bytes)),
+                None => mismatch("base64 in a string"),
+            },
+            _ => mismatch("base64 in a string"),
         },
         Type::Integer => match json.as_i64() {
             Some(integer) => Ok(Value::Integer(integer)),

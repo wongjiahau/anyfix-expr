@@ -203,6 +203,12 @@ fn decode(schema: &Schema, r#type: &Type, node: &Node) -> Result<Value, Mismatch
     match (r#type, &node.kind) {
         (Type::Text, NodeKind::String(literal)) => Ok(Value::Text(literal.value.clone())),
         (Type::Text, _) => Err(mismatch("a string, as in `\"text\"`".to_string())),
+        (Type::Bytes, NodeKind::String(literal)) => crate::bytes::decode(&literal.value)
+            .map(Value::Bytes)
+            .ok_or_else(|| mismatch("base64 in the string, as in `\"TVRoZA==\"`".to_string())),
+        (Type::Bytes, _) => Err(mismatch(
+            "base64 in a string, as in `\"TVRoZA==\"`".to_string(),
+        )),
         (Type::Integer, NodeKind::Number(text)) => text
             .parse()
             .map(Value::Integer)
@@ -598,6 +604,7 @@ fn write(
 ) -> Result<(), EncodeError> {
     match value {
         Value::Text(text) => write_text(text, out),
+        Value::Bytes(bytes) => write_text(&crate::bytes::encode(bytes), out),
         Value::Integer(integer) => out.push_str(&integer.to_string()),
         Value::Number(number) if number.is_finite() => out.push_str(&format!("{number:?}")),
         Value::Number(number) => {

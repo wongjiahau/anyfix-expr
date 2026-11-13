@@ -12,7 +12,7 @@ use std::task::{Context, Poll, Waker};
 
 use anyx_protocol::client::{CallError, Transport};
 use poentaro::{
-    Client, CreateContentError, Diagnostic, File, FileSummary, ReadError, Server,
+    Client, CreateContentError, Diagnostic, ExportMidiError, File, FileSummary, ReadError, Server,
     WriteAtRevisionContentError,
 };
 
@@ -122,6 +122,15 @@ impl Server for Files {
         }
         files.insert(path, (1, content));
         Ok(Ok(1))
+    }
+
+    /// The file's content as its bytes, then every byte value, so no byte
+    /// is lost on the way.
+    async fn export_midi(&self, path: String) -> Result<Result<Vec<u8>, ExportMidiError>, Broken> {
+        Ok(match self.files.borrow().get(&path) {
+            None => Err(ExportMidiError::Missing),
+            Some((_, content)) => Ok(content.bytes().chain(0..=255).collect()),
+        })
     }
 }
 
@@ -252,4 +261,16 @@ fn a_request_that_cannot_be_read_gets_invalid_request() {
         |_| unreachable!(),
     ));
     assert!(response.starts_with("INVALID REQUEST"), "{response}");
+}
+
+#[test]
+fn bytes_reach_the_client_unchanged() {
+    let client = client();
+    run(client.create_content("a.poentaro".into(), "1 2".into())).unwrap();
+    let expected: Vec<u8> = b"1 2".iter().copied().chain(0..=255).collect();
+    assert_eq!(run(client.export_midi("a.poentaro".into())), Ok(expected));
+    assert_eq!(
+        run(client.export_midi("b.poentaro".into())),
+        Err(CallError::Method(ExportMidiError::Missing))
+    );
 }

@@ -51,3 +51,20 @@ fn each_outcome_reads_as_json() {
         );
     }
 }
+
+#[test]
+fn bytes_are_base64_in_json() {
+    let schema =
+        common::schema("PROTOCOL a VERSION 1, METHOD upload (file: BYTES) RETURNS (file: BYTES),");
+    let request = encode_request_json(&schema, "upload _", r#"["TVRoZA=="]"#).unwrap();
+    assert_eq!(request, "upload \"TVRoZA==\"\n");
+    assert_eq!(
+        decode_response_json(&schema, "upload _", "\"TVRoZA==\"").unwrap(),
+        r#"{"kind":"value","value":"TVRoZA=="}"#
+    );
+    let mistake = encode_request_json(&schema, "upload _", r#"["%%"]"#).unwrap_err();
+    assert_eq!(
+        mistake,
+        "in `file`: found \"%%\"; expected base64 in a string"
+    );
+}

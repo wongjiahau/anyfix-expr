@@ -2,6 +2,7 @@
 //! anyx, and requests and responses are anyx documents checked against it.
 //! See `PROTOCOL.md` for the schema language and the wire format.
 
+mod bytes;
 pub mod client;
 pub mod codec;
 // Generated from `protocol.anyx`; its definitions are as big as they come.

@@ -16,6 +16,7 @@ json = ["dep:serde_json"]
 
 [dependencies]
 anyx = { path = "../anyx", version = "0.1.0" }
+base64 = "0.22"
 serde_json = { version = "1", optional = true }
 
 [dev-dependencies]

@@ -89,6 +89,8 @@ pub struct Parameter {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Type {
     Text,
+    /// Raw bytes, such as a file. On the wire, a base64 string.
+    Bytes,
     Integer,
     Number,
     Boolean,
@@ -136,6 +138,7 @@ impl Schema {
     pub fn type_name(&self, r#type: &Type) -> String {
         match r#type {
             Type::Text => "TEXT".to_string(),
+            Type::Bytes => "BYTES".to_string(),
             Type::Integer => "INTEGER".to_string(),
             Type::Number => "NUMBER".to_string(),
             Type::Boolean => "BOOLEAN".to_string(),
@@ -614,6 +617,7 @@ impl<'a> Checker<'a> {
     fn r#type(&mut self, r#type: &ast::Type) -> Type {
         match r#type {
             ast::Type::Text(_) => Type::Text,
+            ast::Type::Bytes(_) => Type::Bytes,
             ast::Type::Integer(_) => Type::Integer,
             ast::Type::Number(_) => Type::Number,
             ast::Type::Boolean(_) => Type::Boolean,
@@ -626,7 +630,7 @@ impl<'a> Checker<'a> {
                         self.error(
                             name.span,
                             format!(
-                                "found `{text}`, which is not a type of this schema; expected `TEXT`, `INTEGER`, `NUMBER`, `BOOLEAN`, `LIST: type`, or a `RECORD` or `CHOICE` defined here; define `{text}`, or fix the name"
+                                "found `{text}`, which is not a type of this schema; expected `TEXT`, `BYTES`, `INTEGER`, `NUMBER`, `BOOLEAN`, `LIST: type`, or a `RECORD` or `CHOICE` defined here; define `{text}`, or fix the name"
                             ),
                         );
                         Type::Text

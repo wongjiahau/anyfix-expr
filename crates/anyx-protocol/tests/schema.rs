@@ -49,7 +49,8 @@ fn poentaros_schema_reads_with_its_docs_shapes_and_errors() {
             "list files",
             "read _",
             "write _ at revision _ content _",
-            "create _ content _"
+            "create _ content _",
+            "export midi _"
         ]
     );
     let write = schema.method("write _ at revision _ content _").unwrap();

@@ -57,6 +57,7 @@ pub fn rust(schema: &Schema) -> Result<String, Error> {
 pub fn rust_type(schema: &Schema, r#type: &Type) -> String {
     match r#type {
         Type::Text => "String".to_string(),
+        Type::Bytes => "Vec<u8>".to_string(),
         Type::Integer => "i64".to_string(),
         Type::Number => "f64".to_string(),
         Type::Boolean => "bool".to_string(),

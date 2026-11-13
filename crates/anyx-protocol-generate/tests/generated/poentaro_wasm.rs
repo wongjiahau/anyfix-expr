@@ -68,6 +68,11 @@ METHOD write (path: TEXT) at revision (revision: INTEGER) content (content: TEXT
 METHOD create (path: TEXT) content (content: TEXT)
     RETURNS (revision: INTEGER)
     ERRORS [already exists at revision, invalid path, rejected],
+
+# The score as a Standard MIDI File.
+METHOD export midi (path: TEXT)
+    RETURNS (midi: BYTES)
+    ERRORS file errors,
 "#;
 
 fn schema() -> &'static anyx_protocol::Schema {

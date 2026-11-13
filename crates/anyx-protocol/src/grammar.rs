@@ -147,6 +147,7 @@ pub struct Parameter {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Type {
     Text(Span),
+    Bytes(Span),
     Integer(Span),
     Number(Span),
     Boolean(Span),
@@ -212,6 +213,7 @@ impl Type {
     pub fn span(&self) -> Span {
         match self {
             Type::Text(span)
+            | Type::Bytes(span)
             | Type::Integer(span)
             | Type::Number(span)
             | Type::Boolean(span)
@@ -524,6 +526,7 @@ pub fn decode_parameter(node: &Node) -> Result<Parameter, DecodeError> {
 pub fn decode_type(node: &Node) -> Result<Type, DecodeError> {
     support::word(node, "TEXT")
         .map(Type::Text)
+        .or_else(|error| error.or(support::word(node, "BYTES").map(Type::Bytes)))
         .or_else(|error| error.or(support::word(node, "INTEGER").map(Type::Integer)))
         .or_else(|error| error.or(support::word(node, "NUMBER").map(Type::Number)))
         .or_else(|error| error.or(support::word(node, "BOOLEAN").map(Type::Boolean)))

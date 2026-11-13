@@ -67,6 +67,7 @@ parameter: ANYFIX CALL [name: WORDS [NO KEYWORD], type],
 
 type: ONE OF [
   WORD "TEXT",
+  WORD "BYTES",
   WORD "INTEGER",
   WORD "NUMBER",
   WORD "BOOLEAN",

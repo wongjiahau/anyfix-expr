@@ -1,6 +1,6 @@
 == an unknown type
 PROTOCOL a VERSION 1, METHOD f (x: thing) RETURNS (y: TEXT),
-schema:1:36: found `thing`, which is not a type of this schema; expected `TEXT`, `INTEGER`, `NUMBER`, `BOOLEAN`, `LIST: type`, or a `RECORD` or `CHOICE` defined here; define `thing`, or fix the name
+schema:1:36: found `thing`, which is not a type of this schema; expected `TEXT`, `BYTES`, `INTEGER`, `NUMBER`, `BOOLEAN`, `LIST: type`, or a `RECORD` or `CHOICE` defined here; define `thing`, or fix the name
   PROTOCOL a VERSION 1, METHOD f (x: thing) RETURNS (y: TEXT),
                                      ^^^^^
 

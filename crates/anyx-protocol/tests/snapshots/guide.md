@@ -23,6 +23,7 @@ Every call runs, in order, and the response has one result per call.
           second line
           """
 
+- BYTES is base64 in a string: `"TVRoZA=="`.
 - INTEGER is a whole number, NUMBER any number: `3`, `-1.5`.
 - BOOLEAN is `true` or `false`.
 - `LIST: T` is `[a, b, c]`.
@@ -121,3 +122,8 @@ METHOD write (path: TEXT) at revision (revision: INTEGER) content (content: TEXT
 METHOD create (path: TEXT) content (content: TEXT)
     RETURNS (revision: INTEGER)
     ERRORS [already exists at revision, invalid path, rejected],
+
+# The score as a Standard MIDI File.
+METHOD export midi (path: TEXT)
+    RETURNS (midi: BYTES)
+    ERRORS file errors,

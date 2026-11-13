@@ -59,6 +59,16 @@ export type CreateContentError =
   /** The score doesn't parse. Nothing was saved. */
   | { kind: "rejected"; diagnostics: Diagnostic[] };
 
+/** The errors of `export midi _`. */
+export type ExportMidiError =
+  /** The owner moved this file to the trash. Ask them to restore it. */
+  | { kind: "trashed" }
+  /**
+   * No file has this path. It may have been renamed: run `list files` to see
+   * the exact paths.
+   */
+  | { kind: "missing" };
+
 /** What came of one call. */
 export type Outcome<T, E> =
   | { kind: "value"; value: T }
@@ -110,5 +120,10 @@ export class Client {
   /** Makes a new file, and its folders if they don't exist. */
   createContent(path: string, content: string): Promise<Outcome<number, CreateContentError>> {
     return this.call("create _ content _", [path, content]);
+  }
+
+  /** The score as a Standard MIDI File. */
+  exportMidi(path: string): Promise<Outcome<string, ExportMidiError>> {
+    return this.call("export midi _", [path]);
   }
 }

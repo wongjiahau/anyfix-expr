@@ -54,6 +54,7 @@ Every call runs, in order, and the response has one result per call.
           second line
           \"\"\"
 
+- BYTES is base64 in a string: `\"TVRoZA==\"`.
 - INTEGER is a whole number, NUMBER any number: `3`, `-1.5`.
 - BOOLEAN is `true` or `false`.
 - `LIST: T` is `[a, b, c]`.
@@ -98,6 +99,7 @@ words are names; all-caps words belong to the schema language. `ERRORS name
 fn sample(schema: &Schema, r#type: &Type) -> String {
     match r#type {
         Type::Text => "\"a\"".to_string(),
+        Type::Bytes => "\"AQI=\"".to_string(),
         Type::Integer => "3".to_string(),
         Type::Number => "1.5".to_string(),
         Type::Boolean => "(true)".to_string(),

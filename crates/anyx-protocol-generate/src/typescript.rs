@@ -115,6 +115,8 @@ export class Client {
 fn ts_type(schema: &Schema, r#type: &Type) -> String {
     match r#type {
         Type::Text => "string".to_string(),
+        // The JSON the wasm bindings speak carries bytes as base64.
+        Type::Bytes => "string".to_string(),
         Type::Integer | Type::Number => "number".to_string(),
         Type::Boolean => "boolean".to_string(),
         Type::List(item) => format!("{}[]", ts_type(schema, item)),
