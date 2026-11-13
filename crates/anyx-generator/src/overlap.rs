@@ -339,7 +339,12 @@ fn part_steps(parts: &[Element]) -> Vec<Step<'_>> {
                         ]
                     }),
             ),
-            Pattern::Word(text) => all.extend(steps(one, |_| Atom::NameWord(text))),
+            // `WORDS "a b"` is a name word for each of its words.
+            Pattern::Word(text) => {
+                for word in text.split(' ') {
+                    all.extend(steps(one, |_| Atom::NameWord(word)));
+                }
+            }
             pattern => all.extend(steps(one, |_| Atom::Node(pattern))),
         }
     }

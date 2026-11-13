@@ -1,0 +1,15 @@
+## ENTRY: value, value: ANYFIX CALL [WORDS "", x: NUMBER]
+grammar:1:41: error: found `WORDS` of no words; expected one or more words separated by spaces, as in `WORDS "max size"`
+  ENTRY: value, value: ANYFIX CALL [WORDS "", x: NUMBER]
+                                          ^^
+
+## ENTRY: value, value: ANYFIX CALL [WORDS "max, size", x: NUMBER]
+grammar:1:41: error: found `max,` in `WORDS "max, size"`, which is not a word; expected words made of only name characters or only symbol characters, separated by spaces
+  ENTRY: value, value: ANYFIX CALL [WORDS "max, size", x: NUMBER]
+                                          ^^^^^^^^^^^
+
+## ENTRY: value, value: ONE OF [a: ANYFIX CALL [WORDS "max size", x: NUMBER], b: ANYFIX CALL [WORD "max", WORD "size", y: NUMBER]]
+grammar:1:76: warning: found the choices `a` and `b` able to match the same input; expected at most one choice to fit any input, since `a` comes first and always wins it; make one of them more specific, or put the more specific one first
+  ENTRY: value, value: ONE OF [a: ANYFIX CALL [WORDS "max size", x: NUMBER], b: ANYFIX CALL [WORD "max", WORD "size", y: NUMBER]]
+                                                                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+

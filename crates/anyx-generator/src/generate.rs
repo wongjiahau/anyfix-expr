@@ -741,6 +741,9 @@ impl Printer<'_> {
             self.print_span(&mut body, definition);
         }
         for definition in self.definitions {
+            self.print_errors(&mut body, definition);
+        }
+        for definition in self.definitions {
             self.print_decoder(&mut body, definition);
         }
         body.push_str(
@@ -990,6 +993,66 @@ impl Printer<'_> {
             }
             Body::Variant { .. } | Body::Transparent { .. } => {}
         }
+    }
+
+    /// The [`support::Errors`] of a struct or an enum: the errors in each
+    /// of its fields, in order.
+    fn print_errors(&self, output: &mut String, definition: &Definition) {
+        let name = pascal_case(&definition.path);
+        let visit = |fields: &[(String, String)], prefix: &str| -> String {
+            fields
+                .iter()
+                .map(|(field, _)| format!("support::Errors::errors({prefix}{field}, found);\n"))
+                .collect()
+        };
+        let body = match &definition.body {
+            Body::Struct(record) => visit(&self.record_fields(record), "&self."),
+            Body::Enum(variants) => {
+                let mut arms = String::new();
+                for variant in variants {
+                    let variant_name = &variant.name;
+                    match &variant.payload {
+                        Payload::Word(_) => {
+                            writeln!(arms, "{name}::{variant_name}(_) => {{}}").unwrap();
+                        }
+                        Payload::Value { .. } => writeln!(
+                            arms,
+                            "{name}::{variant_name}(value) => support::Errors::errors(value, found),"
+                        )
+                        .unwrap(),
+                        Payload::Record(fields) => {
+                            let Body::Variant { record, .. } = &self.definitions[*fields].body
+                            else {
+                                unreachable!("a variant's fields are a variant definition");
+                            };
+                            let fields = self.record_fields(record);
+                            let bound: String = fields
+                                .iter()
+                                .map(|(field, _)| format!("{field}, "))
+                                .collect();
+                            writeln!(
+                                arms,
+                                "{name}::{variant_name} {{ {bound}.. }} => {{\n{}}}",
+                                visit(&fields, "")
+                            )
+                            .unwrap();
+                        }
+                    }
+                }
+                format!("match self {{\n{arms}}}\n")
+            }
+            Body::Alias(_) | Body::Variant { .. } | Body::Transparent { .. } => return,
+        };
+        // A type with nothing inside that holds errors never uses `found`.
+        let found = match body.contains("found") {
+            true => "found",
+            false => "_",
+        };
+        writeln!(
+            output,
+            "impl support::Errors for {name} {{\nfn errors<'a>(&'a self, {found}: &mut std::vec::Vec<&'a support::DecodeError>) {{\n{body}}}\n}}\n"
+        )
+        .unwrap();
     }
 
     /// The `span` method of an enum.

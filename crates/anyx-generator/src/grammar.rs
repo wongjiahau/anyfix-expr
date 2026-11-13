@@ -64,6 +64,7 @@ pub enum Pattern {
     AnyCall(AnyCall),
     Word(Word),
     AnyWord(AnyWord),
+    ExactWords(ExactWords),
     Words(Words),
     String(String),
     Number(Number),
@@ -148,6 +149,12 @@ pub enum NameCondition {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Word {
+    pub text: Spanned<StringLiteral>,
+    pub span: Span,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ExactWords {
     pub text: Spanned<StringLiteral>,
     pub span: Span,
 }
@@ -261,6 +268,7 @@ impl Pattern {
             Pattern::AnyCall(value) => value.span,
             Pattern::Word(value) => value.span,
             Pattern::AnyWord(value) => value.span,
+            Pattern::ExactWords(value) => value.span,
             Pattern::Words(value) => value.span,
             Pattern::String(value) => value.span(),
             Pattern::Number(value) => value.span(),
@@ -370,6 +378,269 @@ impl NumberCondition {
     }
 }
 
+impl support::Errors for Document {
+    fn errors<'a>(&'a self, found: &mut std::vec::Vec<&'a support::DecodeError>) {
+        support::Errors::errors(&self.entry, found);
+        support::Errors::errors(&self.rule, found);
+    }
+}
+
+impl support::Errors for Entry {
+    fn errors<'a>(&'a self, found: &mut std::vec::Vec<&'a support::DecodeError>) {
+        support::Errors::errors(&self.contents, found);
+    }
+}
+
+impl support::Errors for Named {
+    fn errors<'a>(&'a self, found: &mut std::vec::Vec<&'a support::DecodeError>) {
+        support::Errors::errors(&self.name, found);
+        support::Errors::errors(&self.arguments, found);
+    }
+}
+
+impl support::Errors for Contents {
+    fn errors<'a>(&'a self, found: &mut std::vec::Vec<&'a support::DecodeError>) {
+        match self {
+            Contents::List(value) => support::Errors::errors(value, found),
+            Contents::AnyOrder(value) => support::Errors::errors(value, found),
+            Contents::Element(value) => support::Errors::errors(value, found),
+        }
+    }
+}
+
+impl support::Errors for AnyOrder {
+    fn errors<'a>(&'a self, found: &mut std::vec::Vec<&'a support::DecodeError>) {
+        support::Errors::errors(&self.elements, found);
+    }
+}
+
+impl support::Errors for Element {
+    fn errors<'a>(&'a self, found: &mut std::vec::Vec<&'a support::DecodeError>) {
+        match self {
+            Element::Field(value) => support::Errors::errors(value, found),
+            Element::Pattern(value) => support::Errors::errors(value, found),
+        }
+    }
+}
+
+impl support::Errors for Pattern {
+    fn errors<'a>(&'a self, found: &mut std::vec::Vec<&'a support::DecodeError>) {
+        match self {
+            Pattern::Reference(value) => support::Errors::errors(value, found),
+            Pattern::OneOf(value) => support::Errors::errors(value, found),
+            Pattern::Repetition(value) => support::Errors::errors(value, found),
+            Pattern::Container(value) => support::Errors::errors(value, found),
+            Pattern::SpecificCall(value) => support::Errors::errors(value, found),
+            Pattern::AnyCall(value) => support::Errors::errors(value, found),
+            Pattern::Word(value) => support::Errors::errors(value, found),
+            Pattern::AnyWord(value) => support::Errors::errors(value, found),
+            Pattern::ExactWords(value) => support::Errors::errors(value, found),
+            Pattern::Words(value) => support::Errors::errors(value, found),
+            Pattern::String(value) => support::Errors::errors(value, found),
+            Pattern::Number(value) => support::Errors::errors(value, found),
+            Pattern::AnyNode(value) => support::Errors::errors(value, found),
+        }
+    }
+}
+
+impl support::Errors for Reference {
+    fn errors<'a>(&'a self, found: &mut std::vec::Vec<&'a support::DecodeError>) {
+        support::Errors::errors(&self.name, found);
+        support::Errors::errors(&self.arguments, found);
+    }
+}
+
+impl support::Errors for OneOf {
+    fn errors<'a>(&'a self, found: &mut std::vec::Vec<&'a support::DecodeError>) {
+        support::Errors::errors(&self.choices, found);
+    }
+}
+
+impl support::Errors for Repetition {
+    fn errors<'a>(&'a self, found: &mut std::vec::Vec<&'a support::DecodeError>) {
+        match self {
+            Repetition::ZeroOrMore { pattern, .. } => {
+                support::Errors::errors(pattern, found);
+            }
+            Repetition::OneOrMore { pattern, .. } => {
+                support::Errors::errors(pattern, found);
+            }
+            Repetition::Optional { pattern, .. } => {
+                support::Errors::errors(pattern, found);
+            }
+            Repetition::Each { pattern, .. } => {
+                support::Errors::errors(pattern, found);
+            }
+        }
+    }
+}
+
+impl support::Errors for Container {
+    fn errors<'a>(&'a self, found: &mut std::vec::Vec<&'a support::DecodeError>) {
+        match self {
+            Container::CurlyBrace { contents, .. } => {
+                support::Errors::errors(contents, found);
+            }
+            Container::SquareBracket { contents, .. } => {
+                support::Errors::errors(contents, found);
+            }
+            Container::Parenthesis { contents, .. } => {
+                support::Errors::errors(contents, found);
+            }
+        }
+    }
+}
+
+impl support::Errors for SpecificCall {
+    fn errors<'a>(&'a self, found: &mut std::vec::Vec<&'a support::DecodeError>) {
+        match self {
+            SpecificCall::Formatted { parts, format, .. } => {
+                support::Errors::errors(parts, found);
+                support::Errors::errors(format, found);
+            }
+            SpecificCall::Plain { parts, .. } => {
+                support::Errors::errors(parts, found);
+            }
+        }
+    }
+}
+
+impl support::Errors for BreakBefore {
+    fn errors<'a>(&'a self, found: &mut std::vec::Vec<&'a support::DecodeError>) {
+        support::Errors::errors(&self.text, found);
+    }
+}
+
+impl support::Errors for AnyCall {
+    fn errors<'a>(&'a self, found: &mut std::vec::Vec<&'a support::DecodeError>) {
+        support::Errors::errors(&self.conditions, found);
+    }
+}
+
+impl support::Errors for CallCondition {
+    fn errors<'a>(&'a self, found: &mut std::vec::Vec<&'a support::DecodeError>) {
+        match self {
+            CallCondition::Name { conditions, .. } => {
+                support::Errors::errors(conditions, found);
+            }
+            CallCondition::Arguments { pattern, .. } => {
+                support::Errors::errors(pattern, found);
+            }
+            CallCondition::NoArguments { .. } => {}
+        }
+    }
+}
+
+impl support::Errors for NameCondition {
+    fn errors<'a>(&'a self, found: &mut std::vec::Vec<&'a support::DecodeError>) {
+        match self {
+            NameCondition::NoKeyword { .. } => {}
+            NameCondition::StringCondition(value) => support::Errors::errors(value, found),
+        }
+    }
+}
+
+impl support::Errors for Word {
+    fn errors<'a>(&'a self, found: &mut std::vec::Vec<&'a support::DecodeError>) {
+        support::Errors::errors(&self.text, found);
+    }
+}
+
+impl support::Errors for ExactWords {
+    fn errors<'a>(&'a self, found: &mut std::vec::Vec<&'a support::DecodeError>) {
+        support::Errors::errors(&self.text, found);
+    }
+}
+
+impl support::Errors for Words {
+    fn errors<'a>(&'a self, found: &mut std::vec::Vec<&'a support::DecodeError>) {
+        support::Errors::errors(&self.conditions, found);
+    }
+}
+
+impl support::Errors for AnyNode {
+    fn errors<'a>(&'a self, _: &mut std::vec::Vec<&'a support::DecodeError>) {}
+}
+
+impl support::Errors for AnyWord {
+    fn errors<'a>(&'a self, found: &mut std::vec::Vec<&'a support::DecodeError>) {
+        support::Errors::errors(&self.conditions, found);
+    }
+}
+
+impl support::Errors for WordCondition {
+    fn errors<'a>(&'a self, found: &mut std::vec::Vec<&'a support::DecodeError>) {
+        match self {
+            WordCondition::Keyword(_) => {}
+            WordCondition::Name(_) => {}
+            WordCondition::Symbol(_) => {}
+            WordCondition::StringCondition(value) => support::Errors::errors(value, found),
+        }
+    }
+}
+
+impl support::Errors for String {
+    fn errors<'a>(&'a self, found: &mut std::vec::Vec<&'a support::DecodeError>) {
+        match self {
+            String::Any(_) => {}
+            String::Exact { text, .. } => {
+                support::Errors::errors(text, found);
+            }
+            String::Conditions { conditions, .. } => {
+                support::Errors::errors(conditions, found);
+            }
+        }
+    }
+}
+
+impl support::Errors for StringCondition {
+    fn errors<'a>(&'a self, found: &mut std::vec::Vec<&'a support::DecodeError>) {
+        match self {
+            StringCondition::StartsWith { text, .. } => {
+                support::Errors::errors(text, found);
+            }
+            StringCondition::EndsWith { text, .. } => {
+                support::Errors::errors(text, found);
+            }
+            StringCondition::Contains { text, .. } => {
+                support::Errors::errors(text, found);
+            }
+            StringCondition::MatchingRegex { regex, .. } => {
+                support::Errors::errors(regex, found);
+            }
+        }
+    }
+}
+
+impl support::Errors for Number {
+    fn errors<'a>(&'a self, found: &mut std::vec::Vec<&'a support::DecodeError>) {
+        match self {
+            Number::Any(_) => {}
+            Number::Exact { value, .. } => {
+                support::Errors::errors(value, found);
+            }
+            Number::Conditions { conditions, .. } => {
+                support::Errors::errors(conditions, found);
+            }
+        }
+    }
+}
+
+impl support::Errors for NumberCondition {
+    fn errors<'a>(&'a self, found: &mut std::vec::Vec<&'a support::DecodeError>) {
+        match self {
+            NumberCondition::Integer(_) => {}
+            NumberCondition::Signed(_) => {}
+            NumberCondition::AtLeast { bound, .. } => {
+                support::Errors::errors(bound, found);
+            }
+            NumberCondition::AtMost { bound, .. } => {
+                support::Errors::errors(bound, found);
+            }
+        }
+    }
+}
+
 pub fn decode_document(nodes: &[Node]) -> Result<Document, DecodeError> {
     let mut elements = support::document(nodes);
     let decoded = Document {
@@ -467,6 +738,7 @@ pub fn decode_pattern(node: &Node) -> Result<Pattern, DecodeError> {
         .or_else(|error| error.or(decode_any_call(node).map(Pattern::AnyCall)))
         .or_else(|error| error.or(decode_word(node).map(Pattern::Word)))
         .or_else(|error| error.or(decode_any_word(node).map(Pattern::AnyWord)))
+        .or_else(|error| error.or(decode_exact_words(node).map(Pattern::ExactWords)))
         .or_else(|error| error.or(decode_words(node).map(Pattern::Words)))
         .or_else(|error| error.or(decode_string(node).map(Pattern::String)))
         .or_else(|error| error.or(decode_number(node).map(Pattern::Number)))
@@ -792,6 +1064,19 @@ pub fn decode_word(node: &Node) -> Result<Word, DecodeError> {
     Ok(decoded)
 }
 
+pub fn decode_exact_words(node: &Node) -> Result<ExactWords, DecodeError> {
+    let mut parts = support::call(node, "the call `WORDS _`")?;
+    let decoded = ExactWords {
+        text: parts.word("WORDS")?.one(
+            |node| support::string(node, |_| true, "a string"),
+            "a string",
+        )?,
+        span: node.span,
+    };
+    parts.finish()?;
+    Ok(decoded)
+}
+
 pub fn decode_words(node: &Node) -> Result<Words, DecodeError> {
     let mut parts = support::call(node, "the call `WORDS _?`")?;
     let decoded = Words {
@@ -1071,6 +1356,93 @@ pub mod support {
             &self.value
         }
     }
+
+    /// A decoded value that can hold errors: the ones `EACH` keeps in place of
+    /// the elements that did not fit, and the ones `ANY ORDER` keeps for the
+    /// nodes that fit nothing. Every generated type has it, so a tool such as a
+    /// language server can list every error in a document without knowing its
+    /// grammar.
+    pub trait Errors {
+        /// Adds every error inside `self` to `found`, in source order.
+        fn errors<'a>(&'a self, found: &mut Vec<&'a DecodeError>);
+
+        /// Every error inside `self`, in source order.
+        fn all_errors(&self) -> Vec<&DecodeError> {
+            let mut found = Vec::new();
+            self.errors(&mut found);
+            found
+        }
+    }
+
+    impl Errors for DecodeError {
+        fn errors<'a>(&'a self, found: &mut Vec<&'a DecodeError>) {
+            found.push(self);
+        }
+    }
+
+    impl<T: Errors> Errors for Result<T, DecodeError> {
+        fn errors<'a>(&'a self, found: &mut Vec<&'a DecodeError>) {
+            match self {
+                Ok(value) => value.errors(found),
+                Err(error) => found.push(error),
+            }
+        }
+    }
+
+    impl<T: Errors> Errors for Vec<T> {
+        fn errors<'a>(&'a self, found: &mut Vec<&'a DecodeError>) {
+            for value in self {
+                value.errors(found);
+            }
+        }
+    }
+
+    impl<T: Errors> Errors for Option<T> {
+        fn errors<'a>(&'a self, found: &mut Vec<&'a DecodeError>) {
+            if let Some(value) = self {
+                value.errors(found);
+            }
+        }
+    }
+
+    impl<T: Errors> Errors for Box<T> {
+        fn errors<'a>(&'a self, found: &mut Vec<&'a DecodeError>) {
+            (**self).errors(found);
+        }
+    }
+
+    impl<T: Errors> Errors for Spanned<T> {
+        fn errors<'a>(&'a self, found: &mut Vec<&'a DecodeError>) {
+            self.value.errors(found);
+        }
+    }
+
+    macro_rules! no_errors {
+    ($($type:ty),*) => {
+        $(impl Errors for $type {
+            fn errors<'a>(&'a self, _: &mut Vec<&'a DecodeError>) {}
+        })*
+    };
+}
+
+    no_errors!(
+        Span,
+        Node,
+        StringLiteral,
+        String,
+        CallName,
+        u8,
+        u16,
+        u32,
+        u64,
+        u128,
+        i8,
+        i16,
+        i32,
+        i64,
+        i128,
+        f64
+    );
 
     /// The name of a call matched by `ANYFIX CALL`: its text, such as
     /// `max size _`, its words and slots, and where its words are.
@@ -1427,19 +1799,25 @@ pub mod support {
             Ok(self)
         }
 
-        /// Like [`Sequence::word`], giving the word's span.
+        /// Like [`Sequence::word`], giving the word's span. `text` may be
+        /// several words separated by spaces, from `WORDS "a b"`: they are
+        /// matched in a row, and the span runs from the first to the last.
         pub fn word_span(&mut self, text: &str) -> Result<Span, DecodeError> {
-            let span = match self.items.get(self.index) {
-                Some(Item::Word(found, span)) if *found == text => *span,
-                Some(Item::Node(node)) if is_word(node, text) => node.span,
-                Some(Item::Node(_)) if self.other_call.is_some() => {
-                    return Err(self.is_other_call());
-                }
-                _ => return Err(self.unexpected(&format!("the word `{text}`"))),
-            };
-            self.index += 1;
-            self.other_call = None;
-            Ok(span)
+            let mut span: Option<Span> = None;
+            for word in text.split(' ') {
+                let found = match self.items.get(self.index) {
+                    Some(Item::Word(found, at)) if *found == word => *at,
+                    Some(Item::Node(node)) if is_word(node, word) => node.span,
+                    Some(Item::Node(_)) if self.other_call.is_some() => {
+                        return Err(self.is_other_call());
+                    }
+                    _ => return Err(self.unexpected(&format!("the word `{text}`"))),
+                };
+                self.index += 1;
+                self.other_call = None;
+                span = Some(span.map_or(found, |first| first.to(found)));
+            }
+            Ok(span.unwrap_or(Span::empty(0)))
         }
 
         /// Matches every name word in a row, at least one, whose text, the

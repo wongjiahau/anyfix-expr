@@ -168,6 +168,19 @@ impl Lowerer<'_> {
                 Pattern::Word(word.text.value.value.clone())
             }
             ast::Pattern::AnyWord(any_word) => self.any_word(any_word),
+            ast::Pattern::ExactWords(exact) => {
+                let words = self.exact_words(exact);
+                match words.contains(' ') {
+                    false => Pattern::Word(words),
+                    // A call of those name words and no arguments.
+                    true => Pattern::SpecificCall(vec![Element {
+                        name: None,
+                        repetition: Repetition::One,
+                        pattern: Pattern::Word(words),
+                        span: exact.span,
+                    }]),
+                }
+            }
             ast::Pattern::Words(words) => {
                 self.error(
                     words.span,
@@ -256,7 +269,7 @@ impl Lowerer<'_> {
             Pattern::Reference(rule) => Some(self.rule_names[*rule].clone()),
             Pattern::Word(text) => {
                 let words: Vec<String> = text
-                    .split('_')
+                    .split(['_', ' '])
                     .filter(|word| !word.is_empty())
                     .map(str::to_lowercase)
                     .collect();
@@ -269,6 +282,11 @@ impl Lowerer<'_> {
                     });
                 is_name.then(|| words.join(" "))
             }
+            // `WORDS "sans serif"` is `sans serif`.
+            Pattern::SpecificCall(parts) => match &parts[..] {
+                [only] if only.is_bare_word() => self.default_name(&only.pattern),
+                _ => None,
+            },
             _ => None,
         }
     }
@@ -415,7 +433,10 @@ impl Lowerer<'_> {
             ast::SpecificCall::Formatted { parts, span, .. }
             | ast::SpecificCall::Plain { parts, span } => (parts, *span),
         };
-        let mut parts: Vec<Element> = call_parts.iter().map(|part| self.call_part(part)).collect();
+        let mut parts: Vec<Element> = call_parts
+            .iter()
+            .flat_map(|part| self.call_part(part))
+            .collect();
         self.check_each_is_last(&parts);
         for part in &parts {
             let what = match part.pattern {
@@ -473,9 +494,10 @@ impl Lowerer<'_> {
         let words: Vec<String> = parts
             .iter()
             .filter_map(|part| match &part.pattern {
-                Pattern::Word(text) => Some(text.clone()),
+                Pattern::Word(text) => Some(text.split(' ').map(str::to_string).collect::<Vec<_>>()),
                 _ => None,
             })
+            .flatten()
             .collect();
         let mut break_before = Vec::new();
         for rule in format {
@@ -518,21 +540,54 @@ impl Lowerer<'_> {
     }
 
     /// One of the parts of an `ANYFIX CALL [...]`, where `WORDS` may stand.
-    fn call_part(&mut self, part: &ast::Element) -> Element {
+    /// `WORDS "a b"` is one part for each of its words.
+    fn call_part(&mut self, part: &ast::Element) -> Vec<Element> {
         let (name, pattern, span) = match part {
             ast::Element::Field(field) => (Some(rule_name(field)), &field.arguments, field.span),
             ast::Element::Pattern(pattern) => (None, pattern, pattern.span()),
         };
         let (repetition, inner) = repetition_of(pattern);
         match inner {
-            ast::Pattern::Words(words) => Element {
+            ast::Pattern::Words(words) => vec![Element {
                 name,
                 repetition,
                 pattern: self.words(words),
                 span,
-            },
-            _ => self.element(part),
+            }],
+            // One part matching the words in a row; named, it keeps their span.
+            ast::Pattern::ExactWords(exact) => vec![Element {
+                name,
+                repetition,
+                pattern: Pattern::Word(self.exact_words(exact)),
+                span,
+            }],
+            _ => vec![self.element(part)],
         }
+    }
+
+    /// The words of `WORDS "a b"`, separated by one space each: the text of
+    /// a `WORD` that matches them in a row.
+    fn exact_words(&mut self, exact: &ast::ExactWords) -> String {
+        let text = &exact.text.value.value;
+        let span = exact.text.span;
+        let words: Vec<&str> = text.split_whitespace().collect();
+        if words.is_empty() {
+            self.error(
+                span,
+                "found `WORDS` of no words; expected one or more words separated by spaces, as in `WORDS \"max size\"`",
+            );
+        }
+        for word in &words {
+            if !is_one_word(word) {
+                self.error(
+                    span,
+                    format!(
+                        "found `{word}` in `WORDS {text:?}`, which is not a word; expected words made of only name characters or only symbol characters, separated by spaces"
+                    ),
+                );
+            }
+        }
+        words.join(" ")
     }
 
     fn words(&mut self, words: &ast::Words) -> Pattern {
@@ -666,18 +721,7 @@ impl Lowerer<'_> {
 
     /// `WORD "x"` must hold what anyx reads as one word.
     fn check_word(&mut self, text: &str, span: Span) {
-        let nodes = anyx::parse(text).syntax.nodes();
-        let is_one_word = matches!(
-            &nodes[..],
-            [node] if matches!(
-                &node.kind,
-                NodeKind::Call(call) if matches!(
-                    &call.name[..],
-                    [NamePart::Word { text: word, .. }] if word == text
-                )
-            )
-        );
-        if !is_one_word {
+        if !is_one_word(text) {
             self.error(
                 span,
                 format!(
@@ -791,4 +835,19 @@ fn repetition_of(pattern: &ast::Pattern) -> (Repetition, &ast::Pattern) {
         },
         pattern => (Repetition::One, pattern),
     }
+}
+
+/// Whether anyx reads `text` as exactly one name word or symbol word.
+fn is_one_word(text: &str) -> bool {
+    let nodes = anyx::parse(text).syntax.nodes();
+    matches!(
+        &nodes[..],
+        [node] if matches!(
+            &node.kind,
+            NodeKind::Call(call) if matches!(
+                &call.name[..],
+                [NamePart::Word { text: word, .. }] if word == text
+            )
+        )
+    )
 }
