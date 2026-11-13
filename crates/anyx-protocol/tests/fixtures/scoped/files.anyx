@@ -1,12 +1,9 @@
 RECORD file { path: TEXT, revision: INTEGER, content: TEXT },
 
-# The note is in the trash.
-PUBLIC ERROR trashed,
-
-PUBLIC ERRORS file errors [trashed, common/missing],
-
-# The note has errors, so nothing was saved.
-ERROR rejected (diagnostics: LIST common/diagnostic),
+PUBLIC ERRORS file errors [
+    # The note is in the trash.
+    trashed,
+] + common/common errors,
 
 METHOD list RETURNS (paths: LIST: TEXT),
 
@@ -15,4 +12,7 @@ METHOD read (path: TEXT) RETURNS (file: file) ERRORS file errors,
 # Saves the note, if it is still at `revision`.
 METHOD write (path: TEXT) at revision (revision: INTEGER) content (content: TEXT)
     RETURNS (warnings: LIST common/diagnostic)
-    ERRORS [rejected, file errors],
+    ERRORS [
+        # The note has errors, so nothing was saved.
+        rejected (diagnostics: LIST common/diagnostic),
+    ] + file errors,

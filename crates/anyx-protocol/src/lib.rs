@@ -6,6 +6,7 @@ mod bytes;
 mod check;
 pub mod client;
 pub mod codec;
+mod error_terms;
 // Generated from `protocol.anyx`; its definitions are as big as they come.
 #[allow(clippy::large_enum_variant)]
 mod grammar;

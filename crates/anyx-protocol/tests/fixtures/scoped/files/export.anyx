@@ -1,9 +1,10 @@
-# The note has errors, so it can't be exported.
-ERROR unreadable (diagnostics: LIST common/diagnostic),
-
 # A page of a note, with what is wrong on it.
 RECORD page { html: TEXT, problem: OPTIONAL common/diagnostic },
 
 METHOD html (path: TEXT) RETURNS (pages: LIST page) ERRORS files/file errors,
 
-METHOD pdf (path: TEXT) RETURNS (pdf: BYTES) ERRORS [unreadable, files/file errors],
+METHOD pdf (path: TEXT) RETURNS (pdf: BYTES)
+    ERRORS [
+        # The note has errors, so it can't be exported.
+        unreadable (diagnostics: LIST common/diagnostic),
+    ] + files/file errors,

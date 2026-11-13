@@ -18,21 +18,20 @@ PROTOCOL notes VERSION 1,
         source: r#"# One problem in a note.
 PUBLIC RECORD diagnostic { line: INTEGER, message: TEXT },
 
-# No note has this path.
-PUBLIC ERROR missing,
+PUBLIC ERRORS common errors [
+    # No note has this path.
+    missing,
+],
 "#,
     },
     anyx_protocol::SchemaFile {
         path: "files.anyx",
         source: r#"RECORD file { path: TEXT, revision: INTEGER, content: TEXT },
 
-# The note is in the trash.
-PUBLIC ERROR trashed,
-
-PUBLIC ERRORS file errors [trashed, common/missing],
-
-# The note has errors, so nothing was saved.
-ERROR rejected (diagnostics: LIST common/diagnostic),
+PUBLIC ERRORS file errors [
+    # The note is in the trash.
+    trashed,
+] + common/common errors,
 
 METHOD list RETURNS (paths: LIST: TEXT),
 
@@ -41,20 +40,24 @@ METHOD read (path: TEXT) RETURNS (file: file) ERRORS file errors,
 # Saves the note, if it is still at `revision`.
 METHOD write (path: TEXT) at revision (revision: INTEGER) content (content: TEXT)
     RETURNS (warnings: LIST common/diagnostic)
-    ERRORS [rejected, file errors],
+    ERRORS [
+        # The note has errors, so nothing was saved.
+        rejected (diagnostics: LIST common/diagnostic),
+    ] + file errors,
 "#,
     },
     anyx_protocol::SchemaFile {
         path: "files/export.anyx",
-        source: r#"# The note has errors, so it can't be exported.
-ERROR unreadable (diagnostics: LIST common/diagnostic),
-
-# A page of a note, with what is wrong on it.
+        source: r#"# A page of a note, with what is wrong on it.
 RECORD page { html: TEXT, problem: OPTIONAL common/diagnostic },
 
 METHOD html (path: TEXT) RETURNS (pages: LIST page) ERRORS files/file errors,
 
-METHOD pdf (path: TEXT) RETURNS (pdf: BYTES) ERRORS [unreadable, files/file errors],
+METHOD pdf (path: TEXT) RETURNS (pdf: BYTES)
+    ERRORS [
+        # The note has errors, so it can't be exported.
+        unreadable (diagnostics: LIST common/diagnostic),
+    ] + files/file errors,
 "#,
     },
 ];

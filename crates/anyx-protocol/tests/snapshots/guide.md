@@ -42,8 +42,9 @@ Every call runs, in order, and the response has one result per call.
 The response has one result per call, in order. A result is one of:
 
 - The value the method `RETURNS`.
-- `ERROR` and one of the errors the method lists after `ERRORS`, in the
-  error's shape: `ERROR missing`, `ERROR conflict at revision 4 content "…"`.
+- `ERROR` and one of the method's errors, in the error's shape. They follow
+  `ERRORS`: its own in brackets, then those of each group joined with `+`.
+  For example: `ERROR missing`, `ERROR conflict at revision 4 content "…"`.
   The call didn't do anything. Each error's `#` lines say what to do next.
 - `INTERNAL ERROR`: the server failed. Calls after it don't run.
 - `NOT RUN`: the call didn't run, because an earlier call failed that way.
@@ -56,7 +57,7 @@ A request that can't be read gets one result, and none of its calls run:
 
 In the schema, a `#` line before a definition says what it means. Lowercase
 words are names; all-caps words belong to the schema language. `ERRORS name
-[…]` names a list of errors that methods share.
+[…]` is a group of errors that methods share by joining it with `+`.
 
 # Poentaro turns `.poentaro` text into numbered musical notation (jianpu) and
 # keeps the account owner's scores in the cloud. When you save, anyone who
@@ -88,27 +89,18 @@ RECORD diagnostic {
     message: TEXT,
 },
 
-# The owner moved this file to the trash. Ask them to restore it.
-ERROR trashed,
+ERRORS file errors [
+    # The owner moved this file to the trash. Ask them to restore it.
+    trashed,
+    # No file has this path. It may have been renamed: run `list files` to
+    # see the exact paths.
+    missing,
+],
 
-# No file has this path. It may have been renamed: run `list files` to see
-# the exact paths.
-ERROR missing,
-
-# Someone saved first. Apply your change to `content`, then write at
-# `revision`.
-ERROR conflict at revision (revision: INTEGER) content (content: TEXT),
-
-# The score doesn't parse. Nothing was saved.
-ERROR rejected (diagnostics: LIST diagnostic),
-
-# A file already has this path. Read it, or create under another path.
-ERROR already exists at revision (revision: INTEGER),
-
-# The path isn't valid, such as an empty folder name or a `..`.
-ERROR invalid path (message: TEXT),
-
-ERRORS file errors [trashed, missing],
+ERRORS score errors [
+    # The score doesn't parse. Nothing was saved.
+    rejected (diagnostics: LIST diagnostic),
+],
 
 # Every file this account owns.
 METHOD list files RETURNS files: LIST file summary,
@@ -118,12 +110,21 @@ METHOD read (path: TEXT) RETURNS (file: file) ERRORS file errors,
 # Saves the score, if the file is still at `revision`.
 METHOD write (path: TEXT) at revision (revision: INTEGER) content (content: TEXT)
     RETURNS (new revision: INTEGER)
-    ERRORS [conflict at revision content, rejected, file errors],
+    ERRORS [
+        # Someone saved first. Apply your change to `content`, then write at
+        # `revision`.
+        conflict at revision (revision: INTEGER) content (content: TEXT),
+    ] + score errors + file errors,
 
 # Makes a new file, and its folders if they don't exist.
 METHOD create (path: TEXT) content (content: TEXT)
     RETURNS (revision: INTEGER)
-    ERRORS [already exists at revision, invalid path, rejected],
+    ERRORS [
+        # A file already has this path. Read it, or create under another path.
+        already exists at revision (revision: INTEGER),
+        # The path isn't valid, such as an empty folder name or a `..`.
+        invalid path (message: TEXT),
+    ] + score errors,
 
 # The score as a Standard MIDI File.
 METHOD export midi (path: TEXT)

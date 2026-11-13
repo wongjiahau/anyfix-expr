@@ -94,7 +94,7 @@ fn error(source: &str) -> String {
 fn names_that_become_the_same_name_are_rejected() {
     assert_eq!(
         error(
-            "PROTOCOL p VERSION 1, RECORD read error { a: TEXT }, ERROR gone, METHOD read (path: TEXT) RETURNS (text: TEXT) ERRORS [gone]"
+            "PROTOCOL p VERSION 1, RECORD read error { a: TEXT }, METHOD read (path: TEXT) RETURNS (text: TEXT) ERRORS [gone]"
         ),
         "found the errors of `read _`, which becomes the type `ReadError`, like the type `read error`; expected names that stay distinct in the generated code, so rename one"
     );

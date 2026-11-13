@@ -82,38 +82,83 @@ schema:1:34: found the call `_ TEXT _`; expected the call `_? … _` or the clos
   PROTOCOL a VERSION 1, RECORD x { a TEXT b: TEXT },
                                    ^^^^^^^^^^^^^^
 
-== an unknown error
-PROTOCOL a VERSION 1, METHOD f RETURNS (y: TEXT) ERRORS [gone],
-schema:1:58: found `gone`, which is not an error of this schema; expected the words of an `ERROR`, such as `conflict at revision` for `ERROR conflict at revision (revision: INTEGER)`, or an `ERRORS` alias
-  PROTOCOL a VERSION 1, METHOD f RETURNS (y: TEXT) ERRORS [gone],
-                                                           ^^^^
+== an unknown group
+PROTOCOL a VERSION 1, METHOD f RETURNS (y: TEXT) ERRORS gone,
+schema:1:57: found `gone`, which is not an error group of this schema; expected the name of an `ERRORS` group, such as `file errors` for `ERRORS file errors [trashed, missing]`
+  PROTOCOL a VERSION 1, METHOD f RETURNS (y: TEXT) ERRORS gone,
+                                                          ^^^^
 
-== an error and an alias of one name
-PROTOCOL a VERSION 1, ERROR gone, ERRORS gone [gone],
-schema:1:42: found a second error or error alias named `gone`; expected each name once in a scope, since an `ERRORS` list refers to them by name; rename one of them
-  PROTOCOL a VERSION 1, ERROR gone, ERRORS gone [gone],
-                                           ^^^^
+== an error where a group goes
+PROTOCOL a VERSION 1, ERRORS x [gone], METHOD f RETURNS (y: TEXT) ERRORS [lost] + gone,
+schema:1:83: found `gone`, which is an error, not a group; expected a group after a `+`; put the error in an `ERRORS` group and join that group, since an error is defined once, in the brackets of the group or method that has it
+  PROTOCOL a VERSION 1, ERRORS x [gone], METHOD f RETURNS (y: TEXT) ERRORS [lost] + gone,
+                                                                                    ^^^^
 
-== aliases including each other
-PROTOCOL a VERSION 1, ERROR gone, ERRORS x [gone, y], ERRORS y [x],
-schema:1:42: found the error alias `x` including itself; expected an alias to name errors, or aliases that don't lead back to it
-  PROTOCOL a VERSION 1, ERROR gone, ERRORS x [gone, y], ERRORS y [x],
-                                           ^
-schema:1:62: found the error alias `y` including itself; expected an alias to name errors, or aliases that don't lead back to it
-  PROTOCOL a VERSION 1, ERROR gone, ERRORS x [gone, y], ERRORS y [x],
-                                                               ^
+== groups joining each other
+PROTOCOL a VERSION 1, ERRORS x [a] + y, ERRORS y [b] + x,
+schema:1:30: found the error group `x` joining itself; expected a group to join only groups that don't lead back to it
+  PROTOCOL a VERSION 1, ERRORS x [a] + y, ERRORS y [b] + x,
+                               ^
 
-== an error listed twice through an alias
-PROTOCOL a VERSION 1, ERROR gone, ERRORS x [gone], METHOD f RETURNS (y: TEXT) ERRORS [gone, x],
-schema:1:93: found the error `gone` listed twice for this method, counting the errors in its aliases; expected each error once; remove one
-  PROTOCOL a VERSION 1, ERROR gone, ERRORS x [gone], METHOD f RETURNS (y: TEXT) ERRORS [gone, x],
-                                                                                              ^
+== an error listed twice through a group
+PROTOCOL a VERSION 1, ERRORS x [gone], METHOD f RETURNS (y: TEXT) ERRORS x + x,
+schema:1:78: found the error `gone` twice among this method's errors, counting those of its groups; expected each error once; remove one
+  PROTOCOL a VERSION 1, ERRORS x [gone], METHOD f RETURNS (y: TEXT) ERRORS x + x,
+                                                                               ^
 
-== an unknown alias member
-PROTOCOL a VERSION 1, ERRORS x [lost], METHOD f RETURNS (y: TEXT) ERRORS: x,
-schema:1:33: found `lost`, which is not an error of this schema; expected the words of an `ERROR`, such as `conflict at revision` for `ERROR conflict at revision (revision: INTEGER)`, or an `ERRORS` alias
-  PROTOCOL a VERSION 1, ERRORS x [lost], METHOD f RETURNS (y: TEXT) ERRORS: x,
-                                  ^^^^
+== an error defined twice in a scope
+PROTOCOL a VERSION 1, ERRORS x [gone], METHOD f RETURNS (y: TEXT) ERRORS [gone],
+schema:1:75: found a second error `gone` in this schema, after the one on line 1; expected each error once in a scope; to share one, put it in an `ERRORS` group and join the group with `+`
+  PROTOCOL a VERSION 1, ERRORS x [gone], METHOD f RETURNS (y: TEXT) ERRORS [gone],
+                                                                            ^^^^
+
+== a group joining an unknown group
+PROTOCOL a VERSION 1, ERRORS x [a] + lost, METHOD f RETURNS (y: TEXT) ERRORS x,
+schema:1:38: found `lost`, which is not an error group of this schema; expected the name of an `ERRORS` group, such as `file errors` for `ERRORS file errors [trashed, missing]`
+  PROTOCOL a VERSION 1, ERRORS x [a] + lost, METHOD f RETURNS (y: TEXT) ERRORS x,
+                                       ^^^^
+
+== a group without a name
+PROTOCOL a VERSION 1, ERRORS [gone],
+schema:1:30: found an `ERRORS` without a name before its errors; expected a group's name, its own errors in brackets, then any groups it joins with `+`, such as `ERRORS file errors [trashed, missing]`
+  PROTOCOL a VERSION 1, ERRORS [gone],
+                               ^^^^^^
+
+== a group defined twice
+PROTOCOL a VERSION 1, ERRORS x [a], ERRORS x [b],
+schema:1:44: found a second error group named `x`; expected each group once in a scope; rename one of them
+  PROTOCOL a VERSION 1, ERRORS x [a], ERRORS x [b],
+                                             ^
+
+== a name before a method's errors
+PROTOCOL a VERSION 1, METHOD f RETURNS (y: TEXT) ERRORS mine [gone],
+schema:1:57: found the name `mine` before a method's errors; expected its errors in brackets alone, since only an `ERRORS` group has a name, such as `ERRORS [missing] + file errors`
+  PROTOCOL a VERSION 1, METHOD f RETURNS (y: TEXT) ERRORS mine [gone],
+                                                          ^^^^
+
+== errors in brackets after a group
+PROTOCOL a VERSION 1, ERRORS x [a], METHOD f RETURNS (y: TEXT) ERRORS x + [b],
+schema:1:75: found errors in brackets after a `+`; expected the errors in brackets first, then the groups joined with `+`, such as `[missing] + file errors`
+  PROTOCOL a VERSION 1, ERRORS x [a], METHOD f RETURNS (y: TEXT) ERRORS x + [b],
+                                                                            ^^^
+
+== an operator other than `+` among errors
+PROTOCOL a VERSION 1, ERRORS x [a], METHOD f RETURNS (y: TEXT) ERRORS [b] - x,
+schema:1:71: found `[b] - x` among errors; expected errors in brackets, then groups joined with `+`, such as `[missing (path: TEXT)] + file errors` or `[missing] + files/file errors`
+  PROTOCOL a VERSION 1, ERRORS x [a], METHOD f RETURNS (y: TEXT) ERRORS [b] - x,
+                                                                        ^^^^^^^
+
+== an error defined on its own
+PROTOCOL a VERSION 1, ERROR gone,
+schema:1:23: found an `ERROR` on its own; expected each error in the brackets of the method that has it, `METHOD read (path: TEXT) RETURNS (file: file) ERRORS [missing]`, or of an `ERRORS` group that methods share by joining it with `+`: `ERRORS file errors [trashed, missing]`
+  PROTOCOL a VERSION 1, ERROR gone,
+                        ^^^^^
+
+== a string inside an error
+PROTOCOL a VERSION 1, METHOD f RETURNS (y: TEXT) ERRORS [gone (a: TEXT) "doc"],
+schema:1:73: found a string in an error's slot; expected a parameter, as in `(revision: INTEGER)`; an error's `#` doc goes on the lines before it
+  PROTOCOL a VERSION 1, METHOD f RETURNS (y: TEXT) ERRORS [gone (a: TEXT) "doc"],
+                                                                          ^^^^^
 
 == a string inside a variant
 PROTOCOL a VERSION 1, CHOICE x { y (a: TEXT) "doc" },

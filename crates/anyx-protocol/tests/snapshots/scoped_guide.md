@@ -45,8 +45,9 @@ Every call runs, in order, and the response has one result per call.
 The response has one result per call, in order. A result is one of:
 
 - The value the method `RETURNS`.
-- `ERROR` and one of the errors the method lists after `ERRORS`, in the
-  error's shape: `ERROR missing`, `ERROR conflict at revision 4 content "…"`.
+- `ERROR` and one of the method's errors, in the error's shape. They follow
+  `ERRORS`: its own in brackets, then those of each group joined with `+`.
+  For example: `ERROR missing`, `ERROR conflict at revision 4 content "…"`.
   The call didn't do anything. Each error's `#` lines say what to do next.
 - `INTERNAL ERROR`: the server failed. Calls after it don't run.
 - `NOT RUN`: the call didn't run, because an earlier call failed that way.
@@ -59,10 +60,10 @@ A request that can't be read gets one result, and none of its calls run:
 
 In the schema, a `#` line before a definition says what it means. Lowercase
 words are names; all-caps words belong to the schema language. `ERRORS name
-[…]` names a list of errors that methods share.
+[…]` is a group of errors that methods share by joining it with `+`.
 
 The schema is a file per scope, each shown below under its full name. A
-type or an error is private to its scope unless it is `PUBLIC`; another
+type or an error group is private to its scope unless it is `PUBLIC`; another
 scope writes its full path, such as `common/diagnostic`. A response writes
 an error in its shape alone, without its scope: `ERROR missing`.
 
@@ -76,8 +77,10 @@ PROTOCOL notes VERSION 1,
 # One problem in a note.
 PUBLIC RECORD diagnostic { line: INTEGER, message: TEXT },
 
-# No note has this path.
-PUBLIC ERROR missing,
+PUBLIC ERRORS common errors [
+    # No note has this path.
+    missing,
+],
 
 ### `files` (`files.anyx`)
 
@@ -85,13 +88,10 @@ Methods: `files/list`, `files/read _`, `files/write _ at revision _ content _`.
 
 RECORD file { path: TEXT, revision: INTEGER, content: TEXT },
 
-# The note is in the trash.
-PUBLIC ERROR trashed,
-
-PUBLIC ERRORS file errors [trashed, common/missing],
-
-# The note has errors, so nothing was saved.
-ERROR rejected (diagnostics: LIST common/diagnostic),
+PUBLIC ERRORS file errors [
+    # The note is in the trash.
+    trashed,
+] + common/common errors,
 
 METHOD list RETURNS (paths: LIST: TEXT),
 
@@ -100,18 +100,22 @@ METHOD read (path: TEXT) RETURNS (file: file) ERRORS file errors,
 # Saves the note, if it is still at `revision`.
 METHOD write (path: TEXT) at revision (revision: INTEGER) content (content: TEXT)
     RETURNS (warnings: LIST common/diagnostic)
-    ERRORS [rejected, file errors],
+    ERRORS [
+        # The note has errors, so nothing was saved.
+        rejected (diagnostics: LIST common/diagnostic),
+    ] + file errors,
 
 ### `files/export` (`files/export.anyx`)
 
 Methods: `files/export/html _`, `files/export/pdf _`.
-
-# The note has errors, so it can't be exported.
-ERROR unreadable (diagnostics: LIST common/diagnostic),
 
 # A page of a note, with what is wrong on it.
 RECORD page { html: TEXT, problem: OPTIONAL common/diagnostic },
 
 METHOD html (path: TEXT) RETURNS (pages: LIST page) ERRORS files/file errors,
 
-METHOD pdf (path: TEXT) RETURNS (pdf: BYTES) ERRORS [unreadable, files/file errors],
+METHOD pdf (path: TEXT) RETURNS (pdf: BYTES)
+    ERRORS [
+        # The note has errors, so it can't be exported.
+        unreadable (diagnostics: LIST common/diagnostic),
+    ] + files/file errors,

@@ -13,7 +13,7 @@ protocol: ANYFIX CALL [
   WORD "VERSION", version: NUMBER [INTEGER, AT LEAST 1, AT MOST 4294967295],
 ],
 
-definition: ONE OF [record, choice, error, errors, method],
+definition: ONE OF [record, choice, errors, method],
 
 record: ONE OF [
   public: ANYFIX CALL [doc: OPTIONAL: STRING, WORD "PUBLIC", WORD "RECORD", body: record body],
@@ -42,20 +42,13 @@ variant: ANYFIX CALL [NAME [NO KEYWORD], ARGUMENTS: ZERO OR MORE: variant slot],
 
 variant slot: ONE OF [doc: STRING, parameter],
 
-## `PUBLIC` lets other scopes use a type or an error, by its full path.
-error: ONE OF [
-  public: ANYFIX CALL [doc: OPTIONAL: STRING, WORD "PUBLIC", WORD "ERROR", shape: shape],
-  private: ANYFIX CALL [doc: OPTIONAL: STRING, WORD "ERROR", shape: shape],
-],
-
+## A group of errors that methods share: its name and its own errors, then
+## other groups joined with `+`, as in
+## `ERRORS export errors [unreadable (diagnostics: LIST diagnostic)] + file errors`.
+## `PUBLIC` lets other scopes use a type or a group, by its full path.
 errors: ONE OF [
-  public: ANYFIX CALL [doc: OPTIONAL: STRING, WORD "PUBLIC", WORD "ERRORS", body: errors body],
-  private: ANYFIX CALL [doc: OPTIONAL: STRING, WORD "ERRORS", body: errors body],
-],
-
-errors body: ANYFIX CALL [
-  name: WORDS [NO KEYWORD],
-  members: SQUARE BRACKET [ONE OR MORE: reference],
+  public: ANYFIX CALL [doc: OPTIONAL: STRING, WORD "PUBLIC", WORD "ERRORS", body: error list],
+  private: ANYFIX CALL [doc: OPTIONAL: STRING, WORD "ERRORS", body: error list],
 ],
 
 method: ONE OF [
@@ -75,7 +68,21 @@ method: ONE OF [
 ## What a method returns is named too: `RETURNS (new revision: INTEGER)`.
 returns: parameter,
 
-error list: ONE OF [several: SQUARE BRACKET [ONE OR MORE: reference], one: reference],
+## A method's errors: its own in brackets, then groups joined with `+`:
+## `[conflict at revision (revision: INTEGER)] + file errors`. Joined terms
+## make one call, `_ + _`, and a group's full path, `files/file errors`,
+## reads as `_/_` among them, so the schema checker reads the terms from the
+## call's name: brackets, group names, and in a group's `ERRORS` its name
+## before its own errors, the call `file errors _`.
+error list: error term,
+
+error term: ONE OF [
+  own: SQUARE BRACKET [ONE OR MORE: error],
+  call: ANYFIX CALL [NAME [NO KEYWORD], ARGUMENTS: ZERO OR MORE: error term],
+],
+
+## An error is written in its shape, like a variant, with its doc first.
+error: variant,
 
 shape: ANYFIX CALL [NAME [NO KEYWORD], ARGUMENTS: ZERO OR MORE: parameter],
 
@@ -91,7 +98,7 @@ type: ONE OF [
   named: reference,
 ],
 
-## A type or an error by its name, `diagnostic`, or by its full path from
+## A type by its name, `diagnostic`, or by its full path from
 ## another scope, `common/diagnostic`, which reads as the call `_/_` of
 ## `common` and `diagnostic`. The schema checker tells the two apart.
 reference: ANYFIX CALL [NAME [NO KEYWORD], ARGUMENTS: ZERO OR MORE: type name],

@@ -28,8 +28,8 @@ export type ReadError =
   /** The owner moved this file to the trash. Ask them to restore it. */
   | { kind: "trashed" }
   /**
-   * No file has this path. It may have been renamed: run `list files` to see
-   * the exact paths.
+   * No file has this path. It may have been renamed: run `list files` to
+   * see the exact paths.
    */
   | { kind: "missing" };
 
@@ -45,8 +45,8 @@ export type WriteAtRevisionContentError =
   /** The owner moved this file to the trash. Ask them to restore it. */
   | { kind: "trashed" }
   /**
-   * No file has this path. It may have been renamed: run `list files` to see
-   * the exact paths.
+   * No file has this path. It may have been renamed: run `list files` to
+   * see the exact paths.
    */
   | { kind: "missing" };
 
@@ -64,8 +64,8 @@ export type ExportMidiError =
   /** The owner moved this file to the trash. Ask them to restore it. */
   | { kind: "trashed" }
   /**
-   * No file has this path. It may have been renamed: run `list files` to see
-   * the exact paths.
+   * No file has this path. It may have been renamed: run `list files` to
+   * see the exact paths.
    */
   | { kind: "missing" };
 

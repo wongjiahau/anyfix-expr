@@ -4,6 +4,7 @@
 
 use anyx::{NamePart, Span, StringLiteral};
 
+use crate::error_terms::{self, ErrorTerms, GroupReference, Misplaced};
 use crate::grammar as ast;
 use crate::schema::{
     DecodedFile, Diagnostic, ErrorDefinition, Field, Method, Parameter, ROOT_FILE, Schema, Shape,
@@ -20,19 +21,23 @@ struct Declared {
     public: bool,
 }
 
-/// What an `ERRORS` list can refer to.
-enum ErrorName<'a> {
-    /// An index into the errors.
-    Error(usize),
-    /// An alias and its members, unresolved.
-    Alias(&'a [ast::Reference]),
+/// An `ERRORS` group: `ERRORS file errors [trashed, missing] + other`.
+struct Group<'a> {
+    declared: Declared,
+    /// Its own errors, as written.
+    own: &'a [ast::Error],
+    /// Their indices into the errors, once read.
+    own_errors: Vec<usize>,
+    /// The groups it joins with `+`, unresolved.
+    joined: Vec<GroupReference>,
+    /// Every error it stands for, once expanded: `None` when it can't be.
+    expanded: Option<Option<Vec<usize>>>,
 }
 
-/// An error or an alias. They share one namespace per scope, since an
-/// `ERRORS` list refers to either by name.
-struct ErrorEntry<'a> {
-    declared: Declared,
-    kind: ErrorName<'a>,
+/// An error of a method, and where its list names it.
+struct Listed {
+    index: usize,
+    span: Span,
 }
 
 /// A reference read as a path.
@@ -43,7 +48,7 @@ struct Path {
     full: bool,
 }
 
-/// What a `RECORD`, `CHOICE`, `ERROR` or `ERRORS` declares, public or not.
+/// What a `RECORD`, `CHOICE` or `ERRORS` group declares, public or not.
 struct Declaration<'b, T> {
     doc: &'b Option<ast::Spanned<StringLiteral>>,
     public: bool,
@@ -80,22 +85,7 @@ fn choice(choice: &ast::Choice) -> Declaration<'_, ast::ChoiceBody> {
     }
 }
 
-fn error(error: &ast::Error) -> Declaration<'_, ast::Shape> {
-    match error {
-        ast::Error::Public { doc, shape, .. } => Declaration {
-            doc,
-            public: true,
-            body: shape,
-        },
-        ast::Error::Private { doc, shape, .. } => Declaration {
-            doc,
-            public: false,
-            body: shape,
-        },
-    }
-}
-
-fn errors(errors: &ast::Errors) -> Declaration<'_, ast::ErrorsBody> {
+fn errors(errors: &ast::Errors) -> Declaration<'_, ast::ErrorList> {
     match errors {
         ast::Errors::Public { doc, body, .. } => Declaration {
             doc,
@@ -131,7 +121,9 @@ pub(crate) struct Checker<'a> {
     scope: Vec<String>,
     /// Each type, in order.
     types: Vec<Declared>,
-    error_names: Vec<ErrorEntry<'a>>,
+    groups: Vec<Group<'a>>,
+    /// Each error, in the order of the schema's errors.
+    errors: Vec<Declared>,
     pub(crate) diagnostics: Vec<Diagnostic>,
 }
 
@@ -181,7 +173,6 @@ impl<'a> Checker<'a> {
                 checker.header(file, decoded.len() > 1)
             });
         }
-        let mut error_count = 0;
         for (index, file) in decoded.iter().enumerate() {
             self.file = index;
             self.scope = file.scope.clone();
@@ -195,20 +186,9 @@ impl<'a> Checker<'a> {
                         let found = choice(found);
                         self.declare_type(&found.body.name, found.public);
                     }
-                    ast::Definition::Error(found) => {
-                        let found = error(found);
-                        let words = spanned_words(&found.body.name);
-                        self.declare_error(&words, found.public, ErrorName::Error(error_count));
-                        error_count += 1;
-                    }
                     ast::Definition::Errors(found) => {
                         let found = errors(found);
-                        self.check_words(&found.body.name, "an error alias");
-                        self.declare_error(
-                            &found.body.name,
-                            found.public,
-                            ErrorName::Alias(&found.body.members.value),
-                        );
+                        self.declare_group(found.body, found.public);
                     }
                     ast::Definition::Method(_) => {}
                 }
@@ -243,44 +223,43 @@ impl<'a> Checker<'a> {
                             kind: TypeKind::Choice(variants),
                         });
                     }
-                    ast::Definition::Error(found) => {
-                        let found = error(found);
-                        let shape = self.shape(&found.body.name, &found.body.arguments, "an error");
-                        errors_found.push(ErrorDefinition {
-                            scope: file.scope.clone(),
-                            public: found.public,
-                            error: Shaped {
-                                doc: doc(found.doc),
-                                shape,
-                            },
-                        });
-                    }
-                    ast::Definition::Errors(found) => {
-                        // Reports unknown members and cycles once, here.
-                        let name = &errors(found).body.name.value;
-                        if let Some(entry) = self.error_names.iter().position(|entry| {
-                            entry.declared.scope == file.scope && entry.declared.name == *name
-                        }) {
-                            self.expand(entry, &mut Vec::new());
-                        }
-                    }
-                    ast::Definition::Method(found) => {
-                        let method = self.method(found);
-                        if methods.iter().any(|other| {
-                            other.scope == method.scope && other.shape.text == method.shape.text
-                        }) {
-                            let (ast::Method::WithErrors { shape, .. }
-                            | ast::Method::WithoutErrors { shape, .. }) = found;
-                            self.error(
+                    ast::Definition::Errors(_) | ast::Definition::Method(_) => {}
+                }
+            }
+        }
+        for index in 0..self.groups.len() {
+            let declared = &self.groups[index].declared;
+            let (file, scope, public) = (declared.file, declared.scope.clone(), declared.public);
+            let own = self.groups[index].own;
+            let own_errors = self.within(file, &scope, |checker| {
+                checker.declare_errors(own, public, &mut errors_found)
+            });
+            self.groups[index].own_errors = own_errors;
+        }
+        for index in 0..self.groups.len() {
+            // Reports unknown groups and cycles once, here.
+            self.expand(index, &mut Vec::new());
+        }
+        for (index, file) in decoded.iter().enumerate() {
+            self.file = index;
+            self.scope = file.scope.clone();
+            for definition in &file.document.definition {
+                if let ast::Definition::Method(found) = definition {
+                    let method = self.method(found, &mut errors_found);
+                    if methods.iter().any(|other| {
+                        other.scope == method.scope && other.shape.text == method.shape.text
+                    }) {
+                        let (ast::Method::WithErrors { shape, .. }
+                        | ast::Method::WithoutErrors { shape, .. }) = found;
+                        self.error(
                                 shape.name.span,
                                 format!(
                                     "found a second method `{}`; expected each method shape once in a scope; rename or remove one of them",
                                     method.shape.text
                                 ),
                             );
-                        }
-                        methods.push(method);
                     }
+                    methods.push(method);
                 }
             }
         }
@@ -368,22 +347,109 @@ impl<'a> Checker<'a> {
         }
     }
 
-    fn declare_error(&mut self, words: &ast::Spanned<String>, public: bool, kind: ErrorName<'a>) {
+    /// Declares the group an `ERRORS` defines, which starts with its name
+    /// and its own errors.
+    fn declare_group(&mut self, list: &'a ast::ErrorList, public: bool) {
+        let Some(terms) = self.error_terms(list) else {
+            return;
+        };
+        let Some(name) = terms.name else {
+            self.error(
+                error_terms::span(list),
+                "found an `ERRORS` without a name before its errors; expected a group's name, its own errors in brackets, then any groups it joins with `+`, such as `ERRORS file errors [trashed, missing]`",
+            );
+            return;
+        };
+        self.check_words(&name, "an error group");
         if self
-            .error_names
+            .groups
             .iter()
-            .any(|known| known.declared.scope == self.scope && known.declared.name == words.value)
+            .any(|known| known.declared.scope == self.scope && known.declared.name == name.value)
         {
             self.error(
-                words.span,
+                name.span,
                 format!(
-                    "found a second error or error alias named `{}`; expected each name once in a scope, since an `ERRORS` list refers to them by name; rename one of them",
-                    words.value
+                    "found a second error group named `{}`; expected each group once in a scope; rename one of them",
+                    name.value
                 ),
             );
         }
-        let declared = self.declared(words, public);
-        self.error_names.push(ErrorEntry { declared, kind });
+        let declared = self.declared(&name, public);
+        self.groups.push(Group {
+            declared,
+            own: terms.own,
+            own_errors: Vec::new(),
+            joined: terms.groups,
+            expanded: None,
+        });
+    }
+
+    /// `list` read as its terms, or `None` after reporting what doesn't fit.
+    fn error_terms(&mut self, list: &'a ast::ErrorList) -> Option<ErrorTerms<'a>> {
+        match error_terms::read(list) {
+            Ok(terms) => Some(terms),
+            Err(Misplaced::NotATerm(span)) => {
+                let written = self.written(span).to_string();
+                self.error(
+                    span,
+                    format!(
+                        "found `{written}` among errors; expected errors in brackets, then groups joined with `+`, such as `[missing (path: TEXT)] + file errors` or `[missing] + files/file errors`"
+                    ),
+                );
+                None
+            }
+            Err(Misplaced::OwnAfterGroup(span)) => {
+                self.error(
+                    span,
+                    "found errors in brackets after a `+`; expected the errors in brackets first, then the groups joined with `+`, such as `[missing] + file errors`",
+                );
+                None
+            }
+        }
+    }
+
+    /// Reads the errors defined in brackets, as indices into `found`, each
+    /// once in a scope.
+    fn declare_errors(
+        &mut self,
+        own: &[ast::Error],
+        public: bool,
+        found: &mut Vec<ErrorDefinition>,
+    ) -> Vec<usize> {
+        own.iter()
+            .map(|error| {
+                let shaped = self.shaped(error, "an error");
+                let words = shaped.shape.words();
+                if let Some(other) = self
+                    .errors
+                    .iter()
+                    .find(|known| known.scope == self.scope && known.name == words)
+                {
+                    let line = anyx::line_column(&self.sources[other.file], other.span.start).line;
+                    self.error(
+                        error.name.span,
+                        format!(
+                            "found a second error `{words}` in {}, after the one on line {line}; expected each error once in a scope; to share one, put it in an `ERRORS` group and join the group with `+`",
+                            self.this_scope()
+                        ),
+                    );
+                }
+                let declared = self.declared(
+                    &ast::Spanned {
+                        value: words,
+                        span: error.name.span,
+                    },
+                    public,
+                );
+                self.errors.push(declared);
+                found.push(ErrorDefinition {
+                    scope: self.scope.clone(),
+                    public,
+                    error: shaped,
+                });
+                found.len() - 1
+            })
+            .collect()
     }
 
     /// `reference` as a path: a name in the scope being checked, or a full
@@ -495,33 +561,45 @@ impl<'a> Checker<'a> {
         }
     }
 
-    /// The error or alias `reference` names, as an index into the error
-    /// names.
-    fn resolve_error(&mut self, reference: &ast::Reference) -> Option<usize> {
-        let path = self.path(reference)?;
-        let found = self.error_names.iter().position(|known| {
+    /// The group `reference` names, as an index into the groups.
+    fn resolve_group(&mut self, reference: &GroupReference) -> Option<usize> {
+        let full = !reference.scope.is_empty();
+        let path = Path {
+            scope: match full {
+                true => reference.scope.clone(),
+                false => self.scope.clone(),
+            },
+            name: reference.name.clone(),
+            full,
+        };
+        let found = self.groups.iter().position(|known| {
             known.declared.scope == path.scope && known.declared.name == path.name
         });
         match found {
             Some(index) => {
-                let public = self.error_names[index].declared.public;
-                self.check_access(reference.span, &path, public, "error or alias");
+                let public = self.groups[index].declared.public;
+                self.check_access(reference.span, &path, public, "error group");
                 Some(index)
             }
             None => {
-                let message = match path.full {
-                    true => format!(
-                        "found `{}`, which names no error; expected the full path of a `PUBLIC` `ERROR` or `ERRORS` alias, such as `files/missing` for `PUBLIC ERROR missing` in `files.anyx`",
+                let an_error = self
+                    .errors
+                    .iter()
+                    .any(|known| known.scope == path.scope && known.name == path.name);
+                let message = match (path.full, an_error) {
+                    (_, true) => format!(
+                        "found `{}`, which is an error, not a group; expected a group after a `+`; put the error in an `ERRORS` group and join that group, since an error is defined once, in the brackets of the group or method that has it",
                         scoped(&path.scope, &path.name)
                     ),
-                    false => format!(
-                        "found `{}`, which is not an error of {}; expected the words of an `ERROR`, such as `conflict at revision` for `ERROR conflict at revision (revision: INTEGER)`, or an `ERRORS` alias{}",
+                    (true, false) => format!(
+                        "found `{}`, which names no error group; expected the full path of a `PUBLIC` `ERRORS` group, such as `files/file errors` for `PUBLIC ERRORS file errors [trashed, missing]` in `files.anyx`",
+                        scoped(&path.scope, &path.name)
+                    ),
+                    (false, false) => format!(
+                        "found `{}`, which is not an error group of {}; expected the name of an `ERRORS` group, such as `file errors` for `ERRORS file errors [trashed, missing]`{}",
                         path.name,
                         self.this_scope(),
-                        self.elsewhere(
-                            self.error_names.iter().map(|entry| &entry.declared),
-                            &path.name
-                        ),
+                        self.elsewhere(self.groups.iter().map(|group| &group.declared), &path.name),
                     ),
                 };
                 self.error(reference.span, message);
@@ -530,50 +608,45 @@ impl<'a> Checker<'a> {
         }
     }
 
-    /// The errors that the error or alias at `entry` stands for, in order,
-    /// or `None` when it can't be resolved. `visiting` holds the aliases
-    /// being expanded, to catch one that includes itself.
-    fn expand(&mut self, entry: usize, visiting: &mut Vec<usize>) -> Option<Vec<usize>> {
-        let members: &'a [ast::Reference] = match &self.error_names[entry].kind {
-            ErrorName::Error(index) => return Some(vec![*index]),
-            ErrorName::Alias(members) => members,
-        };
-        let declared = &self.error_names[entry].declared;
+    /// The errors that the group at `index` stands for, in order: its own,
+    /// then those of the groups it joins. `None` when one of those can't be
+    /// resolved. `visiting` holds the groups being expanded, to catch one
+    /// that joins itself.
+    fn expand(&mut self, index: usize, visiting: &mut Vec<usize>) -> Option<Vec<usize>> {
+        if let Some(expanded) = &self.groups[index].expanded {
+            return expanded.clone();
+        }
+        let group = &self.groups[index];
         let (file, scope, span, name) = (
-            declared.file,
-            declared.scope.clone(),
-            declared.span,
-            declared.name.clone(),
+            group.declared.file,
+            group.declared.scope.clone(),
+            group.declared.span,
+            group.declared.name.clone(),
         );
-        self.within(file, &scope, |checker| {
-            if visiting.contains(&entry) {
+        let (own, joined) = (group.own_errors.clone(), group.joined.clone());
+        if visiting.contains(&index) {
+            self.within(file, &scope, |checker| {
                 checker.error(
                     span,
                     format!(
-                        "found the error alias `{name}` including itself; expected an alias to name errors, or aliases that don't lead back to it"
+                        "found the error group `{name}` joining itself; expected a group to join only groups that don't lead back to it"
                     ),
-                );
-                return None;
-            }
-            visiting.push(entry);
-            let mut expanded = Vec::new();
-            for member in members {
-                let Some(found) = checker.resolve_error(member) else {
-                    continue;
-                };
-                expanded.extend(checker.expand(found, visiting)?);
-            }
-            visiting.pop();
-            Some(expanded)
-        })
-    }
-
-    /// The declaration of the error at `index` in the errors.
-    fn error_declared(&self, index: usize) -> Option<&Declared> {
-        self.error_names
-            .iter()
-            .find(|entry| matches!(entry.kind, ErrorName::Error(known) if known == index))
-            .map(|entry| &entry.declared)
+                )
+            });
+            return None;
+        }
+        visiting.push(index);
+        let expanded = self.within(file, &scope, |checker| {
+            joined.iter().try_fold(own, |mut expanded, reference| {
+                if let Some(found) = checker.resolve_group(reference) {
+                    expanded.extend(checker.expand(found, visiting)?);
+                }
+                Some(expanded)
+            })
+        });
+        visiting.pop();
+        self.groups[index].expanded = Some(expanded.clone());
+        expanded
     }
 
     /// Names become Rust and TypeScript identifiers, so each word is
@@ -626,46 +699,54 @@ impl<'a> Checker<'a> {
     fn variants(&mut self, variants: &[ast::Variant]) -> Vec<Shaped> {
         let mut checked: Vec<Shaped> = Vec::new();
         for variant in variants {
-            let mut slots = variant.arguments.iter().peekable();
-            // A doc fills the call's first slot, before the first word.
-            let doc = match (variant.name.parts.first(), slots.peek()) {
-                (Some(NamePart::Slot), Some(ast::VariantSlot::Doc(doc))) => {
-                    slots.next();
-                    Some(doc.value.value.clone())
-                }
-                _ => None,
-            };
-            let mut parameters = Vec::new();
-            for slot in slots {
-                match slot {
-                    ast::VariantSlot::Doc(doc) => self.error(
-                        doc.span,
-                        "found a string in a variant's slot; expected a parameter, as in `(revision: INTEGER)`; a variant's `#` doc goes on the lines before it",
-                    ),
-                    ast::VariantSlot::Parameter(parameter) => parameters.push(parameter.clone()),
-                }
-            }
-            let mut name = variant.name.clone();
-            if doc.is_some() {
-                name.parts.remove(0);
-                name.text = name.text.trim_start_matches('_').trim_start().to_string();
-            }
-            let shape = self.shape(&name, &parameters, "a variant");
+            let shaped = self.shaped(variant, "a variant");
             if checked
                 .iter()
-                .any(|known| known.shape.words() == shape.words())
+                .any(|known| known.shape.words() == shaped.shape.words())
             {
                 self.error(
-                    name.span,
+                    variant.name.span,
                     format!(
                         "found a second variant named `{}`; expected each variant's words once; rename or remove one of them",
-                        shape.words()
+                        shaped.shape.words()
                     ),
                 );
             }
-            checked.push(Shaped { doc, shape });
+            checked.push(shaped);
         }
         checked
+    }
+
+    /// A variant or an error: its doc, then its shape.
+    fn shaped(&mut self, variant: &ast::Variant, what: &str) -> Shaped {
+        let mut slots = variant.arguments.iter().peekable();
+        // A doc fills the call's first slot, before the first word.
+        let doc = match (variant.name.parts.first(), slots.peek()) {
+            (Some(NamePart::Slot), Some(ast::VariantSlot::Doc(doc))) => {
+                slots.next();
+                Some(doc.value.value.clone())
+            }
+            _ => None,
+        };
+        let mut parameters = Vec::new();
+        for slot in slots {
+            match slot {
+                ast::VariantSlot::Doc(doc) => self.error(
+                    doc.span,
+                    format!(
+                        "found a string in {what}'s slot; expected a parameter, as in `(revision: INTEGER)`; {what}'s `#` doc goes on the lines before it"
+                    ),
+                ),
+                ast::VariantSlot::Parameter(parameter) => parameters.push(parameter.clone()),
+            }
+        }
+        let mut name = variant.name.clone();
+        if doc.is_some() {
+            name.parts.remove(0);
+            name.text = name.text.trim_start_matches('_').trim_start().to_string();
+        }
+        let shape = self.shape(&name, &parameters, what);
+        Shaped { doc, shape }
     }
 
     fn shape(&mut self, name: &ast::CallName, parameters: &[ast::Parameter], what: &str) -> Shape {
@@ -716,7 +797,7 @@ impl<'a> Checker<'a> {
         }
     }
 
-    fn method(&mut self, method: &ast::Method) -> Method {
+    fn method(&mut self, method: &'a ast::Method, found: &mut Vec<ErrorDefinition>) -> Method {
         let (doc_string, shape, returns, list) = match method {
             ast::Method::WithErrors {
                 doc,
@@ -733,49 +814,60 @@ impl<'a> Checker<'a> {
             } => (doc, shape, returns, None),
         };
         let checked_shape = self.shape(&shape.name, &shape.arguments, "a method");
-        let references: Vec<&ast::Reference> = match list {
-            None => Vec::new(),
-            Some(ast::ErrorList::One(reference)) => vec![reference],
-            Some(ast::ErrorList::Several(references)) => references.value.iter().collect(),
-        };
+        let terms = list.and_then(|list| self.error_terms(list));
+        let mut listed: Vec<Listed> = Vec::new();
+        if let Some(terms) = terms {
+            if let Some(name) = &terms.name {
+                self.error(
+                    name.span,
+                    format!(
+                        "found the name `{}` before a method's errors; expected its errors in brackets alone, since only an `ERRORS` group has a name, such as `ERRORS [missing] + file errors`",
+                        name.value
+                    ),
+                );
+            }
+            let own = self.declare_errors(terms.own, false, found);
+            listed.extend(terms.own.iter().zip(own).map(|(error, index)| Listed {
+                index,
+                span: error.name.span,
+            }));
+            for reference in &terms.groups {
+                let Some(group) = self.resolve_group(reference) else {
+                    continue;
+                };
+                let expanded = self.expand(group, &mut Vec::new()).unwrap_or_default();
+                listed.extend(expanded.into_iter().map(|index| Listed {
+                    index,
+                    span: reference.span,
+                }));
+            }
+        }
         let mut errors: Vec<usize> = Vec::new();
-        for reference in references {
-            let Some(entry) = self.resolve_error(reference) else {
-                continue;
-            };
-            for index in self.expand(entry, &mut Vec::new()).into_iter().flatten() {
-                let declared = self
-                    .error_declared(index)
-                    .map(|declared| (declared.scope.clone(), declared.name.clone()));
-                let same_words = errors.iter().find_map(|known| {
-                    self.error_declared(*known)
-                        .filter(|other| {
-                            declared
-                                .as_ref()
-                                .is_some_and(|(_, name)| other.name == *name)
-                        })
-                        .map(|other| scoped(&other.scope, &other.name))
-                });
-                if errors.contains(&index) {
-                    let words = declared.map_or(String::new(), |(_, name)| name);
-                    self.error(
-                        reference.span,
-                        format!(
-                            "found the error `{words}` listed twice for this method, counting the errors in its aliases; expected each error once; remove one"
-                        ),
-                    );
-                } else if let Some(other) = same_words {
-                    let this =
-                        declared.map_or(String::new(), |(scope, name)| scoped(&scope, &name));
-                    self.error(
-                        reference.span,
-                        format!(
-                            "found the errors `{other}` and `{this}` both listed for this method; expected errors of distinct words, since a response writes an error by its shape alone, without its scope; rename one of them"
-                        ),
-                    );
-                } else {
-                    errors.push(index);
-                }
+        for Listed { index, span } in listed {
+            let declared = &self.errors[index];
+            let this = scoped(&declared.scope, &declared.name);
+            let same_words = errors
+                .iter()
+                .map(|known| &self.errors[*known])
+                .find(|other| other.name == declared.name)
+                .map(|other| scoped(&other.scope, &other.name));
+            if errors.contains(&index) {
+                let words = declared.name.clone();
+                self.error(
+                    span,
+                    format!(
+                        "found the error `{words}` twice among this method's errors, counting those of its groups; expected each error once; remove one"
+                    ),
+                );
+            } else if let Some(other) = same_words {
+                self.error(
+                    span,
+                    format!(
+                        "found the errors `{other}` and `{this}` both listed for this method; expected errors of distinct words, since a response writes an error by its shape alone, without its scope; rename one of them"
+                    ),
+                );
+            } else {
+                errors.push(index);
             }
         }
         Method {

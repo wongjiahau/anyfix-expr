@@ -92,7 +92,11 @@ fn poentaros_schema_reads_with_its_docs_shapes_and_errors() {
     let list = schema.method("list files").unwrap();
     assert_eq!(schema.type_name(&list.returns.r#type), "LIST: file summary");
     assert!(list.errors.is_empty());
-    let conflict = &schema.errors[2];
+    let conflict = schema
+        .errors
+        .iter()
+        .find(|error| error.error.shape.words() == "conflict at revision content")
+        .unwrap();
     assert_eq!(
         conflict.error.doc.as_deref(),
         Some("Someone saved first. Apply your change to `content`, then write at\n`revision`.")
@@ -197,24 +201,56 @@ fn mistakes_in_a_schema_are_diagnosed() {
             "PROTOCOL a VERSION 1, RECORD x { a TEXT b: TEXT },",
         ),
         (
-            "an unknown error",
-            "PROTOCOL a VERSION 1, METHOD f RETURNS (y: TEXT) ERRORS [gone],",
+            "an unknown group",
+            "PROTOCOL a VERSION 1, METHOD f RETURNS (y: TEXT) ERRORS gone,",
         ),
         (
-            "an error and an alias of one name",
-            "PROTOCOL a VERSION 1, ERROR gone, ERRORS gone [gone],",
+            "an error where a group goes",
+            "PROTOCOL a VERSION 1, ERRORS x [gone], METHOD f RETURNS (y: TEXT) ERRORS [lost] + gone,",
         ),
         (
-            "aliases including each other",
-            "PROTOCOL a VERSION 1, ERROR gone, ERRORS x [gone, y], ERRORS y [x],",
+            "groups joining each other",
+            "PROTOCOL a VERSION 1, ERRORS x [a] + y, ERRORS y [b] + x,",
         ),
         (
-            "an error listed twice through an alias",
-            "PROTOCOL a VERSION 1, ERROR gone, ERRORS x [gone], METHOD f RETURNS (y: TEXT) ERRORS [gone, x],",
+            "an error listed twice through a group",
+            "PROTOCOL a VERSION 1, ERRORS x [gone], METHOD f RETURNS (y: TEXT) ERRORS x + x,",
         ),
         (
-            "an unknown alias member",
-            "PROTOCOL a VERSION 1, ERRORS x [lost], METHOD f RETURNS (y: TEXT) ERRORS: x,",
+            "an error defined twice in a scope",
+            "PROTOCOL a VERSION 1, ERRORS x [gone], METHOD f RETURNS (y: TEXT) ERRORS [gone],",
+        ),
+        (
+            "a group joining an unknown group",
+            "PROTOCOL a VERSION 1, ERRORS x [a] + lost, METHOD f RETURNS (y: TEXT) ERRORS x,",
+        ),
+        (
+            "a group without a name",
+            "PROTOCOL a VERSION 1, ERRORS [gone],",
+        ),
+        (
+            "a group defined twice",
+            "PROTOCOL a VERSION 1, ERRORS x [a], ERRORS x [b],",
+        ),
+        (
+            "a name before a method's errors",
+            "PROTOCOL a VERSION 1, METHOD f RETURNS (y: TEXT) ERRORS mine [gone],",
+        ),
+        (
+            "errors in brackets after a group",
+            "PROTOCOL a VERSION 1, ERRORS x [a], METHOD f RETURNS (y: TEXT) ERRORS x + [b],",
+        ),
+        (
+            "an operator other than `+` among errors",
+            "PROTOCOL a VERSION 1, ERRORS x [a], METHOD f RETURNS (y: TEXT) ERRORS [b] - x,",
+        ),
+        (
+            "an error defined on its own",
+            "PROTOCOL a VERSION 1, ERROR gone,",
+        ),
+        (
+            "a string inside an error",
+            "PROTOCOL a VERSION 1, METHOD f RETURNS (y: TEXT) ERRORS [gone (a: TEXT) \"doc\"],",
         ),
         (
             "a string inside a variant",

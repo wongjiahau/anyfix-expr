@@ -22,16 +22,19 @@ CHOICE shade { dark, light },
 
 CHOICE colour { dark, light, custom hue (hue: NUMBER), (base: shade) dimmed },
 
-# Someone saved first. Apply your change to `content`, then write at `revision`.
-ERROR conflict at revision (revision: INTEGER) content (content: TEXT),
-ERROR trashed,
-ERROR missing,
-ERRORS file errors [trashed, missing],
+ERRORS file errors [
+    # The owner moved this file to the trash.
+    trashed,
+    missing,
+],
 
 # Saves the score, if the file is still at `revision`.
 METHOD write (path: TEXT) at revision (revision: INTEGER) content (content: TEXT)
     RETURNS (new revision: INTEGER)
-    ERRORS [conflict at revision content, file errors],
+    ERRORS [
+        # Someone saved first. Apply your change to `content`, then write at `revision`.
+        conflict at revision (revision: INTEGER) content (content: TEXT),
+    ] + file errors,
 ```
 
 - **`PROTOCOL name VERSION n`** comes first. `n` is a whole number from 1.
@@ -50,13 +53,20 @@ METHOD write (path: TEXT) at revision (revision: INTEGER) content (content: TEXT
   *shape*: words, with `(name: TYPE)` slots anywhere among them, as in
   `custom hue (hue: NUMBER)` or `(base: shade) dimmed`. Variants differ by
   their words.
-- **`ERROR shape`** declares an error, a shape like a variant's. **`ERRORS
-  name [a, b]`** names a list of errors, which can include other lists. A
-  list refers to an error by its words alone: `conflict at revision content`.
-- **`METHOD shape RETURNS (name: TYPE) ERRORS list`**: the method's shape,
-  what it returns, and the errors it may return, as one name or a list in
-  brackets. The returned value has a name, which says what it is. `ERRORS`
-  may be left out.
+- **`METHOD shape RETURNS (name: TYPE) ERRORS errors`**: the method's
+  shape, what it returns, and the errors it may return. The returned value
+  has a name, which says what it is. `ERRORS` may be left out.
+- **Errors** are written where they are used, in full: a shape like a
+  variant's, with its `#` doc before it. A method's `ERRORS` has its own
+  errors in brackets, then the groups it shares joined with `+`:
+  `[conflict at revision (revision: INTEGER)] + file errors`, or a group
+  alone, `file errors`.
+- **`ERRORS name [errors]`** defines a group of errors that methods share.
+  It may join other groups with `+`: `ERRORS export errors [unreadable] +
+  file errors`. A group exists only to be shared; an error used by one
+  method goes in that method's brackets.
+- Each error is defined once in a scope, in the brackets of the one method
+  or group that has it. To share an error, put it in a group.
 - A parameter can't be named `kind`, which JSON uses for a variant's name.
 
 Schemas are formatted with `anyx_protocol::format_schema`, which puts a long
@@ -81,27 +91,26 @@ A file or folder name is one lowercase word, letters and digits.
 - **A method is called by its full name**: the scope's path, `/`, then its
   shape. `METHOD pdf (path: TEXT)` in `files/export.anyx` is called as
   `files/export/pdf "a.note"`. A method's own shape has no `/`.
-- **Types and errors are private** to the scope that declares them; folders
-  give no special access, so `files/export` can't see what `files` keeps to
-  itself. **`PUBLIC`** before `RECORD`, `CHOICE`, `ERROR` or `ERRORS` shares
+- **Types and error groups are private** to the scope that declares them;
+  folders give no special access, so `files/export` can't see what `files`
+  keeps to itself. **`PUBLIC`** before `RECORD`, `CHOICE` or `ERRORS` shares
   it, and another scope then names it by its full path:
 
 ```anyx
 ## common.anyx
 PUBLIC RECORD diagnostic { line: INTEGER, message: TEXT },
-PUBLIC ERROR missing,
+PUBLIC ERRORS common errors [missing],
 
 ## files.anyx
-PUBLIC ERROR trashed,
-PUBLIC ERRORS file errors [trashed, common/missing],
+PUBLIC ERRORS file errors [trashed] + common/common errors,
 METHOD read (path: TEXT) RETURNS (file: file) ERRORS file errors,
 
 ## files/export.anyx
-ERROR unreadable (diagnostics: LIST common/diagnostic),
-METHOD pdf (path: TEXT) RETURNS (pdf: BYTES) ERRORS [unreadable, files/file errors],
+METHOD pdf (path: TEXT) RETURNS (pdf: BYTES)
+    ERRORS [unreadable (diagnostics: LIST common/diagnostic)] + files/file errors,
 ```
 
-- In its own scope, a type or error is named without its path.
+- In its own scope, a type or group is named without its path.
 - An error is written on the wire by its words alone, `ERROR missing`, so a
   method can't list two errors of the same words from different scopes.
 

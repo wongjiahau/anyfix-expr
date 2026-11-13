@@ -69,8 +69,9 @@ Every call runs, in order, and the response has one result per call.
 The response has one result per call, in order. A result is one of:
 
 - The value the method `RETURNS`.
-- `ERROR` and one of the errors the method lists after `ERRORS`, in the
-  error's shape: `ERROR missing`, `ERROR conflict at revision 4 content \"…\"`.
+- `ERROR` and one of the method's errors, in the error's shape. They follow
+  `ERRORS`: its own in brackets, then those of each group joined with `+`.
+  For example: `ERROR missing`, `ERROR conflict at revision 4 content \"…\"`.
   The call didn't do anything. Each error's `#` lines say what to do next.
 - `INTERNAL ERROR`: the server failed. Calls after it don't run.
 - `NOT RUN`: the call didn't run, because an earlier call failed that way.
@@ -83,7 +84,7 @@ A request that can't be read gets one result, and none of its calls run:
 
 In the schema, a `#` line before a definition says what it means. Lowercase
 words are names; all-caps words belong to the schema language. `ERRORS name
-[…]` names a list of errors that methods share.{scopes}
+[…]` is a group of errors that methods share by joining it with `+`.{scopes}
 
 {source}
 ",
@@ -104,7 +105,7 @@ words are names; all-caps words belong to the schema language. `ERRORS name
 const SCOPES: &str = "
 
 The schema is a file per scope, each shown below under its full name. A
-type or an error is private to its scope unless it is `PUBLIC`; another
+type or an error group is private to its scope unless it is `PUBLIC`; another
 scope writes its full path, such as `common/diagnostic`. A response writes
 an error in its shape alone, without its scope: `ERROR missing`.";
 

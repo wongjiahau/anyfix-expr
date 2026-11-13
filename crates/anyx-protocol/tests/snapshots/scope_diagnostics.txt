@@ -13,20 +13,20 @@ files.anyx:1:18: found `diagnostic`, which is not a type of the scope `files`; e
   RECORD file { a: diagnostic },
                    ^^^^^^^^^^
 
-== a private error from another scope
-files.anyx:1:38: found `common/gone`, which is private to the scope `common`; expected a `PUBLIC` error or alias, or one of the scope `files`; write `PUBLIC` before its definition in `common.anyx` to share it
-  METHOD read RETURNS (a: TEXT) ERRORS common/gone,
-                                       ^^^^^^^^^^^
+== a private error group from another scope
+files.anyx:1:38: found `common/gone errors`, which is private to the scope `common`; expected a `PUBLIC` error group, or one of the scope `files`; write `PUBLIC` before its definition in `common.anyx` to share it
+  METHOD read RETURNS (a: TEXT) ERRORS common/gone errors,
+                                       ^^^^^^^^^^^^^^^^^^
 
-== a public error written without its path
-files.anyx:1:38: found `missing`, which is not an error of the scope `files`; expected the words of an `ERROR`, such as `conflict at revision` for `ERROR conflict at revision (revision: INTEGER)`, or an `ERRORS` alias; another scope has `common/missing`, so write its full path
-  METHOD read RETURNS (a: TEXT) ERRORS missing,
-                                       ^^^^^^^
+== a public error group written without its path
+files.anyx:1:38: found `common errors`, which is not an error group of the scope `files`; expected the name of an `ERRORS` group, such as `file errors` for `ERRORS file errors [trashed, missing]`; another scope has `common/common errors`, so write its full path
+  METHOD read RETURNS (a: TEXT) ERRORS common errors,
+                                       ^^^^^^^^^^^^^
 
 == errors of the same words from two scopes
-files.anyx:1:63: found the errors `files/missing` and `common/missing` both listed for this method; expected errors of distinct words, since a response writes an error by its shape alone, without its scope; rename one of them
-  ERROR missing, METHOD read RETURNS (a: TEXT) ERRORS [missing, common/missing],
-                                                                ^^^^^^^^^^^^^^
+files.anyx:1:50: found the errors `files/missing` and `common/missing` both listed for this method; expected errors of distinct words, since a response writes an error by its shape alone, without its scope; rename one of them
+  METHOD read RETURNS (a: TEXT) ERRORS [missing] + common/common errors,
+                                                   ^^^^^^^^^^^^^^^^^^^^
 
 == a path of two words
 files.anyx:1:18: found `my common/diagnostic`; expected a name, such as `diagnostic`, or the full path of a `PUBLIC` one in another scope, such as `common/diagnostic`

@@ -124,7 +124,7 @@ const ROOT: (&str, &str) = ("protocol.anyx", "PROTOCOL notes VERSION 1,");
 
 const COMMON: (&str, &str) = (
     "common.anyx",
-    "PUBLIC RECORD diagnostic { line: INTEGER }, RECORD secret { a: TEXT }, ERROR gone, PUBLIC ERROR missing,",
+    "PUBLIC RECORD diagnostic { line: INTEGER }, RECORD secret { a: TEXT }, ERRORS gone errors [gone], PUBLIC ERRORS common errors [missing],",
 );
 
 /// Each case: a title and the schema's files.
@@ -154,24 +154,24 @@ const CASES: &[(&str, &[(&str, &str)])] = &[
         ],
     ),
     (
-        "a private error from another scope",
+        "a private error group from another scope",
         &[
             ROOT,
             COMMON,
             (
                 "files.anyx",
-                "METHOD read RETURNS (a: TEXT) ERRORS common/gone,",
+                "METHOD read RETURNS (a: TEXT) ERRORS common/gone errors,",
             ),
         ],
     ),
     (
-        "a public error written without its path",
+        "a public error group written without its path",
         &[
             ROOT,
             COMMON,
             (
                 "files.anyx",
-                "METHOD read RETURNS (a: TEXT) ERRORS missing,",
+                "METHOD read RETURNS (a: TEXT) ERRORS common errors,",
             ),
         ],
     ),
@@ -182,7 +182,7 @@ const CASES: &[(&str, &[(&str, &str)])] = &[
             COMMON,
             (
                 "files.anyx",
-                "ERROR missing, METHOD read RETURNS (a: TEXT) ERRORS [missing, common/missing],",
+                "METHOD read RETURNS (a: TEXT) ERRORS [missing] + common/common errors,",
             ),
         ],
     ),

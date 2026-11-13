@@ -107,8 +107,8 @@ pub struct Shaped {
     pub shape: Shape,
 }
 
-/// An `ERROR`. On the wire it is written in its shape alone, without its
-/// scope.
+/// An error, defined in the brackets of a method's or a group's `ERRORS`.
+/// On the wire it is written in its shape alone, without its scope.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ErrorDefinition {
     pub scope: Vec<String>,
@@ -409,9 +409,10 @@ fn decode_file(file: &SchemaFile) -> Result<ast::Document, Vec<Diagnostic>> {
                 ),
             )];
         }
-        let message = match unnamed_return(&nodes, error.span) {
-            true => "found a `RETURNS` without a name; expected `RETURNS (name: TYPE)`, such as `RETURNS (new revision: INTEGER)`, since the name says what the value is".to_string(),
-            false => error.message(),
+        let message = match (unnamed_return(&nodes, error.span), lone_error(&nodes, error.span)) {
+            (true, _) => "found a `RETURNS` without a name; expected `RETURNS (name: TYPE)`, such as `RETURNS (new revision: INTEGER)`, since the name says what the value is".to_string(),
+            (_, true) => "found an `ERROR` on its own; expected each error in the brackets of the method that has it, `METHOD read (path: TEXT) RETURNS (file: file) ERRORS [missing]`, or of an `ERRORS` group that methods share by joining it with `+`: `ERRORS file errors [trashed, missing]`".to_string(),
+            _ => error.message(),
         };
         vec![found(error.span, message)]
     })
@@ -446,6 +447,17 @@ fn unnamed_return(nodes: &[Node], span: Span) -> bool {
         !matches!(&returned.kind, NodeKind::Call(call)
             if call.name.iter().any(|part| matches!(part, NamePart::Word { text, .. } if !anyx::is_keyword(text)))
                 && call.name.contains(&NamePart::Slot))
+    })
+}
+
+/// Whether `span` is in a top-level `ERROR`, which a schema no longer has:
+/// errors are defined in the brackets of a method or an `ERRORS` group.
+fn lone_error(nodes: &[Node], span: Span) -> bool {
+    nodes.iter().any(|node| {
+        node.span.start <= span.start
+            && span.end <= node.span.end
+            && matches!(&node.kind, NodeKind::Call(call)
+                if call.name.iter().any(|part| matches!(part, NamePart::Word { text, .. } if text == "ERROR")))
     })
 }
 

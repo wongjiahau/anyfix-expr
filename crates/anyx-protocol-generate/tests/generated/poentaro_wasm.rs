@@ -34,27 +34,18 @@ RECORD diagnostic {
     message: TEXT,
 },
 
-# The owner moved this file to the trash. Ask them to restore it.
-ERROR trashed,
+ERRORS file errors [
+    # The owner moved this file to the trash. Ask them to restore it.
+    trashed,
+    # No file has this path. It may have been renamed: run `list files` to
+    # see the exact paths.
+    missing,
+],
 
-# No file has this path. It may have been renamed: run `list files` to see
-# the exact paths.
-ERROR missing,
-
-# Someone saved first. Apply your change to `content`, then write at
-# `revision`.
-ERROR conflict at revision (revision: INTEGER) content (content: TEXT),
-
-# The score doesn't parse. Nothing was saved.
-ERROR rejected (diagnostics: LIST diagnostic),
-
-# A file already has this path. Read it, or create under another path.
-ERROR already exists at revision (revision: INTEGER),
-
-# The path isn't valid, such as an empty folder name or a `..`.
-ERROR invalid path (message: TEXT),
-
-ERRORS file errors [trashed, missing],
+ERRORS score errors [
+    # The score doesn't parse. Nothing was saved.
+    rejected (diagnostics: LIST diagnostic),
+],
 
 # Every file this account owns.
 METHOD list files RETURNS files: LIST file summary,
@@ -64,12 +55,21 @@ METHOD read (path: TEXT) RETURNS (file: file) ERRORS file errors,
 # Saves the score, if the file is still at `revision`.
 METHOD write (path: TEXT) at revision (revision: INTEGER) content (content: TEXT)
     RETURNS (new revision: INTEGER)
-    ERRORS [conflict at revision content, rejected, file errors],
+    ERRORS [
+        # Someone saved first. Apply your change to `content`, then write at
+        # `revision`.
+        conflict at revision (revision: INTEGER) content (content: TEXT),
+    ] + score errors + file errors,
 
 # Makes a new file, and its folders if they don't exist.
 METHOD create (path: TEXT) content (content: TEXT)
     RETURNS (revision: INTEGER)
-    ERRORS [already exists at revision, invalid path, rejected],
+    ERRORS [
+        # A file already has this path. Read it, or create under another path.
+        already exists at revision (revision: INTEGER),
+        # The path isn't valid, such as an empty folder name or a `..`.
+        invalid path (message: TEXT),
+    ] + score errors,
 
 # The score as a Standard MIDI File.
 METHOD export midi (path: TEXT)

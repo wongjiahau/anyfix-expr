@@ -24,7 +24,6 @@ pub struct Protocol {
 pub enum Definition {
     Record(Record),
     Choice(Choice),
-    Error(Error),
     Errors(Errors),
     Method(Method),
 }
@@ -99,38 +98,17 @@ pub enum VariantSlot {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum Error {
-    Public {
-        doc: Option<Spanned<StringLiteral>>,
-        shape: Shape,
-        span: Span,
-    },
-    Private {
-        doc: Option<Spanned<StringLiteral>>,
-        shape: Shape,
-        span: Span,
-    },
-}
-
-#[derive(Clone, Debug, PartialEq)]
 pub enum Errors {
     Public {
         doc: Option<Spanned<StringLiteral>>,
-        body: ErrorsBody,
+        body: ErrorList,
         span: Span,
     },
     Private {
         doc: Option<Spanned<StringLiteral>>,
-        body: ErrorsBody,
+        body: ErrorList,
         span: Span,
     },
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct ErrorsBody {
-    pub name: Spanned<String>,
-    pub members: Spanned<Vec<Reference>>,
-    pub span: Span,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -152,11 +130,19 @@ pub enum Method {
 
 pub type Returns = Parameter;
 
+pub type ErrorList = ErrorTerm;
+
 #[derive(Clone, Debug, PartialEq)]
-pub enum ErrorList {
-    Several(Spanned<Vec<Reference>>),
-    One(Reference),
+pub enum ErrorTerm {
+    Own(Spanned<Vec<Error>>),
+    Call {
+        name: CallName,
+        arguments: Vec<ErrorTerm>,
+        span: Span,
+    },
 }
+
+pub type Error = Variant;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Shape {
@@ -202,7 +188,6 @@ impl Definition {
         match self {
             Definition::Record(value) => value.span(),
             Definition::Choice(value) => value.span(),
-            Definition::Error(value) => value.span(),
             Definition::Errors(value) => value.span(),
             Definition::Method(value) => value.span(),
         }
@@ -243,14 +228,6 @@ impl VariantSlot {
     }
 }
 
-impl Error {
-    pub fn span(&self) -> Span {
-        match self {
-            Error::Public { span, .. } | Error::Private { span, .. } => *span,
-        }
-    }
-}
-
 impl Errors {
     pub fn span(&self) -> Span {
         match self {
@@ -267,11 +244,11 @@ impl Method {
     }
 }
 
-impl ErrorList {
+impl ErrorTerm {
     pub fn span(&self) -> Span {
         match self {
-            ErrorList::Several(value) => value.span,
-            ErrorList::One(value) => value.span,
+            ErrorTerm::Call { span, .. } => *span,
+            ErrorTerm::Own(value) => value.span,
         }
     }
 }
@@ -330,7 +307,6 @@ pub fn decode_definition(node: &Node) -> Result<Definition, DecodeError> {
     decode_record(node)
         .map(Definition::Record)
         .or_else(|error| error.or(decode_choice(node).map(Definition::Choice)))
-        .or_else(|error| error.or(decode_error(node).map(Definition::Error)))
         .or_else(|error| error.or(decode_errors(node).map(Definition::Errors)))
         .or_else(|error| error.or(decode_method(node).map(Definition::Method)))
 }
@@ -497,35 +473,6 @@ pub fn decode_variant_slot(node: &Node) -> Result<VariantSlot, DecodeError> {
         .or_else(|error| error.or(decode_parameter(node).map(VariantSlot::Parameter)))
 }
 
-pub fn decode_error(node: &Node) -> Result<Error, DecodeError> {
-    decode_error_public(node).or_else(|error| error.or(decode_error_private(node)))
-}
-
-fn decode_error_public(node: &Node) -> Result<Error, DecodeError> {
-    let mut parts = support::call(node, "the call `_? PUBLIC ERROR _`")?;
-    let decoded = Error::Public {
-        doc: parts.optional(|node| support::string(node, |_| true, "a string")),
-        shape: parts
-            .word("PUBLIC")?
-            .word("ERROR")?
-            .one(decode_shape, "a shape")?,
-        span: node.span,
-    };
-    parts.finish()?;
-    Ok(decoded)
-}
-
-fn decode_error_private(node: &Node) -> Result<Error, DecodeError> {
-    let mut parts = support::call(node, "the call `_? ERROR _`")?;
-    let decoded = Error::Private {
-        doc: parts.optional(|node| support::string(node, |_| true, "a string")),
-        shape: parts.word("ERROR")?.one(decode_shape, "a shape")?,
-        span: node.span,
-    };
-    parts.finish()?;
-    Ok(decoded)
-}
-
 pub fn decode_errors(node: &Node) -> Result<Errors, DecodeError> {
     decode_errors_public(node).or_else(|error| error.or(decode_errors_private(node)))
 }
@@ -537,7 +484,7 @@ fn decode_errors_public(node: &Node) -> Result<Errors, DecodeError> {
         body: parts
             .word("PUBLIC")?
             .word("ERRORS")?
-            .one(decode_errors_body, "an errors body")?,
+            .one(decode_error_list, "an error list")?,
         span: node.span,
     };
     parts.finish()?;
@@ -550,35 +497,11 @@ fn decode_errors_private(node: &Node) -> Result<Errors, DecodeError> {
         doc: parts.optional(|node| support::string(node, |_| true, "a string")),
         body: parts
             .word("ERRORS")?
-            .one(decode_errors_body, "an errors body")?,
+            .one(decode_error_list, "an error list")?,
         span: node.span,
     };
     parts.finish()?;
     Ok(decoded)
-}
-
-pub fn decode_errors_body(node: &Node) -> Result<ErrorsBody, DecodeError> {
-    let mut parts = support::call(node, "the call `… _`")?;
-    let decoded = ErrorsBody {
-        name: parts.words(
-            |text| !text.split(' ').any(anyx::is_keyword),
-            "words whose text has no keyword",
-        )?,
-        members: parts.one(decode_errors_body_members, "`[...]`")?,
-        span: node.span,
-    };
-    parts.finish()?;
-    Ok(decoded)
-}
-
-fn decode_errors_body_members(node: &Node) -> Result<Spanned<Vec<Reference>>, DecodeError> {
-    let mut elements = support::square_bracket(node)?;
-    let value = elements.one_or_more(decode_reference, "a reference")?;
-    elements.finish()?;
-    Ok(Spanned {
-        value,
-        span: node.span,
-    })
 }
 
 pub fn decode_method(node: &Node) -> Result<Method, DecodeError> {
@@ -617,19 +540,43 @@ pub fn decode_returns(node: &Node) -> Result<Returns, DecodeError> {
 }
 
 pub fn decode_error_list(node: &Node) -> Result<ErrorList, DecodeError> {
-    decode_error_list_several(node)
-        .map(ErrorList::Several)
-        .or_else(|error| error.or(decode_reference(node).map(ErrorList::One)))
+    decode_error_term(node)
 }
 
-fn decode_error_list_several(node: &Node) -> Result<Spanned<Vec<Reference>>, DecodeError> {
+pub fn decode_error_term(node: &Node) -> Result<ErrorTerm, DecodeError> {
+    decode_error_term_own(node)
+        .map(ErrorTerm::Own)
+        .or_else(|error| error.or(decode_error_term_call(node)))
+}
+
+fn decode_error_term_own(node: &Node) -> Result<Spanned<Vec<Error>>, DecodeError> {
     let mut elements = support::square_bracket(node)?;
-    let value = elements.one_or_more(decode_reference, "a reference")?;
+    let value = elements.one_or_more(decode_error, "an error")?;
     elements.finish()?;
     Ok(Spanned {
         value,
         span: node.span,
     })
+}
+
+fn decode_error_term_call(node: &Node) -> Result<ErrorTerm, DecodeError> {
+    let (name, arguments) = support::any_call(
+        node,
+        |name| !name.split(' ').any(anyx::is_keyword),
+        "a call whose name has no keyword",
+    )?;
+    let mut arguments = support::arguments(node, arguments);
+    let decoded = ErrorTerm::Call {
+        name,
+        arguments: arguments.zero_or_more(decode_error_term),
+        span: node.span,
+    };
+    arguments.finish()?;
+    Ok(decoded)
+}
+
+pub fn decode_error(node: &Node) -> Result<Error, DecodeError> {
+    decode_variant(node)
 }
 
 pub fn decode_shape(node: &Node) -> Result<Shape, DecodeError> {
