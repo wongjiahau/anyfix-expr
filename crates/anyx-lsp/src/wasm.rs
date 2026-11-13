@@ -55,13 +55,15 @@ impl LanguageServer {
 /// anyx_lsp::language!(MyLanguage = generated);
 /// anyx_lsp::wasm!(MyLanguage);
 /// ```
+// rustfmt indents the attribute further on every run, so it is laid out here.
+#[rustfmt::skip]
 #[macro_export]
 macro_rules! wasm {
     ($name:ident) => {
         #[$crate::wasm::wasm_bindgen::prelude::wasm_bindgen(
-                            js_name = languageServer,
-                            wasm_bindgen = $crate::wasm::wasm_bindgen
-                        )]
+            js_name = languageServer,
+            wasm_bindgen = $crate::wasm::wasm_bindgen
+        )]
         pub fn language_server() -> $crate::wasm::LanguageServer {
             $crate::wasm::LanguageServer::new(&$name)
         }

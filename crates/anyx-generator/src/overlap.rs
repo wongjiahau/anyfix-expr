@@ -129,7 +129,9 @@ impl<'a> Overlap<'a> {
                     Repetition::ZeroOrMore | Repetition::Each => true,
                     Repetition::OneOrMore => {
                         slots.iter().any(|slot| slot.repetition == Repetition::One)
-                            || slots.iter().any(|slot| slot.repetition == Repetition::OneOrMore)
+                            || slots
+                                .iter()
+                                .any(|slot| slot.repetition == Repetition::OneOrMore)
                     }
                 };
                 count_fits
