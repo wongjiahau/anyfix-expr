@@ -6,11 +6,11 @@ use anyx::{Node, Span, StringLiteral};
 pub use support::{CallName, DecodeError, Spanned};
 
 static REGEX_1: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
-    regex::Regex::new("^[a-z][a-z0-9]*( [a-z][a-z0-9]*)* _$").expect("the generator checked it")
+    regex::Regex::new("^[a-z][a-z0-9]*( [a-z][a-z0-9]*)*$").expect("the generator checked it")
 });
 
 static REGEX_2: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
-    regex::Regex::new("^[a-z][a-z0-9]*( [a-z][a-z0-9]*)*$").expect("the generator checked it")
+    regex::Regex::new("^[a-z][a-z0-9]*( [a-z][a-z0-9]*)* _$").expect("the generator checked it")
 });
 
 #[derive(Clone, Debug, PartialEq)]
@@ -29,10 +29,18 @@ pub struct Entry {
 pub type Rule = Named;
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct Named {
-    pub name: CallName,
-    pub arguments: Pattern,
-    pub span: Span,
+pub enum Named {
+    Documented {
+        documentation: Spanned<StringLiteral>,
+        name: Spanned<std::string::String>,
+        pattern: Pattern,
+        span: Span,
+    },
+    Plain {
+        name: CallName,
+        arguments: Pattern,
+        span: Span,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -238,6 +246,14 @@ pub enum NumberCondition {
     AtMost { bound: Spanned<f64>, span: Span },
 }
 
+impl Named {
+    pub fn span(&self) -> Span {
+        match self {
+            Named::Documented { span, .. } | Named::Plain { span, .. } => *span,
+        }
+    }
+}
+
 impl Contents {
     pub fn span(&self) -> Span {
         match self {
@@ -251,7 +267,7 @@ impl Contents {
 impl Element {
     pub fn span(&self) -> Span {
         match self {
-            Element::Field(value) => value.span,
+            Element::Field(value) => value.span(),
             Element::Pattern(value) => value.span(),
         }
     }
@@ -393,8 +409,24 @@ impl support::Errors for Entry {
 
 impl support::Errors for Named {
     fn errors<'a>(&'a self, found: &mut std::vec::Vec<&'a support::DecodeError>) {
-        support::Errors::errors(&self.name, found);
-        support::Errors::errors(&self.arguments, found);
+        match self {
+            Named::Documented {
+                documentation,
+                name,
+                pattern,
+                ..
+            } => {
+                support::Errors::errors(documentation, found);
+                support::Errors::errors(name, found);
+                support::Errors::errors(pattern, found);
+            }
+            Named::Plain {
+                name, arguments, ..
+            } => {
+                support::Errors::errors(name, found);
+                support::Errors::errors(arguments, found);
+            }
+        }
     }
 }
 
@@ -667,13 +699,35 @@ pub fn decode_rule(node: &Node) -> Result<Rule, DecodeError> {
 }
 
 pub fn decode_named(node: &Node) -> Result<Named, DecodeError> {
+    decode_named_documented(node).or_else(|error| error.or(decode_named_plain(node)))
+}
+
+fn decode_named_documented(node: &Node) -> Result<Named, DecodeError> {
+    let mut parts = support::call(node, "the call `_ … _`")?;
+    let decoded = Named::Documented {
+        documentation: parts.one(
+            |node| support::string(node, |_| true, "a string"),
+            "a string",
+        )?,
+        name: parts.words(
+            |text| REGEX_1.is_match(text),
+            "words whose text matches the regex `^[a-z][a-z0-9]*( [a-z][a-z0-9]*)*$`",
+        )?,
+        pattern: parts.one(decode_pattern, "a pattern")?,
+        span: node.span,
+    };
+    parts.finish()?;
+    Ok(decoded)
+}
+
+fn decode_named_plain(node: &Node) -> Result<Named, DecodeError> {
     let (name, arguments) = support::any_call(
         node,
-        |name| REGEX_1.is_match(name),
+        |name| REGEX_2.is_match(name),
         "a call whose name matches the regex `^[a-z][a-z0-9]*( [a-z][a-z0-9]*)* _$`",
     )?;
     let mut arguments = support::arguments(node, arguments);
-    let decoded = Named {
+    let decoded = Named::Plain {
         name,
         arguments: arguments.one(decode_pattern, "a pattern")?,
         span: node.span,
@@ -748,7 +802,7 @@ pub fn decode_pattern(node: &Node) -> Result<Pattern, DecodeError> {
 pub fn decode_reference(node: &Node) -> Result<Reference, DecodeError> {
     let (name, arguments) = support::any_call(
         node,
-        |name| REGEX_2.is_match(name),
+        |name| REGEX_1.is_match(name),
         "a call whose name matches the regex `^[a-z][a-z0-9]*( [a-z][a-z0-9]*)*$`",
     )?;
     Ok(Reference {
@@ -1323,6 +1377,10 @@ fn decode_number_condition_at_most(node: &Node) -> Result<NumberCondition, Decod
 pub fn parse_document(source: &str) -> support::Parsed<Document> {
     support::parse(source, decode_document)
 }
+
+/// What the grammar's `#` line strings say about what may be written,
+/// by what errors call it: ``the call `title _` ``, ``the word `yes` ``.
+pub const DOCUMENTATION: &[(&str, &str)] = &[];
 
 /// How [`format`] lays out calls, from the grammar's `FORMAT`s.
 pub const LAYOUT: &[support::LayoutRule] = &[];

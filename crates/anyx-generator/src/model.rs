@@ -30,6 +30,8 @@ pub struct Rule {
     pub name: String,
     pub name_span: Span,
     pub pattern: Pattern,
+    /// The `#` line string just above it.
+    pub documentation: Option<String>,
 }
 
 /// A pattern that matches exactly one node.
@@ -69,6 +71,8 @@ pub struct Choice {
     pub name: String,
     pub pattern: Pattern,
     pub span: Span,
+    /// The `#` line string just above it.
+    pub documentation: Option<String>,
 }
 
 /// One step of a sequence: the elements of a bracket or the document, or
@@ -83,6 +87,8 @@ pub struct Element {
     pub repetition: Repetition,
     pub pattern: Pattern,
     pub span: Span,
+    /// The `#` line string just above a named element.
+    pub documentation: Option<String>,
 }
 
 impl Element {
@@ -394,6 +400,94 @@ impl Grammar {
     }
 
     /// The description as one phrase: `a string or the word `null``.
+    /// The documentation of what may be written, keyed by how errors
+    /// describe it: ``the call `title _` `` or ``the word `yes` ``, which an
+    /// editor offers to complete. A choice or a field documents what it
+    /// matches; a rule documents what it matches that nothing inside it
+    /// documents. When two choices or fields say something about the same
+    /// text, the outer one wins, then the first written.
+    pub fn documentation(&self) -> Vec<(String, String)> {
+        let mut found: Vec<(String, String)> = Vec::new();
+        let mut add = |pattern: &Pattern, documentation: &Option<String>| {
+            let Some(documentation) = documentation else {
+                return;
+            };
+            for expected in self.describe_missed(pattern) {
+                let completable =
+                    expected.starts_with("the call `") || expected.starts_with("the word `");
+                if completable && !found.iter().any(|(known, _)| *known == expected) {
+                    found.push((expected, documentation.clone()));
+                }
+            }
+        };
+        let mut patterns: Vec<&Pattern> =
+            self.entry.iter().map(|element| &element.pattern).collect();
+        for element in &self.entry {
+            add(&element.pattern, &element.documentation);
+        }
+        patterns.extend(self.rules.iter().map(|rule| &rule.pattern));
+        // In the order written, outer before inner.
+        let mut next = 0;
+        while let Some(&pattern) = patterns.get(next) {
+            next += 1;
+            match pattern {
+                Pattern::OneOf(choices) => {
+                    for choice in choices {
+                        add(&choice.pattern, &choice.documentation);
+                        patterns.push(&choice.pattern);
+                    }
+                }
+                Pattern::Container { elements, .. } | Pattern::SpecificCall(elements) => {
+                    for element in elements {
+                        add(&element.pattern, &element.documentation);
+                        patterns.push(&element.pattern);
+                    }
+                }
+                Pattern::AnyCall {
+                    arguments: Some(arguments),
+                    ..
+                } => {
+                    add(&arguments.pattern, &arguments.documentation);
+                    patterns.push(&arguments.pattern);
+                }
+                _ => {}
+            }
+        }
+        for rule in &self.rules {
+            add(&rule.pattern, &rule.documentation);
+        }
+        found
+    }
+
+    /// Each way an error may describe `pattern`: as [`Grammar::describe`]
+    /// does, and a call that starts with words also by those words, since a
+    /// call with other words is missed there.
+    fn describe_missed(&self, pattern: &Pattern) -> Vec<String> {
+        let mut described = self.describe(pattern);
+        let mut calls = vec![pattern];
+        while let Some(pattern) = calls.pop() {
+            match pattern {
+                Pattern::OneOf(choices) => {
+                    calls.extend(choices.iter().map(|choice| &choice.pattern))
+                }
+                Pattern::SpecificCall(parts) => {
+                    let words: Vec<&str> = parts
+                        .iter()
+                        .map_while(|part| match &part.pattern {
+                            Pattern::Word(text) => Some(text.as_str()),
+                            _ => None,
+                        })
+                        .collect();
+                    if !words.is_empty() {
+                        described.push(format!("the word `{}`", words.join(" ")));
+                    }
+                }
+                _ => {}
+            }
+        }
+        described
+    }
+
     pub fn describe_one(&self, pattern: &Pattern) -> String {
         match &self.describe(pattern)[..] {
             [] => "nothing".to_string(),

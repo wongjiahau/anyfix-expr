@@ -8,10 +8,19 @@ entry: ANYFIX CALL [WORD "ENTRY", contents],
 rule: named,
 
 ## `key value: pattern` defines a rule; inside a list, `key: pattern` names a
-## field or a choice.
-named: ANYFIX CALL [
-  NAME [MATCHING REGEX "^[a-z][a-z0-9]*( [a-z][a-z0-9]*)* _$"],
-  ARGUMENTS: pattern,
+## field or a choice. A `#` line string just above it documents it, for the
+## people who write the language: the line string is the call's first
+## argument. A `##` comment is for whoever reads the grammar, and is dropped.
+named: ONE OF [
+  documented: ANYFIX CALL [
+    documentation: STRING,
+    name: WORDS [MATCHING REGEX "^[a-z][a-z0-9]*( [a-z][a-z0-9]*)*$"],
+    pattern,
+  ],
+  plain: ANYFIX CALL [
+    NAME [MATCHING REGEX "^[a-z][a-z0-9]*( [a-z][a-z0-9]*)* _$"],
+    ARGUMENTS: pattern,
+  ],
 ],
 
 ## What a container or the entry holds: one element, a list of them in order,

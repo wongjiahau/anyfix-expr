@@ -157,6 +157,10 @@ pub fn parse_document(source: &str) -> support::Parsed<Document> {
     support::parse(source, decode_document)
 }
 
+/// What the grammar's `#` line strings say about what may be written,
+/// by what errors call it: ``the call `title _` ``, ``the word `yes` ``.
+pub const DOCUMENTATION: &[(&str, &str)] = &[];
+
 /// How [`format`] lays out calls, from the grammar's `FORMAT`s.
 pub const LAYOUT: &[support::LayoutRule] = &[];
 

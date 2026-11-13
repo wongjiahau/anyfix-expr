@@ -30,8 +30,9 @@ pub fn lower(document: &ast::Document, source: &str) -> (Grammar, Vec<Diagnostic
         .iter()
         .map(|rule| Rule {
             name: rule_name(rule),
-            name_span: rule.name.span,
-            pattern: lowerer.pattern(&rule.arguments, Position::Rule),
+            name_span: name_span(rule),
+            pattern: lowerer.pattern(named_pattern(rule), Position::Rule),
+            documentation: documentation(rule),
         })
         .collect();
     (
@@ -48,8 +49,51 @@ pub fn lower(document: &ast::Document, source: &str) -> (Grammar, Vec<Diagnostic
 /// `key value _`, the call that defines a rule or names a field, is the
 /// name `key value`.
 fn rule_name(named: &ast::Named) -> String {
-    let name = &named.name.text;
-    name.strip_suffix(" _").unwrap_or(name).to_string()
+    match named {
+        ast::Named::Documented { name, .. } => name.value.clone(),
+        ast::Named::Plain { name, .. } => {
+            let name = &name.text;
+            name.strip_suffix(" _").unwrap_or(name).to_string()
+        }
+    }
+}
+
+/// Where the name of a rule, a field or a choice is written.
+fn name_span(named: &ast::Named) -> Span {
+    match named {
+        ast::Named::Documented { name, .. } => name.span,
+        ast::Named::Plain { name, .. } => name.span,
+    }
+}
+
+/// From the name to the end of the pattern, without the documentation.
+fn named_span(named: &ast::Named) -> Span {
+    Span::new(name_span(named).start, named.span().end)
+}
+
+/// What a rule, a field or a choice matches.
+fn named_pattern(named: &ast::Named) -> &ast::Pattern {
+    match named {
+        ast::Named::Documented { pattern, .. } => pattern,
+        ast::Named::Plain { arguments, .. } => arguments,
+    }
+}
+
+/// The `#` line string just above a rule, a field or a choice, each line
+/// without the spaces around it.
+fn documentation(named: &ast::Named) -> Option<String> {
+    let ast::Named::Documented { documentation, .. } = named else {
+        return None;
+    };
+    let text = documentation
+        .value
+        .value
+        .lines()
+        .map(str::trim)
+        .collect::<Vec<_>>()
+        .join("\n");
+    let text = text.trim();
+    (!text.is_empty()).then(|| text.to_string())
 }
 
 struct Lowerer<'a> {
@@ -96,7 +140,7 @@ impl Lowerer<'_> {
     fn check_rule_names(&mut self, document: &ast::Document) {
         for (index, rule) in document.rule.iter().enumerate() {
             let name = self.rule_names[index].clone();
-            let span = rule.name.span;
+            let span = name_span(rule);
             if self.rule_names[..index].contains(&name) {
                 self.error(
                     span,
@@ -178,6 +222,7 @@ impl Lowerer<'_> {
                         repetition: Repetition::One,
                         pattern: Pattern::Word(words),
                         span: exact.span,
+                        documentation: None,
                     }]),
                 }
             }
@@ -257,6 +302,7 @@ impl Lowerer<'_> {
                 name,
                 pattern: element.pattern,
                 span: element.span,
+                documentation: element.documentation,
             });
         }
         lowered
@@ -293,9 +339,14 @@ impl Lowerer<'_> {
 
     /// An element as written: its name if it has one, and its repetition.
     fn element(&mut self, element: &ast::Element) -> Element {
-        let (name, pattern, span) = match element {
-            ast::Element::Field(field) => (Some(rule_name(field)), &field.arguments, field.span),
-            ast::Element::Pattern(pattern) => (None, pattern, pattern.span()),
+        let (name, pattern, span, documentation) = match element {
+            ast::Element::Field(field) => (
+                Some(rule_name(field)),
+                named_pattern(field),
+                named_span(field),
+                documentation(field),
+            ),
+            ast::Element::Pattern(pattern) => (None, pattern, pattern.span(), None),
         };
         let (repetition, pattern) = repetition_of(pattern);
         Element {
@@ -303,6 +354,7 @@ impl Lowerer<'_> {
             repetition,
             pattern: self.pattern(pattern, Position::Inside),
             span,
+            documentation,
         }
     }
 
@@ -494,7 +546,9 @@ impl Lowerer<'_> {
         let words: Vec<String> = parts
             .iter()
             .filter_map(|part| match &part.pattern {
-                Pattern::Word(text) => Some(text.split(' ').map(str::to_string).collect::<Vec<_>>()),
+                Pattern::Word(text) => {
+                    Some(text.split(' ').map(str::to_string).collect::<Vec<_>>())
+                }
                 _ => None,
             })
             .flatten()
@@ -542,9 +596,14 @@ impl Lowerer<'_> {
     /// One of the parts of an `ANYFIX CALL [...]`, where `WORDS` may stand.
     /// `WORDS "a b"` is one part for each of its words.
     fn call_part(&mut self, part: &ast::Element) -> Vec<Element> {
-        let (name, pattern, span) = match part {
-            ast::Element::Field(field) => (Some(rule_name(field)), &field.arguments, field.span),
-            ast::Element::Pattern(pattern) => (None, pattern, pattern.span()),
+        let (name, pattern, span, documentation) = match part {
+            ast::Element::Field(field) => (
+                Some(rule_name(field)),
+                named_pattern(field),
+                named_span(field),
+                documentation(field),
+            ),
+            ast::Element::Pattern(pattern) => (None, pattern, pattern.span(), None),
         };
         let (repetition, inner) = repetition_of(pattern);
         match inner {
@@ -553,6 +612,7 @@ impl Lowerer<'_> {
                 repetition,
                 pattern: self.words(words),
                 span,
+                documentation,
             }],
             // One part matching the words in a row; named, it keeps their span.
             ast::Pattern::ExactWords(exact) => vec![Element {
@@ -560,6 +620,7 @@ impl Lowerer<'_> {
                 repetition,
                 pattern: Pattern::Word(self.exact_words(exact)),
                 span,
+                documentation,
             }],
             _ => vec![self.element(part)],
         }
@@ -641,6 +702,7 @@ impl Lowerer<'_> {
                         repetition,
                         pattern: self.pattern(pattern, Position::Inside),
                         span: *span,
+                        documentation: None,
                     }));
                 }
                 ast::CallCondition::NoArguments { span } => no_arguments = Some(*span),
