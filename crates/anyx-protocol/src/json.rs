@@ -8,7 +8,8 @@ use std::collections::BTreeMap;
 
 use serde_json::{Map, Value as Json, json};
 
-use crate::codec::{Call, Outcome, Response, decode_response, encode_request};
+use crate::codec::{Call, Outcome, Response, encode_request};
+use crate::response::decode_response;
 use crate::schema::{Field, Schema, Shape, Type, TypeKind};
 use crate::value::Value;
 

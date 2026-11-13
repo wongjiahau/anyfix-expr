@@ -233,7 +233,10 @@ fn an_internal_error_is_logged_and_stops_the_calls_after_it() {
         r#"create "a" content "1", read "broken", read "a""#,
         |error| client.transport.logged.borrow_mut().push(error),
     ));
-    assert_eq!(response, "1,\nINTERNAL ERROR,\nNOT RUN,\n");
+    assert_eq!(
+        response,
+        "create \"a\" content \"1\" RETURNS 1,\nread \"broken\" INTERNAL ERROR,\nread \"a\" NOT RUN,\n"
+    );
     assert_eq!(*client.transport.logged.borrow(), vec![Broken]);
     assert_eq!(run(client.read("broken".into())), Err(CallError::Internal));
 }
@@ -248,7 +251,7 @@ fn every_call_runs_even_after_a_method_error() {
     ));
     assert_eq!(
         response,
-        "ERROR missing,\n1,\n{ path \"a\", revision 1, content \"1\" },\n"
+        "read \"a\" ERROR missing,\ncreate \"a\" content \"1\" RETURNS 1,\nread \"a\" RETURNS { path \"a\", revision 1, content \"1\" },\n"
     );
 }
 

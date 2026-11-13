@@ -9,7 +9,7 @@ let schema = anyx_protocol::Schema::parse(source)?;
 // or, for a folder of scopes: Schema::parse_files(&[SchemaFile { path, source }, …])
 let calls = anyx_protocol::decode_request(&schema, request)?;
 // Run each call, then:
-let response = anyx_protocol::encode_response(&schema, &methods, &outcomes)?;
+let response = anyx_protocol::encode_response(&schema, &calls, &outcomes)?;
 ```
 
 `guide(schema, how_to_send)` is the markdown to hand an agent first. See

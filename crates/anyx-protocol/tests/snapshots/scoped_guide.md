@@ -42,13 +42,15 @@ Every call runs, in order, and the response has one result per call.
 
 ## Responses
 
-The response has one result per call, in order. A result is one of:
+The response has one result per call, in order. Each result repeats its
+call, with text over 32 characters and lists over 3 items cut short with
+`…`, then one of:
 
-- The value the method `RETURNS`.
+- `RETURNS` and the value the method returns.
 - `ERROR` and one of the method's errors, in the error's shape. They follow
   `ERRORS`: its own in brackets, then those of each group joined with `+`.
-  For example: `ERROR missing`, `ERROR conflict at revision 4 content "…"`.
-  The call didn't do anything. Each error's `#` lines say what to do next.
+  For example: `read "a" ERROR missing`. The call didn't do anything.
+  Each error's `#` lines say what to do next.
 - `INTERNAL ERROR`: the server failed. Calls after it don't run.
 - `NOT RUN`: the call didn't run, because an earlier call failed that way.
 

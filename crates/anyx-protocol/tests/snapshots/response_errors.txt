@@ -1,14 +1,23 @@
-ERROR conflict at revision 1 content "x"
-=> 1:7: found the call `conflict at revision _ content _`; expected an error of `read _`: `trashed`, `missing`
+read "a" ERROR conflict at revision 1 content "x"
+=> 1:16: found the call `conflict at revision _ content _`; expected an error of `read _`: `trashed`, `missing`
 
-ERROR gone
-=> 1:7: found the call `gone`; expected an error of `read _`: `trashed`, `missing`
+read "a" ERROR gone
+=> 1:16: found the call `gone`; expected an error of `read _`: `trashed`, `missing`
 
-missing
-=> 1:1: found the call `missing`; expected the record `file`, as in `{ path …, revision …, content … }`; an error is written after `ERROR`, as in `ERROR missing`
+read "a" RETURNS missing
+=> 1:18: found the call `missing`; expected the record `file`, as in `{ path …, revision …, content … }`; an error is written after `ERROR`, as in `read … ERROR missing`
 
-NOT RUN, NOT RUN
+read "a" NOT RUN, read "b" NOT RUN
 => 1:1: found 2 outcomes; expected one per call, 1
 
 INVALID REQUEST { line 1 }
 => 1:1: found an `INVALID REQUEST` without a line, column and message
+
+ERROR missing
+=> 1:1: found an outcome without the call it answers; expected the call first, as in `read … RETURNS …`
+
+list files RETURNS []
+=> 1:1: found the outcome of `list files`; expected the outcome of `read _`, the call in that place of the request
+
+read "a" ERRORS missing
+=> 1:1: found the call `_ ERRORS _`; expected the call it answers, then `RETURNS` and its value, `ERROR` and one of its errors, `INTERNAL ERROR` or `NOT RUN`, as in `read … RETURNS …`

@@ -1,11 +1,8 @@
-//! Reads and writes requests and responses, checking each value against the
-//! schema.
+//! Reads and writes requests, and the values in them and in responses
+//! (`response`), checking each value against the schema.
 //!
 //! A request is an anyx document of calls, each written in its method's
-//! shape: `read "Hymns/a.poentaro"`. A response holds one outcome per call, in
-//! order: the method's value, `ERROR` and one of its errors, `NOT RUN` or
-//! `INTERNAL ERROR`. A request that can't be read gets the single response
-//! `INVALID REQUEST { … }` instead.
+//! shape: `read "Hymns/a.poentaro"`.
 
 use std::collections::BTreeMap;
 
@@ -74,12 +71,25 @@ impl std::fmt::Display for EncodeError {
 
 impl std::error::Error for EncodeError {}
 
-struct Mismatch {
-    span: Span,
-    message: String,
+/// How much of a value to write: all of it, or a shortened form that labels
+/// it, which a response uses to repeat the call it answers. Shortened text
+/// keeps its first [`SHORTENED_CHARACTERS`] characters and a list its first
+/// [`SHORTENED_ITEMS`] items, each followed by `…`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Form {
+    Whole,
+    Shortened,
 }
 
-fn problem(source: &str, span: Span, message: String) -> Problem {
+pub(crate) const SHORTENED_CHARACTERS: usize = 32;
+pub(crate) const SHORTENED_ITEMS: usize = 3;
+
+pub(crate) struct Mismatch {
+    pub(crate) span: Span,
+    pub(crate) message: String,
+}
+
+pub(crate) fn problem(source: &str, span: Span, message: String) -> Problem {
     let position = line_column(source, span.start);
     Problem {
         line: position.line,
@@ -88,7 +98,7 @@ fn problem(source: &str, span: Span, message: String) -> Problem {
     }
 }
 
-fn parse(source: &str) -> Result<Vec<Node>, Problem> {
+pub(crate) fn parse(source: &str) -> Result<Vec<Node>, Problem> {
     let parsed = anyx::parse(source);
     match parsed.errors.into_iter().next() {
         Some(error) => Err(problem(source, error.span, error.message)),
@@ -128,14 +138,14 @@ pub fn decode_request(schema: &Schema, source: &str) -> Result<Vec<Call>, Proble
 
 /// A call in a scope: `files/export/midi "a"` reads as the call `_/_/_` of
 /// `files`, `export` and `midi "a"`.
-struct ScopedCall<'n> {
-    scope: Vec<String>,
-    call: &'n Node,
+pub(crate) struct ScopedCall<'n> {
+    pub(crate) scope: Vec<String>,
+    pub(crate) call: &'n Node,
 }
 
 /// `node` as a call in a scope, if its name is slots between `/`s and each
 /// slot before the last holds a single word.
-fn scoped_call(node: &Node) -> Option<ScopedCall<'_>> {
+pub(crate) fn scoped_call(node: &Node) -> Option<ScopedCall<'_>> {
     let NodeKind::Call(call) = &node.kind else {
         return None;
     };
@@ -267,7 +277,7 @@ fn decode_shape(
     Ok((index, arguments))
 }
 
-fn describe(node: &Node) -> String {
+pub(crate) fn describe(node: &Node) -> String {
     match &node.kind {
         NodeKind::Number(text) => format!("the number `{text}`"),
         NodeKind::String(_) => "a string".to_string(),
@@ -281,7 +291,7 @@ fn describe(node: &Node) -> String {
 }
 
 /// Reads `node` as a value of `type`.
-fn decode(schema: &Schema, r#type: &Type, node: &Node) -> Result<Value, Mismatch> {
+pub(crate) fn decode(schema: &Schema, r#type: &Type, node: &Node) -> Result<Value, Mismatch> {
     let mismatch = |expected: String| Mismatch {
         span: node.span,
         message: format!("found {}; expected {expected}", describe(node)),
@@ -352,7 +362,7 @@ fn decode(schema: &Schema, r#type: &Type, node: &Node) -> Result<Value, Mismatch
 
 /// Reads `node` as one of `shapes`, written as a variant: `missing`,
 /// `conflict at revision 4`.
-fn decode_variant(
+pub(crate) fn decode_variant(
     schema: &Schema,
     shapes: &[&Shape],
     node: &Node,
@@ -461,7 +471,13 @@ pub fn encode_request(schema: &Schema, calls: &[Call]) -> Result<String, EncodeE
         .map(|call| {
             let method = schema.method_at(call.method);
             let mut shape = String::new();
-            write_shape(schema, &method.shape, &call.arguments, &mut shape)?;
+            write_shape(
+                schema,
+                &method.shape,
+                &call.arguments,
+                Form::Whole,
+                &mut shape,
+            )?;
             Ok(scoped(&method.scope, layout(shape).trim_end()))
         })
         .collect::<Result<Vec<_>, EncodeError>>()?;
@@ -471,177 +487,18 @@ pub fn encode_request(schema: &Schema, calls: &[Call]) -> Result<String, EncodeE
     })
 }
 
-/// Writes a response to calls of `methods`, one outcome each.
-pub fn encode_response(
-    schema: &Schema,
-    methods: &[usize],
-    response: &Response,
-) -> Result<String, EncodeError> {
-    let mut out = String::new();
-    match response {
-        Response::InvalidRequest(problem) => {
-            out.push_str("INVALID REQUEST { line ");
-            out.push_str(&problem.line.to_string());
-            out.push_str(", column ");
-            out.push_str(&problem.column.to_string());
-            out.push_str(", message ");
-            write_text(&problem.message, &mut out);
-            out.push_str(" }\n");
-        }
-        Response::Outcomes(outcomes) => {
-            for (method, outcome) in methods.iter().zip(outcomes) {
-                let method = schema.method_at(*method);
-                match outcome {
-                    Outcome::Value(value) => {
-                        write(schema, &method.returns.r#type, value, &mut out)?
-                    }
-                    Outcome::Error(error) => {
-                        out.push_str("ERROR ");
-                        let Value::Variant { shape, arguments } = error else {
-                            return Err(EncodeError {
-                                message: "found an error that is not a variant".to_string(),
-                            });
-                        };
-                        let Some(error) = schema
-                            .errors_of(method)
-                            .into_iter()
-                            .find(|error| error.shape.text == *shape)
-                        else {
-                            return Err(EncodeError {
-                                message: format!(
-                                    "found the error `{shape}`; expected an error of `{}`",
-                                    method.full_name()
-                                ),
-                            });
-                        };
-                        write_shape(schema, &error.shape, arguments, &mut out)?;
-                    }
-                    Outcome::NotRun => out.push_str("NOT RUN"),
-                    Outcome::InternalError => out.push_str("INTERNAL ERROR"),
-                }
-                out.push_str(",\n");
-            }
-        }
-    }
-    Ok(layout(out))
-}
-
-/// Reads a response to calls of `methods`.
-pub fn decode_response(
-    schema: &Schema,
-    methods: &[usize],
-    source: &str,
-) -> Result<Response, Problem> {
-    let nodes = parse(source)?;
-    if let [node] = &nodes[..]
-        && let NodeKind::Call(call) = &node.kind
-        && call.name_text() == "INVALID REQUEST _"
-    {
-        return invalid_request(&call.arguments[0])
-            .map(Response::InvalidRequest)
-            .ok_or_else(|| {
-                problem(
-                    source,
-                    node.span,
-                    "found an `INVALID REQUEST` without a line, column and message".to_string(),
-                )
-            });
-    }
-    if nodes.len() != methods.len() {
-        return Err(problem(
-            source,
-            Span::empty(0),
-            format!(
-                "found {} outcomes; expected one per call, {}",
-                nodes.len(),
-                methods.len()
-            ),
-        ));
-    }
-    methods
-        .iter()
-        .zip(&nodes)
-        .map(|(method, node)| {
-            let method = schema.method_at(*method);
-            let result = match &node.kind {
-                NodeKind::Call(call) => match call.name_text().as_str() {
-                    "NOT RUN" => return Ok(Outcome::NotRun),
-                    "INTERNAL ERROR" => return Ok(Outcome::InternalError),
-                    "ERROR _" => {
-                        let errors = schema.errors_of(method);
-                        let shapes: Vec<&Shape> = errors.iter().map(|error| &error.shape).collect();
-                        decode_variant(
-                            schema,
-                            &shapes,
-                            &call.arguments[0],
-                            &format!("an error of `{}`", method.full_name()),
-                        )
-                        .map(Outcome::Error)
-                    }
-                    text => decode(schema, &method.returns.r#type, node)
-                        .map(Outcome::Value)
-                        .map_err(|mismatch| {
-                            match schema
-                                .errors_of(method)
-                                .iter()
-                                .any(|error| error.shape.text == text)
-                            {
-                                true => Mismatch {
-                                    message: format!(
-                                        "{}; an error is written after `ERROR`, as in `ERROR {}`",
-                                        mismatch.message,
-                                        call.name_text().replace(" _", " …")
-                                    ),
-                                    ..mismatch
-                                },
-                                false => mismatch,
-                            }
-                        }),
-                },
-                _ => decode(schema, &method.returns.r#type, node).map(Outcome::Value),
-            };
-            result.map_err(|mismatch| problem(source, mismatch.span, mismatch.message))
-        })
-        .collect::<Result<_, _>>()
-        .map(Response::Outcomes)
-}
-
-fn invalid_request(node: &Node) -> Option<Problem> {
-    let NodeKind::Braces(nodes) = &node.kind else {
-        return None;
-    };
-    let mut line = None;
-    let mut column = None;
-    let mut message = None;
-    for node in nodes {
-        let NodeKind::Call(call) = &node.kind else {
-            return None;
-        };
-        match (call.name_text().as_str(), &call.arguments.first()?.kind) {
-            ("line _", NodeKind::Number(text)) => line = text.parse().ok(),
-            ("column _", NodeKind::Number(text)) => column = text.parse().ok(),
-            ("message _", NodeKind::String(literal)) => message = Some(literal.value.clone()),
-            _ => return None,
-        }
-    }
-    Some(Problem {
-        line: line?,
-        column: column?,
-        message: message?,
-    })
-}
-
 /// Lays `text` out canonically. The text is always valid anyx, so the
 /// formatter never fails on it; if it did, the text is still a fine message.
-fn layout(text: String) -> String {
+pub(crate) fn layout(text: String) -> String {
     anyx::format(&text).unwrap_or(text)
 }
 
 /// Writes a call of `shape`: its words, with `arguments` in its slots.
-fn write_shape(
+pub(crate) fn write_shape(
     schema: &Schema,
     shape: &Shape,
     arguments: &[Value],
+    form: Form,
     out: &mut String,
 ) -> Result<(), EncodeError> {
     if arguments.len() != shape.parameters.len() {
@@ -660,7 +517,9 @@ fn write_shape(
             out.push(' ');
         }
         match (word, slots.next_if(|_| word == "_")) {
-            (_, Some((parameter, value))) => write_slot(schema, &parameter.r#type, value, out)?,
+            (_, Some((parameter, value))) => {
+                write_slot(schema, &parameter.r#type, value, form, out)?
+            }
             _ => out.push_str(word),
         }
     }
@@ -673,28 +532,30 @@ fn write_slot(
     schema: &Schema,
     r#type: &Type,
     value: &Value,
+    form: Form,
     out: &mut String,
 ) -> Result<(), EncodeError> {
     let call = matches!(value, Value::Boolean(_) | Value::Variant { .. });
     if call {
         out.push('(');
     }
-    write(schema, r#type, value, out)?;
+    write(schema, r#type, value, form, out)?;
     if call {
         out.push(')');
     }
     Ok(())
 }
 
-fn write(
+pub(crate) fn write(
     schema: &Schema,
     r#type: &Type,
     value: &Value,
+    form: Form,
     out: &mut String,
 ) -> Result<(), EncodeError> {
     match value {
-        Value::Text(text) => write_text(text, out),
-        Value::Bytes(bytes) => write_text(&crate::bytes::encode(bytes), out),
+        Value::Text(text) => write_text(text, form, out),
+        Value::Bytes(bytes) => write_text(&crate::bytes::encode(bytes), form, out),
         Value::Integer(integer) => out.push_str(&integer.to_string()),
         Value::Number(number) if number.is_finite() => out.push_str(&format!("{number:?}")),
         Value::Number(number) => {
@@ -708,12 +569,19 @@ fn write(
                 Type::List(item) => item.as_ref(),
                 _ => r#type,
             };
+            let shown = match form {
+                Form::Whole => items.len(),
+                Form::Shortened => items.len().min(SHORTENED_ITEMS),
+            };
             out.push('[');
-            for (index, value) in items.iter().enumerate() {
+            for (index, value) in items[..shown].iter().enumerate() {
                 if index > 0 {
                     out.push_str(", ");
                 }
-                write(schema, item, value, out)?;
+                write(schema, item, value, form, out)?;
+            }
+            if shown < items.len() {
+                out.push_str(", …");
             }
             out.push(']');
         }
@@ -724,7 +592,7 @@ fn write(
             let TypeKind::Record(fields) = &schema.types[*index].kind else {
                 return Err(mismatched(schema, r#type, "a record"));
             };
-            write_fields(schema, fields, values, out)?;
+            write_fields(schema, fields, values, form, out)?;
         }
         Value::Variant { shape, arguments } => {
             let Type::Named(index) = r#type else {
@@ -741,7 +609,7 @@ fn write(
                     ),
                 });
             };
-            write_shape(schema, &variant.shape, arguments, out)?;
+            write_shape(schema, &variant.shape, arguments, form, out)?;
         }
     }
     Ok(())
@@ -759,6 +627,7 @@ fn write_fields(
     schema: &Schema,
     fields: &[Field],
     values: &BTreeMap<String, Value>,
+    form: Form,
     out: &mut String,
 ) -> Result<(), EncodeError> {
     out.push_str("{ ");
@@ -773,23 +642,29 @@ fn write_fields(
         first = false;
         out.push_str(&field.name);
         out.push_str(": ");
-        write(schema, &field.r#type, value, out)?;
+        write(schema, &field.r#type, value, form, out)?;
     }
     out.push_str(" }");
     Ok(())
 }
 
 /// Writes text as a raw string when it has lines and reads back the same,
-/// and as a quoted string otherwise.
-fn write_text(text: &str, out: &mut String) {
-    if text.contains('\n')
+/// and as a quoted string otherwise. Shortened, it is always quoted, on one
+/// line, and text longer than [`SHORTENED_CHARACTERS`] ends in `…`.
+pub(crate) fn write_text(text: &str, form: Form, out: &mut String) {
+    if form == Form::Whole
+        && text.contains('\n')
         && let Some(raw) = raw_string(text)
     {
         out.push_str(&raw);
         return;
     }
+    let shown = match form {
+        Form::Whole => text.chars().count(),
+        Form::Shortened => SHORTENED_CHARACTERS,
+    };
     out.push('"');
-    for c in text.chars() {
+    for c in text.chars().take(shown) {
         match c {
             '"' => out.push_str("\\\""),
             '\\' => out.push_str("\\\\"),
@@ -799,6 +674,9 @@ fn write_text(text: &str, out: &mut String) {
             c if c.is_control() => out.push_str(&format!("\\u{{{:x}}}", c as u32)),
             c => out.push(c),
         }
+    }
+    if text.chars().nth(shown).is_some() {
+        out.push('…');
     }
     out.push('"');
 }

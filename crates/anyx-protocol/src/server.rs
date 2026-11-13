@@ -1,7 +1,8 @@
 //! What a generated server needs: reading a request, turning what a method
 //! returned into an outcome, and writing the response.
 
-use crate::codec::{Call, Outcome, Response, decode_request, encode_response};
+use crate::codec::{Call, Outcome, Response, decode_request};
+use crate::response::encode_response;
 use crate::schema::Schema;
 use crate::value::{FromValue, IntoValue, Value};
 
@@ -46,13 +47,13 @@ pub fn introspect(schema: &Schema) -> Outcome {
 
 /// Writes the response to `calls`. A value with no form on the wire, such as
 /// a `NUMBER` that is not finite, turns its outcome into `INTERNAL ERROR`.
-pub fn respond(schema: &Schema, calls: &[usize], outcomes: Vec<Outcome>) -> String {
+pub fn respond(schema: &Schema, calls: &[Call], outcomes: Vec<Outcome>) -> String {
     let outcomes: Vec<Outcome> = calls
         .iter()
         .zip(outcomes)
-        .map(|(method, outcome)| {
+        .map(|(call, outcome)| {
             let single = Response::Outcomes(vec![outcome]);
-            match encode_response(schema, &[*method], &single) {
+            match encode_response(schema, std::slice::from_ref(call), &single) {
                 Ok(_) => match single {
                     Response::Outcomes(mut outcomes) => outcomes.remove(0),
                     Response::InvalidRequest(_) => unreachable!(),

@@ -67,15 +67,27 @@ fn a_request_reads_back_as_it_was_written() {
 #[test]
 fn a_response_reads_back_as_it_was_written() {
     let schema = poentaro();
-    let methods = [
-        method(&schema, "list files"),
-        method(&schema, "read _"),
-        method(&schema, WRITE),
-        method(&schema, WRITE),
-        method(&schema, "read _"),
-        method(&schema, "read _"),
-        method(&schema, "read _"),
+    let read = |path: &str| Call {
+        method: method(&schema, "read _"),
+        arguments: vec![text(path)],
+    };
+    let write = Call {
+        method: method(&schema, WRITE),
+        arguments: vec![text("Hymns/a.poentaro"), Value::Integer(3), text(SCORE)],
+    };
+    let calls = [
+        Call {
+            method: method(&schema, "list files"),
+            arguments: vec![],
+        },
+        read("a.poentaro"),
+        write.clone(),
+        write,
+        read("a.poentaro"),
+        read("b.poentaro"),
+        read("c.poentaro"),
     ];
+    let methods: Vec<usize> = calls.iter().map(|call| call.method).collect();
     let summary = |path: &str, revision| {
         record(&[("path", text(path)), ("revision", Value::Integer(revision))])
     };
@@ -104,7 +116,7 @@ fn a_response_reads_back_as_it_was_written() {
         Outcome::InternalError,
         Outcome::NotRun,
     ]);
-    let text = encode_response(&schema, &methods, &response).unwrap();
+    let text = encode_response(&schema, &calls, &response).unwrap();
     assert_snapshot("tests/snapshots/response.anyx", &text);
     assert_eq!(decode_response(&schema, &methods, &text).unwrap(), response);
 }
@@ -116,7 +128,11 @@ fn an_error_must_be_one_of_the_methods() {
         "invalid path _",
         vec![text("x")],
     ))]);
-    let error = encode_response(&schema, &[method(&schema, "read _")], &response).unwrap_err();
+    let read = Call {
+        method: method(&schema, "read _"),
+        arguments: vec![text("a.poentaro")],
+    };
+    let error = encode_response(&schema, &[read], &response).unwrap_err();
     assert_eq!(
         error.message,
         "found the error `invalid path _`; expected an error of `read _`"
@@ -273,16 +289,63 @@ fn mistakes_in_a_response_point_at_where_they_are() {
     let schema = poentaro();
     let read = [method(&schema, "read _")];
     let cases = [
-        "ERROR conflict at revision 1 content \"x\"",
-        "ERROR gone",
-        "missing",
-        "NOT RUN, NOT RUN",
+        "read \"a\" ERROR conflict at revision 1 content \"x\"",
+        "read \"a\" ERROR gone",
+        "read \"a\" RETURNS missing",
+        "read \"a\" NOT RUN, read \"b\" NOT RUN",
         "INVALID REQUEST { line 1 }",
+        "ERROR missing",
+        "list files RETURNS []",
+        "read \"a\" ERRORS missing",
     ];
     assert_snapshot(
         "tests/snapshots/response_errors.txt",
         &render(&cases, |source| {
             decode_response(&schema, &read, source).map(|response| format!("{response:?}"))
         }),
+    );
+}
+
+const TAGS: &str = "PROTOCOL a VERSION 1,
+METHOD tag (names: LIST: TEXT) note (note: TEXT) RETURNS (count: INTEGER),";
+
+#[test]
+fn a_response_repeats_each_call_with_long_arguments_shortened() {
+    let schema = schema(TAGS);
+    let names = |count: usize| Value::List((1..=count).map(|n| text(&format!("n{n}"))).collect());
+    let calls = [
+        Call {
+            method: 0,
+            arguments: vec![names(3), text("short\nnote")],
+        },
+        Call {
+            method: 0,
+            arguments: vec![names(4), text(&"a".repeat(33))],
+        },
+        Call {
+            method: 0,
+            arguments: vec![names(0), text(&"é".repeat(32))],
+        },
+    ];
+    let response = Response::Outcomes(vec![
+        Outcome::Value(Value::Integer(3)),
+        Outcome::InternalError,
+        Outcome::NotRun,
+    ]);
+    let methods = [0, 0, 0];
+    let written = encode_response(&schema, &calls, &response).unwrap();
+    assert_eq!(
+        written,
+        format!(
+            "tag [\"n1\", \"n2\", \"n3\"] note \"short\\nnote\" RETURNS 3,\n\
+             tag [\"n1\", \"n2\", \"n3\", …] note \"{}…\" INTERNAL ERROR,\n\
+             tag [] note \"{}\" NOT RUN,\n",
+            "a".repeat(32),
+            "é".repeat(32)
+        )
+    );
+    assert_eq!(
+        decode_response(&schema, &methods, &written).unwrap(),
+        response
     );
 }

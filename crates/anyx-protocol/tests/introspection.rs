@@ -48,9 +48,13 @@ fn schema_answers_the_guide_without_how_to_send() {
     );
     assert!(guide.contains("`SCHEMA` is a call every server answers"));
     let methods = [schema.introspection()];
+    let call = Call {
+        method: schema.introspection(),
+        arguments: vec![],
+    };
     let response = encode_response(
         &schema,
-        &methods,
+        &[call],
         &Response::Outcomes(vec![introspect(&schema)]),
     )
     .unwrap();
@@ -77,7 +81,8 @@ fn the_json_client_calls_schema() {
         "SCHEMA\n"
     );
     assert_eq!(
-        anyx_protocol::json::decode_response_json(&schema, "SCHEMA", "\"guide\"").unwrap(),
+        anyx_protocol::json::decode_response_json(&schema, "SCHEMA", "SCHEMA RETURNS \"guide\"")
+            .unwrap(),
         r#"{"kind":"value","value":"guide"}"#
     );
 }

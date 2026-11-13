@@ -27,18 +27,35 @@ fn bytes_read_back_as_they_were_written() {
     let request = encode_request(&schema, &calls).unwrap();
     assert_eq!(decode_request(&schema, &request).unwrap(), calls);
 
+    let export = Call {
+        method: 0,
+        arguments: vec![Value::Text("a.mid".to_string())],
+    };
     let response = Response::Outcomes(vec![Outcome::Value(Value::Bytes(every_byte()))]);
-    let text = encode_response(&schema, &[0], &response).unwrap();
+    let text = encode_response(&schema, &[export], &response).unwrap();
     assert_eq!(decode_response(&schema, &[0], &text).unwrap(), response);
 }
 
 #[test]
 fn bytes_are_written_as_base64() {
     let schema = schema(FILES);
+    let upload = Call {
+        method: 1,
+        arguments: vec![Value::Bytes(every_byte())],
+    };
+    let response = Response::Outcomes(vec![Outcome::Value(Value::Integer(256))]);
+    assert_eq!(
+        encode_response(&schema, &[upload], &response).unwrap(),
+        "upload \"AAECAwQFBgcICQoLDA0ODxAREhMUFRYX…\" RETURNS 256\n"
+    );
+    let export = Call {
+        method: 0,
+        arguments: vec![Value::Text("a.mid".to_string())],
+    };
     let response = Response::Outcomes(vec![Outcome::Value(Value::Bytes(b"MThd".to_vec()))]);
     assert_eq!(
-        encode_response(&schema, &[0], &response).unwrap(),
-        "\"TVRoZA==\"\n"
+        encode_response(&schema, &[export], &response).unwrap(),
+        "export \"a.mid\" RETURNS \"TVRoZA==\"\n"
     );
 }
 

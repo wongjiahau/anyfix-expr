@@ -22,21 +22,25 @@ fn each_outcome_reads_as_json() {
     let cases = [
         (
             "list files",
-            "[{ path \"a\", revision 1 }]",
+            "list files RETURNS [{ path \"a\", revision 1 }]",
             r#"{"kind":"value","value":[{"path":"a","revision":1}]}"#,
         ),
         (
             WRITE,
-            "ERROR conflict at revision 4 content \"y\"",
+            "write \"a\" at revision 3 content \"x\" ERROR conflict at revision 4 content \"y\"",
             r#"{"error":{"content":"y","kind":"conflictAtRevisionContent","revision":4},"kind":"error"}"#,
         ),
         (
             "read _",
-            "ERROR trashed",
+            "read \"a\" ERROR trashed",
             r#"{"error":{"kind":"trashed"},"kind":"error"}"#,
         ),
-        ("read _", "NOT RUN", r#"{"kind":"notRun"}"#),
-        ("read _", "INTERNAL ERROR", r#"{"kind":"internalError"}"#),
+        ("read _", "read \"a\" NOT RUN", r#"{"kind":"notRun"}"#),
+        (
+            "read _",
+            "read \"a\" INTERNAL ERROR",
+            r#"{"kind":"internalError"}"#,
+        ),
         (
             "read _",
             "INVALID REQUEST { line 1, column 2, message \"m\" }",
@@ -59,7 +63,12 @@ fn bytes_are_base64_in_json() {
     let request = encode_request_json(&schema, "upload _", r#"["TVRoZA=="]"#).unwrap();
     assert_eq!(request, "upload \"TVRoZA==\"\n");
     assert_eq!(
-        decode_response_json(&schema, "upload _", "\"TVRoZA==\"").unwrap(),
+        decode_response_json(
+            &schema,
+            "upload _",
+            "upload \"TVRoZA==\" RETURNS \"TVRoZA==\""
+        )
+        .unwrap(),
         r#"{"kind":"value","value":"TVRoZA=="}"#
     );
     let mistake = encode_request_json(&schema, "upload _", r#"["%%"]"#).unwrap_err();

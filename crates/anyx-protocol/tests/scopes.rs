@@ -108,8 +108,12 @@ fn the_json_client_calls_a_method_by_its_full_name() {
         "files/export/pdf \"a\"\n"
     );
     assert_eq!(
-        anyx_protocol::json::decode_response_json(&schema, "files/export/pdf _", "ERROR missing")
-            .unwrap(),
+        anyx_protocol::json::decode_response_json(
+            &schema,
+            "files/export/pdf _",
+            "files/export/pdf \"a.note\" ERROR missing",
+        )
+        .unwrap(),
         r#"{"error":{"kind":"missing"},"kind":"error"}"#
     );
 }

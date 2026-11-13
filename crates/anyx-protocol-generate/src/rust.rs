@@ -404,15 +404,14 @@ fn handle(out: &mut String, schema: &Schema) {
          pub async fn handle<S: {}>(implementation: &S, request: &str, mut on_internal_error: impl FnMut(<S as Server>::Error)) -> String {{\n\
          \x20   let schema = schema();\n\
          \x20   let calls = match anyx_protocol::server::read_request(schema, request) {{\n        Ok(calls) => calls,\n        Err(response) => return response,\n    }};\n\
-         \x20   let methods: Vec<usize> = calls.iter().map(|call| call.method).collect();\n\
          \x20   let mut outcomes = Vec::new();\n\
          \x20   let mut stopped = false;\n\
-         \x20   for call in calls {{\n\
+         \x20   for call in &calls {{\n\
          \x20       if stopped {{\n            outcomes.push(anyx_protocol::Outcome::NotRun);\n            continue;\n        }}\n\
-         \x20       let mut arguments = call.arguments.into_iter();\n\
+         \x20       let mut arguments = call.arguments.clone().into_iter();\n\
          \x20       let outcome = match call.method {{\n{arms}            {introspection} => Ok::<_, <S as Server>::Error>(anyx_protocol::server::introspect(schema)),\n            _ => unreachable!(\"the codec read a method of the schema\"),\n        }};\n\
          \x20       outcomes.push(outcome.unwrap_or_else(|error| {{\n            on_internal_error(error);\n            stopped = true;\n            anyx_protocol::Outcome::InternalError\n        }}));\n    }}\n\
-         \x20   anyx_protocol::server::respond(schema, &methods, outcomes)\n}}\n\n",
+         \x20   anyx_protocol::server::respond(schema, &calls, outcomes)\n}}\n\n",
         server_traits(schema).join(" + "),
         introspection = schema.introspection(),
     )

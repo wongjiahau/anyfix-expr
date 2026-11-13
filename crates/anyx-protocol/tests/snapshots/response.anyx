@@ -1,5 +1,5 @@
-[{ path "a.poentaro", revision 1 }, { path "b/c.poentaro", revision 7 }],
-{
+list files RETURNS [{ path "a.poentaro", revision 1 }, { path "b/c.poentaro", revision 7 }],
+read "a.poentaro" RETURNS {
     path "a.poentaro",
     revision 1,
     content """"
@@ -11,7 +11,7 @@
 
         """",
 },
-ERROR conflict at revision 4 content """"
+write "Hymns/a.poentaro" at revision 3 content "title \"Ode\"\n\nmelody \"\"\"\n    1 2 …" ERROR conflict at revision 4 content """"
     title "Ode"
 
     melody """
@@ -19,7 +19,9 @@ ERROR conflict at revision 4 content """"
         """
 
     """",
-ERROR rejected [{ line 2, column 5, code "E1", message "found \"x\"; expected a note" }],
-ERROR trashed,
-INTERNAL ERROR,
-NOT RUN,
+write "Hymns/a.poentaro" at revision 3 content "title \"Ode\"\n\nmelody \"\"\"\n    1 2 …" ERROR rejected [
+    { line 2, column 5, code "E1", message "found \"x\"; expected a note" },
+],
+read "a.poentaro" ERROR trashed,
+read "b.poentaro" INTERNAL ERROR,
+read "c.poentaro" NOT RUN,

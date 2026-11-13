@@ -111,8 +111,8 @@ METHOD pdf (path: TEXT) RETURNS (pdf: BYTES)
 ```
 
 - In its own scope, a type or group is named without its path.
-- An error is written on the wire by its words alone, `ERROR missing`, so a
-  method can't list two errors of the same words from different scopes.
+- An error is written on the wire by its words alone, `… ERROR missing`, so
+  a method can't list two errors of the same words from different scopes.
 
 ## Requests
 
@@ -158,15 +158,27 @@ slot, where it would otherwise join the words around it:
 
 ## Responses
 
-One result per call, in order, separated by commas:
+One result per call, in order, separated by commas. Each result repeats
+the call it answers, so a reader can tell which call it answers without
+counting, then says what came of it:
 
-- the value the method returns;
-- `ERROR` and one of the method's errors, filled in:
-  `ERROR conflict at revision 4 content "…"`. A method that returns an error
-  has changed nothing;
+- `RETURNS` and the value the method returns;
+- `ERROR` and one of the method's errors, filled in. A method that returns
+  an error has changed nothing;
 - `INTERNAL ERROR`: the server failed, and logged why. The calls after it
   don't run;
 - `NOT RUN`: an earlier call failed with `INTERNAL ERROR`.
+
+```anyx
+files/read "a.poentaro" RETURNS { path "a.poentaro", revision 3, content "…" },
+files/write "a.poentaro" at revision 3 content "## Twinkle\nkey C\n| 1 1 5 5 | 6 6…" ERROR conflict at revision 4 content "…",
+files/export/midi "b.poentaro" ERROR missing,
+```
+
+The repeated call is a label, so long arguments are shortened: text keeps
+its first 32 characters and a list its first 3 items, each followed by `…`,
+and text is always quoted on one line. A reader checks that each result
+repeats a call of the method in its place, and doesn't read the arguments.
 
 A request that can't be read gets one result in place of all of them, and
 none of its calls run:

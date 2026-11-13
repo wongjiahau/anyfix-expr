@@ -444,15 +444,14 @@ pub async fn handle<S: Server>(
         Ok(calls) => calls,
         Err(response) => return response,
     };
-    let methods: Vec<usize> = calls.iter().map(|call| call.method).collect();
     let mut outcomes = Vec::new();
     let mut stopped = false;
-    for call in calls {
+    for call in &calls {
         if stopped {
             outcomes.push(anyx_protocol::Outcome::NotRun);
             continue;
         }
-        let mut arguments = call.arguments.into_iter();
+        let mut arguments = call.arguments.clone().into_iter();
         let outcome = match call.method {
             0 => anyx_protocol::server::value(<S as Server>::list_files(implementation).await),
             1 => anyx_protocol::server::result(
@@ -495,7 +494,7 @@ pub async fn handle<S: Server>(
             anyx_protocol::Outcome::InternalError
         }));
     }
-    anyx_protocol::server::respond(schema, &methods, outcomes)
+    anyx_protocol::server::respond(schema, &calls, outcomes)
 }
 
 /// Calls the methods of the schema through a [`Transport`], one call per

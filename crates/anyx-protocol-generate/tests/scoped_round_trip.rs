@@ -184,7 +184,10 @@ fn a_request_calls_each_method_by_its_full_name() {
         "files/list, files/export/pdf \"a\"",
         |error| match error {},
     ));
-    assert_eq!(response, "[\"a\"],\n\"aGk=\",\n");
+    assert_eq!(
+        response,
+        "files/list RETURNS [\"a\"],\nfiles/export/pdf \"a\" RETURNS \"aGk=\",\n"
+    );
 }
 
 #[test]

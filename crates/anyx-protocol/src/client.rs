@@ -2,9 +2,8 @@
 
 use std::future::Future;
 
-use crate::codec::{
-    Call, EncodeError, Outcome, Problem, Response, decode_response, encode_request,
-};
+use crate::codec::{Call, EncodeError, Outcome, Problem, Response, encode_request};
+use crate::response::decode_response;
 use crate::schema::Schema;
 use crate::value::{FromValue, Value};
 
