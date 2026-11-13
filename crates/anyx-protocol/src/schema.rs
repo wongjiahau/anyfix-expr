@@ -156,6 +156,30 @@ pub enum Type {
     Named(usize),
 }
 
+/// The words of the built-in call every server answers with the guide to
+/// its schema, without how to send a request: `SCHEMA`. All-caps words
+/// belong to the schema language, so no method of a schema is called that.
+pub const INTROSPECTION: &str = "SCHEMA";
+
+/// The built-in `SCHEMA` method: no parameters, returning the guide as
+/// `TEXT`, with no errors.
+pub fn introspection() -> &'static Method {
+    static METHOD: std::sync::LazyLock<Method> = std::sync::LazyLock::new(|| Method {
+        scope: Vec::new(),
+        doc: Some("The guide to this protocol and its schema.".to_string()),
+        shape: Shape {
+            text: INTROSPECTION.to_string(),
+            parameters: Vec::new(),
+        },
+        returns: Parameter {
+            name: "guide".to_string(),
+            r#type: Type::Text,
+        },
+        errors: Vec::new(),
+    });
+    &METHOD
+}
+
 /// `name` behind the path of `scope`: `common/diagnostic`, or `name` alone
 /// in the root.
 pub fn scoped(scope: &[String], name: &str) -> String {
@@ -260,11 +284,28 @@ impl Schema {
         }
     }
 
-    /// The method a request calls by `full_name`, such as `files/read _`.
+    /// The method a request calls by `full_name`, such as `files/read _`,
+    /// or `SCHEMA`, the built-in one.
     pub fn method(&self, full_name: &str) -> Option<&Method> {
         self.methods
             .iter()
+            .chain([introspection()])
             .find(|method| method.full_name() == full_name)
+    }
+
+    /// The index of the built-in `SCHEMA` call, one past the schema's own
+    /// methods, as a [`crate::Call`]'s `method` holds it.
+    pub fn introspection(&self) -> usize {
+        self.methods.len()
+    }
+
+    /// The method at `index`: one of the schema's own, or the built-in
+    /// `SCHEMA` one past them.
+    pub fn method_at(&self, index: usize) -> &Method {
+        match index == self.introspection() {
+            true => introspection(),
+            false => &self.methods[index],
+        }
     }
 
     /// The errors `method` may return.

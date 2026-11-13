@@ -122,6 +122,15 @@ In a schema of scopes, each call starts with its scope's path:
 
 Every call runs, in order.
 
+`SCHEMA` is a built-in call every server answers, with no code of its own:
+it returns the guide (below) as `TEXT`, without how to send a request,
+since the caller just sent one. A client that has only a server's address
+learns everything else from it:
+
+```anyx
+SCHEMA,
+```
+
 ## Values
 
 | Type | Written |
@@ -173,5 +182,6 @@ A result is `{ "kind": "value", "value": … }`, `{ "kind": "error",
 ## The guide
 
 `anyx_protocol::guide(schema, how_to_send)` writes the markdown an agent
-reads before its first request: these rules, briefly, then the schema with
+reads before its first request, and what `SCHEMA` answers (with
+`how_to_send` empty): these rules, briefly, then the schema with
 its `#` lines, a section per scope's file.

@@ -38,6 +38,12 @@ pub fn result<T: IntoValue, E: IntoValue, X>(
     })
 }
 
+/// The outcome of the built-in `SCHEMA` call: the guide to `schema`,
+/// without how to send a request, since the caller just sent one.
+pub fn introspect(schema: &Schema) -> Outcome {
+    Outcome::Value(Value::Text(crate::guide::guide(schema, "")))
+}
+
 /// Writes the response to `calls`. A value with no form on the wire, such as
 /// a `NUMBER` that is not finite, turns its outcome into `INTERNAL ERROR`.
 pub fn respond(schema: &Schema, calls: &[usize], outcomes: Vec<Outcome>) -> String {

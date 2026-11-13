@@ -127,4 +127,9 @@ export class Client {
   exportMidi(path: string): Promise<Outcome<string, ExportMidiError>> {
     return this.call("export midi _", [path]);
   }
+
+  /** `SCHEMA`, returning the guide to the schema. */
+  schema(): Promise<Outcome<string, never>> {
+    return this.call("SCHEMA", []);
+  }
 }

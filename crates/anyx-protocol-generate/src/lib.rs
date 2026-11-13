@@ -169,7 +169,19 @@ fn check_names(schema: &Schema) -> Result<(), Error> {
                 format!("the scope `{}` in {}", child.join("/"), scope_name(&scope)),
             )
         });
-        distinct("method", reserved_methods().chain(methods).chain(scopes))?;
+        let introspection = scope.is_empty().then(|| {
+            (
+                "schema".to_string(),
+                "the client's `schema`, which calls `SCHEMA`".to_string(),
+            )
+        });
+        distinct(
+            "method",
+            reserved_methods()
+                .chain(introspection)
+                .chain(methods)
+                .chain(scopes),
+        )?;
         if let Some(segment) = scope
             .iter()
             .find(|segment| ["self", "super", "crate"].contains(&segment.as_str()))

@@ -5,7 +5,8 @@
 use crate::schema::{Method, Schema, Type, TypeKind, scoped};
 
 /// The guide to `schema`. `how_to_send` tells the reader where and how to
-/// send a request, such as the URL and the header to send it with.
+/// send a request, such as the URL and the header to send it with; when it
+/// is empty, as in the answer to `SCHEMA`, the guide leaves it out.
 pub fn guide(schema: &Schema, how_to_send: &str) -> String {
     let widest = schema
         .methods
@@ -28,9 +29,7 @@ pub fn guide(schema: &Schema, how_to_send: &str) -> String {
     format!(
         "# {name} (anyx protocol, version {version})
 
-{how_to_send}
-
-## Requests
+{how_to_send}## Requests
 
 A request is a list of calls separated by commas. Each call is written in the
 shape of one of the methods below, with a value in each `(name: TYPE)` slot:
@@ -38,6 +37,8 @@ shape of one of the methods below, with a value in each `(name: TYPE)` slot:
     {example}
 {scoped_example}
 Every call runs, in order, and the response has one result per call.
+
+`SCHEMA` is a call every server answers, with this guide.
 
 ## Values
 
@@ -88,6 +89,10 @@ words are names; all-caps words belong to the schema language. `ERRORS name
 ",
         name = schema.name,
         version = schema.version,
+        how_to_send = match how_to_send.is_empty() {
+            true => String::new(),
+            false => format!("{how_to_send}\n\n"),
+        },
         scopes = match schema.files.len() {
             1 => "",
             _ => SCOPES,

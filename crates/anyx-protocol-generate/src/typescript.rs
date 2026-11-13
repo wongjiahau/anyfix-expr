@@ -61,9 +61,11 @@ pub fn typescript(schema: &Schema) -> Result<String, Error> {
             )
         })
         .collect();
+    let introspection = "  /** `SCHEMA`, returning the guide to the schema. */\n  schema(): Promise<Outcome<string, never>> {\n    return this.call(\"SCHEMA\", []);\n  }\n".to_string();
     out.push_str(
         &root_methods
             .into_iter()
+            .chain([introspection])
             .chain(scopes)
             .collect::<Vec<_>>()
             .join("\n"),

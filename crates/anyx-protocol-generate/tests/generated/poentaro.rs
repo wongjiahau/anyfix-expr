@@ -486,6 +486,7 @@ pub async fn handle<S: Server>(
                 )
                 .await,
             ),
+            5 => Ok::<_, <S as Server>::Error>(anyx_protocol::server::introspect(schema)),
             _ => unreachable!("the codec read a method of the schema"),
         };
         outcomes.push(outcome.unwrap_or_else(|error| {
@@ -569,5 +570,10 @@ impl<T: Transport> Client<T> {
         path: String,
     ) -> Result<Vec<u8>, CallError<ExportMidiError, T::Error>> {
         anyx_protocol::client::call(&self.transport, schema(), 4, vec![path.into_value()]).await
+    }
+
+    /// `SCHEMA`, returning the guide to the schema.
+    pub async fn schema(&self) -> Result<String, CallError<::std::convert::Infallible, T::Error>> {
+        anyx_protocol::client::call(&self.transport, schema(), 5, vec![]).await
     }
 }

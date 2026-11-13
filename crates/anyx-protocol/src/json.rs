@@ -29,7 +29,8 @@ pub fn camel_case(name: &str) -> String {
         .collect()
 }
 
-/// Writes one call of the method `full_name`, such as `files/read _`, as a
+/// Writes one call of the method `full_name`, such as `files/read _` or
+/// `SCHEMA`, as a
 /// request. `arguments` is a JSON array with one value per parameter.
 pub fn encode_request_json(
     schema: &Schema,
@@ -37,7 +38,7 @@ pub fn encode_request_json(
     arguments: &str,
 ) -> Result<String, String> {
     let index = method_index(schema, full_name)?;
-    let method = &schema.methods[index];
+    let method = schema.method_at(index);
     let arguments: Vec<Json> =
         serde_json::from_str(arguments).map_err(|error| error.to_string())?;
     if arguments.len() != method.shape.parameters.len() {
@@ -90,10 +91,10 @@ pub fn decode_response_json(
         Response::Outcomes(outcomes) => match outcomes.into_iter().next() {
             Some(Outcome::Value(value)) => json!({
                 "kind": "value",
-                "value": to_json(schema, &schema.methods[index].returns.r#type, &value),
+                "value": to_json(schema, &schema.method_at(index).returns.r#type, &value),
             }),
             Some(Outcome::Error(Value::Variant { shape, arguments })) => {
-                let method = &schema.methods[index];
+                let method = schema.method_at(index);
                 let shapes: Vec<&Shape> = schema
                     .errors_of(method)
                     .iter()
@@ -111,10 +112,8 @@ pub fn decode_response_json(
 }
 
 fn method_index(schema: &Schema, full_name: &str) -> Result<usize, String> {
-    schema
-        .methods
-        .iter()
-        .position(|method| method.full_name() == full_name)
+    (0..=schema.introspection())
+        .find(|index| schema.method_at(*index).full_name() == full_name)
         .ok_or_else(|| format!("found the method `{full_name}`; expected a method of the schema"))
 }
 

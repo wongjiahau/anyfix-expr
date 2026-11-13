@@ -14,6 +14,8 @@ path, `/`, then the call.
 
 Every call runs, in order, and the response has one result per call.
 
+`SCHEMA` is a call every server answers, with this guide.
+
 ## Values
 
 - TEXT is a string: `"some text"`. Escape `\"` and `\\`, and write a line

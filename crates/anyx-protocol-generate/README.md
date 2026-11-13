@@ -21,8 +21,9 @@ The schema is one file, or a folder of scopes (see
   returns `Result<Result<T, MethodError>, Self::Error>`; the outer `Err` is
   the server's own failure, which the caller sees as `INTERNAL ERROR`.
 - `handle(server, request, on_internal_error)`, which reads a request, runs
-  its calls and writes the response.
-- A `Client<T: Transport>` with a method per schema method.
+  its calls and writes the response. It answers `SCHEMA` itself.
+- A `Client<T: Transport>` with a method per schema method, and `schema()`,
+  which calls the built-in `SCHEMA` and returns the guide.
 - `SCHEMA_FILES`, the schema as written, and `schema()`, the schema read
   once, for `anyx_protocol::guide`.
 

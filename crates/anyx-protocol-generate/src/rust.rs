@@ -410,10 +410,11 @@ fn handle(out: &mut String, schema: &Schema) {
          \x20   for call in calls {{\n\
          \x20       if stopped {{\n            outcomes.push(anyx_protocol::Outcome::NotRun);\n            continue;\n        }}\n\
          \x20       let mut arguments = call.arguments.into_iter();\n\
-         \x20       let outcome = match call.method {{\n{arms}            _ => unreachable!(\"the codec read a method of the schema\"),\n        }};\n\
+         \x20       let outcome = match call.method {{\n{arms}            {introspection} => Ok::<_, <S as Server>::Error>(anyx_protocol::server::introspect(schema)),\n            _ => unreachable!(\"the codec read a method of the schema\"),\n        }};\n\
          \x20       outcomes.push(outcome.unwrap_or_else(|error| {{\n            on_internal_error(error);\n            stopped = true;\n            anyx_protocol::Outcome::InternalError\n        }}));\n    }}\n\
          \x20   anyx_protocol::server::respond(schema, &methods, outcomes)\n}}\n\n",
-        server_traits(schema).join(" + ")
+        server_traits(schema).join(" + "),
+        introspection = schema.introspection(),
     )
     .unwrap();
 }
@@ -463,7 +464,17 @@ fn client(out: &mut String, schema: &Schema, scope: &[String]) {
             )
         })
         .collect();
-    let members = (methods + &scopes).trim_end_matches('\n').to_string() + "\n";
+    let introspection = match root {
+        true => format!(
+            "    /// `SCHEMA`, returning the guide to the schema.\n    pub async fn schema(&self) -> Result<String, CallError<::std::convert::Infallible, T::Error>> {{\n        anyx_protocol::client::call(&self.transport, schema(), {}, vec![]).await\n    }}\n\n",
+            schema.introspection()
+        ),
+        false => String::new(),
+    };
+    let members = (methods + &introspection + &scopes)
+        .trim_end_matches('\n')
+        .to_string()
+        + "\n";
     match root {
         true => write!(
             out,

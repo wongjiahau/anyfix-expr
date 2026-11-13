@@ -173,12 +173,12 @@ fn decode_call(schema: &Schema, node: &Node) -> Result<Call, Mismatch> {
         scope: Vec::new(),
         call: node,
     });
-    let methods: Vec<usize> = (0..schema.methods.len())
-        .filter(|index| schema.methods[*index].scope == scope)
+    let methods: Vec<usize> = (0..=schema.introspection())
+        .filter(|index| schema.method_at(*index).scope == scope)
         .collect();
     let shapes: Vec<&Shape> = methods
         .iter()
-        .map(|index| &schema.methods[*index].shape)
+        .map(|index| &schema.method_at(*index).shape)
         .collect();
     let all_methods = || {
         schema
@@ -188,7 +188,7 @@ fn decode_call(schema: &Schema, node: &Node) -> Result<Call, Mismatch> {
             .collect::<Vec<_>>()
             .join(", ")
     };
-    if methods.is_empty() && !scope.is_empty() {
+    if methods.is_empty() {
         return Err(Mismatch {
             span: node.span,
             message: format!(
@@ -459,7 +459,7 @@ pub fn encode_request(schema: &Schema, calls: &[Call]) -> Result<String, EncodeE
     let written = calls
         .iter()
         .map(|call| {
-            let method = &schema.methods[call.method];
+            let method = schema.method_at(call.method);
             let mut shape = String::new();
             write_shape(schema, &method.shape, &call.arguments, &mut shape)?;
             Ok(scoped(&method.scope, layout(shape).trim_end()))
@@ -490,7 +490,7 @@ pub fn encode_response(
         }
         Response::Outcomes(outcomes) => {
             for (method, outcome) in methods.iter().zip(outcomes) {
-                let method = &schema.methods[*method];
+                let method = schema.method_at(*method);
                 match outcome {
                     Outcome::Value(value) => {
                         write(schema, &method.returns.r#type, value, &mut out)?
@@ -562,7 +562,7 @@ pub fn decode_response(
         .iter()
         .zip(&nodes)
         .map(|(method, node)| {
-            let method = &schema.methods[*method];
+            let method = schema.method_at(*method);
             let result = match &node.kind {
                 NodeKind::Call(call) => match call.name_text().as_str() {
                     "NOT RUN" => return Ok(Outcome::NotRun),

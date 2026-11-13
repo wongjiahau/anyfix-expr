@@ -131,6 +131,7 @@ pub async fn handle<S: Server + files::Server + files::export::Server>(
                 )
                 .await,
             ),
+            5 => Ok::<_, <S as Server>::Error>(anyx_protocol::server::introspect(schema)),
             _ => unreachable!("the codec read a method of the schema"),
         };
         outcomes.push(outcome.unwrap_or_else(|error| {
@@ -151,6 +152,11 @@ pub struct Client<T> {
 impl<T: Transport> Client<T> {
     pub fn new(transport: T) -> Self {
         Self { transport }
+    }
+
+    /// `SCHEMA`, returning the guide to the schema.
+    pub async fn schema(&self) -> Result<String, CallError<::std::convert::Infallible, T::Error>> {
+        anyx_protocol::client::call(&self.transport, schema(), 5, vec![]).await
     }
 
     /// The methods of the scope `files`.

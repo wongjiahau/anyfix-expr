@@ -186,3 +186,10 @@ fn a_request_calls_each_method_by_its_full_name() {
     ));
     assert_eq!(response, "[\"a\"],\n\"aGk=\",\n");
 }
+
+#[test]
+fn the_client_reads_the_guide_through_schema() {
+    let guide = run(client().schema()).unwrap();
+    assert_eq!(guide, anyx_protocol::guide(notes::schema(), ""));
+    assert!(guide.contains("files/export/pdf"), "{guide}");
+}

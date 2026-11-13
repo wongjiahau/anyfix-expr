@@ -85,6 +85,11 @@ export class Client {
     return JSON.parse(this.codec.decodeResponse(method, response)) as Outcome<T, E>;
   }
 
+  /** `SCHEMA`, returning the guide to the schema. */
+  schema(): Promise<Outcome<string, never>> {
+    return this.call("SCHEMA", []);
+  }
+
   readonly files = {
     list: (): Promise<Outcome<string[], never>> =>
       this.call("files/list", []),
