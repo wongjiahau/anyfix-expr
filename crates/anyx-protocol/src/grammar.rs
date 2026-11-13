@@ -287,7 +287,6 @@ impl support::Errors for Definition {
         match self {
             Definition::Record(value) => support::Errors::errors(value, found),
             Definition::Choice(value) => support::Errors::errors(value, found),
-            Definition::Error(value) => support::Errors::errors(value, found),
             Definition::Errors(value) => support::Errors::errors(value, found),
             Definition::Method(value) => support::Errors::errors(value, found),
         }
@@ -373,21 +372,6 @@ impl support::Errors for VariantSlot {
     }
 }
 
-impl support::Errors for Error {
-    fn errors<'a>(&'a self, found: &mut std::vec::Vec<&'a support::DecodeError>) {
-        match self {
-            Error::Public { doc, shape, .. } => {
-                support::Errors::errors(doc, found);
-                support::Errors::errors(shape, found);
-            }
-            Error::Private { doc, shape, .. } => {
-                support::Errors::errors(doc, found);
-                support::Errors::errors(shape, found);
-            }
-        }
-    }
-}
-
 impl support::Errors for Errors {
     fn errors<'a>(&'a self, found: &mut std::vec::Vec<&'a support::DecodeError>) {
         match self {
@@ -400,13 +384,6 @@ impl support::Errors for Errors {
                 support::Errors::errors(body, found);
             }
         }
-    }
-}
-
-impl support::Errors for ErrorsBody {
-    fn errors<'a>(&'a self, found: &mut std::vec::Vec<&'a support::DecodeError>) {
-        support::Errors::errors(&self.name, found);
-        support::Errors::errors(&self.members, found);
     }
 }
 
@@ -439,11 +416,16 @@ impl support::Errors for Method {
     }
 }
 
-impl support::Errors for ErrorList {
+impl support::Errors for ErrorTerm {
     fn errors<'a>(&'a self, found: &mut std::vec::Vec<&'a support::DecodeError>) {
         match self {
-            ErrorList::Several(value) => support::Errors::errors(value, found),
-            ErrorList::One(value) => support::Errors::errors(value, found),
+            ErrorTerm::Own(value) => support::Errors::errors(value, found),
+            ErrorTerm::Call {
+                name, arguments, ..
+            } => {
+                support::Errors::errors(name, found);
+                support::Errors::errors(arguments, found);
+            }
         }
     }
 }

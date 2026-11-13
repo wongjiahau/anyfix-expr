@@ -179,6 +179,9 @@ fn choices_that_compete_get_a_warning() {
             "ENTRY: value, value: ONE OF [a: ANYFIX CALL [name: WORDS [NO KEYWORD], x: STRING], b: ANYFIX CALL [name: WORDS [NO KEYWORD], x: NUMBER]]",
             "ENTRY: value, value: ONE OF [a: ANYFIX CALL [name: WORDS, x: STRING], b: ANYFIX CALL [NAME [NO KEYWORD]]]",
             "ENTRY: value, value: ONE OF [a: WORD \"null\", b: ANYFIX CALL [name: WORDS, x: OPTIONAL: STRING]]",
+            "ENTRY: value, value: ONE OF [size: ANYFIX CALL [key: WORDS \"max size\", x], field: ANYFIX CALL [NAME [ENDS WITH \" _\"], ARGUMENTS: x]], x: ONE OF [s: STRING, n: NUMBER]",
+            "ENTRY: value, value: ONE OF [size: ANYFIX CALL [key: WORDS \"max size\", x: ZERO OR MORE: STRING], field: ANYFIX CALL [NAME [ENDS WITH \" _\"], ARGUMENTS: STRING]]",
+            "ENTRY: value, value: ONE OF [pair: ANYFIX CALL [x: STRING, WORD \"to\", y: STRING], field: ANYFIX CALL [NAME [ENDS WITH \" _\"], ARGUMENTS: ZERO OR MORE: STRING]]",
         ]),
     );
 }
