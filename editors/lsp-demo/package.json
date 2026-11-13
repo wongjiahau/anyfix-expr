@@ -1,0 +1,17 @@
+{
+  "name": "anyx-lsp-demo",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "cargo build -p anyx-lsp --example poentaro-lsp && vite"
+  },
+  "dependencies": {
+    "monaco-editor": "0.52.2"
+  },
+  "devDependencies": {
+    "@types/ws": "8.5.13",
+    "typescript": "5.7.3",
+    "vite": "6.3.5",
+    "ws": "8.18.0"
+  }
+}

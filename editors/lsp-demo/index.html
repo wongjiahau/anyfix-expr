@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>anyx language server</title>
+    <style>
+      html, body { margin: 0; height: 100%; font-family: system-ui, sans-serif; background: #1e1e1e; color: #ccc; }
+      body { display: flex; flex-direction: column; }
+      header { padding: 8px 16px; font-size: 13px; display: flex; gap: 16px; align-items: baseline; }
+      header strong { color: #fff; }
+      #status { margin-left: auto; }
+      #editor { flex: 1; min-height: 0; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <strong>poentaro-lsp</strong>
+      <span>completion: Ctrl+Space · format: Shift+Alt+F</span>
+      <span id="status">connecting…</span>
+    </header>
+    <div id="editor"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "types": [
+      "vite/client"
+    ],
+    "paths": {
+      "monaco-editor": [
+        "./node_modules/monaco-editor"
+      ]
+    }
+  },
+  "include": [
+    "src",
+    "vite.config.ts",
+    "../monaco/anyx-monaco.ts"
+  ]
+}
