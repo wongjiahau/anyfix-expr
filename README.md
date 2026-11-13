@@ -496,6 +496,12 @@ above into it:
 anyx-generate grammar.anyx > src/parser.rs
 ```
 
+## Editor highlighting
+
+[`editors/monaco`](editors/monaco/README.md) has syntax highlighting for the
+Monaco editor: one file to copy into your app, the same for every anyx
+document.
+
 ## License
 
 Licensed under either of [Apache License, Version 2.0](LICENSE-APACHE) or
