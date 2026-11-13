@@ -522,8 +522,10 @@ fn words_decode_to_their_text_after_an_optional_leading_part() {
 fn words_in_one_string_match_in_a_row_and_keep_their_span() {
     let source = "max size 3 per page, sans serif";
     let document = corners::decode_document(&parse(source)).unwrap();
-    let [corners::Node::PerPage { key, size, .. }, corners::Node::SansSerif { .. }] =
-        &document.node[..]
+    let [
+        corners::Node::PerPage { key, size, .. },
+        corners::Node::SansSerif { .. },
+    ] = &document.node[..]
     else {
         panic!("{:?}", document.node);
     };
@@ -635,4 +637,35 @@ fn parse_document_gives_the_syntax_errors_and_the_document() {
     assert_eq!(messages.len(), 1, "{messages:?}");
     let document = parsed.document.unwrap();
     assert_eq!(document.package.fields.name.value.value.value, "demo");
+}
+
+#[test]
+fn line_strings_document_the_types_and_what_may_be_written() {
+    let source = "ENTRY: EACH: setting,
+# One thing to set.
+setting: ONE OF [
+  # The size of the text,
+  # in points.
+  size: ANYFIX CALL [WORDS \"size\", points: NUMBER],
+  ## Only for whoever reads the grammar.
+  color: ANYFIX CALL [WORDS \"color\", name: STRING],
+  # A switch.
+  flag: WORD \"flag\",
+]";
+    let generated = anyx_generator::generate(source).unwrap().code;
+    assert!(
+        generated.contains("/// One thing to set.\n#[derive"),
+        "{generated}"
+    );
+    assert!(
+        generated.contains("/// The size of the text,\n/// in points.\nSize"),
+        "{generated}"
+    );
+    assert!(!generated.contains("Only for whoever"), "{generated}");
+    assert!(
+        generated.contains(
+            "pub const DOCUMENTATION: &[(&str, &str)] = &[\n(\"the call `size _`\", \"The size of the text,\\nin points.\"),\n(\"the word `size`\", \"The size of the text,\\nin points.\"),\n(\"the word `flag`\", \"A switch.\"),\n(\"the call `color _`\", \"One thing to set.\"),\n(\"the word `color`\", \"One thing to set.\"),\n];"
+        ),
+        "{generated}"
+    );
 }

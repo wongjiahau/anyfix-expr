@@ -1,8 +1,9 @@
 //! Decoding grammars into the grammar language's typed tree.
 
+use anyx::Span;
 use anyx_generator::grammar::{
-    Contents, Document, Element, Number, NumberCondition, Pattern, Repetition, String as Text,
-    decode_document,
+    Contents, Document, Element, Named, Number, NumberCondition, Pattern, Repetition,
+    String as Text, decode_document,
 };
 
 fn decode(source: &str) -> Result<Document, String> {
@@ -16,12 +17,30 @@ fn fixture(path: &str) -> String {
     std::fs::read_to_string(&path).unwrap_or_else(|error| panic!("{path}: {error}"))
 }
 
+/// The name as written: `value _` when plain, `value` when documented.
+fn name_text(named: &Named) -> &str {
+    match named {
+        Named::Documented { name, .. } => name.value.as_str(),
+        Named::Plain { name, .. } => name.text.as_str(),
+    }
+}
+
+fn name_span(named: &Named) -> Span {
+    match named {
+        Named::Documented { name, .. } => name.span,
+        Named::Plain { name, .. } => name.span,
+    }
+}
+
+fn body(named: &Named) -> &Pattern {
+    match named {
+        Named::Documented { pattern, .. } => pattern,
+        Named::Plain { arguments, .. } => arguments,
+    }
+}
+
 fn rule_names(document: &Document) -> Vec<&str> {
-    document
-        .rule
-        .iter()
-        .map(|rule| rule.name.text.as_str())
-        .collect()
+    document.rule.iter().map(name_text).collect()
 }
 
 #[test]
@@ -72,14 +91,14 @@ fn the_json_grammar_decodes() {
         rule_names(&document),
         ["value _", "object _", "member _", "array _"]
     );
-    let Pattern::OneOf(value) = &document.rule[0].arguments else {
+    let Pattern::OneOf(value) = body(&document.rule[0]) else {
         panic!("value is a ONE OF");
     };
     let choices: Vec<&str> = value
         .choices
         .iter()
         .map(|choice| match choice {
-            Element::Field(field) => field.name.text.as_str(),
+            Element::Field(field) => name_text(field),
             Element::Pattern(Pattern::Reference(reference)) => reference.name.text.as_str(),
             Element::Pattern(Pattern::Word(word)) => word.text.value.value.as_str(),
             other => panic!("unexpected choice {other:?}"),
@@ -111,8 +130,8 @@ fn every_node_has_its_span() {
     };
     assert_eq!(text(pattern.span()), "size");
     let rule = &document.rule[0];
-    assert_eq!(text(rule.name.span), "size");
-    let Pattern::Number(Number::Conditions { conditions, .. }) = &rule.arguments else {
+    assert_eq!(text(name_span(rule)), "size");
+    let Pattern::Number(Number::Conditions { conditions, .. }) = body(rule) else {
         panic!("size is a number with conditions");
     };
     assert_eq!(text(conditions.span), "[INTEGER, AT LEAST 0x10]");
@@ -126,10 +145,30 @@ fn every_node_has_its_span() {
 #[test]
 fn strings_keep_their_decoded_value() {
     let document = decode("ENTRY: value, value: STRING \"a\\n\"").unwrap();
-    let Pattern::String(Text::Exact { text, .. }) = &document.rule[0].arguments else {
+    let Pattern::String(Text::Exact { text, .. }) = body(&document.rule[0]) else {
         panic!("value is an exact string");
     };
     assert_eq!(text.value.value, "a\n");
+}
+
+#[test]
+fn a_line_string_above_a_rule_documents_it() {
+    let source = "ENTRY: size,\n# How big it is,\n# in points.\nsize: NUMBER,\n## Only for whoever reads the grammar.\nname: STRING";
+    let document = decode(source).unwrap();
+    let Named::Documented {
+        documentation,
+        name,
+        ..
+    } = &document.rule[0]
+    else {
+        panic!("size is documented");
+    };
+    assert_eq!(name.value, "size");
+    assert_eq!(documentation.value.value, "How big it is,\nin points.");
+    assert!(
+        matches!(&document.rule[1], Named::Plain { .. }),
+        "a comment documents nothing"
+    );
 }
 
 /// Each bad grammar with the error it gives, as rendered for a terminal.
@@ -198,7 +237,7 @@ fn bad_grammars_say_what_was_found_and_what_was_expected() {
         ),
         (
             "ENTRY: value, 5",
-            "grammar:1:15: found the number `5`; expected a call whose name matches the regex `^[a-z][a-z0-9]*( [a-z][a-z0-9]*)* _$` or the end of the document
+            "grammar:1:15: found the number `5`; expected the call `_ … _`, a call whose name matches the regex `^[a-z][a-z0-9]*( [a-z][a-z0-9]*)* _$` or the end of the document
   ENTRY: value, 5
                 ^",
         ),

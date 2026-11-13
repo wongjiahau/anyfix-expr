@@ -121,6 +121,29 @@ fn it_completes_the_value_a_key_takes() {
 }
 
 #[test]
+fn completions_carry_the_documentation_the_grammar_wrote_above_them() {
+    let documentation = |source_with_cursor: &str, label: &str| {
+        let offset = source_with_cursor.find('|').unwrap();
+        let source = source_with_cursor.replace('|', "");
+        anyx_lsp::complete(&Poentaro, &source, offset)
+            .into_iter()
+            .find(|completion| completion.label == label)
+            .unwrap_or_else(|| panic!("no completion `{label}`"))
+            .documentation
+    };
+    assert_eq!(
+        documentation("metadata { | }", "max measures per system").as_deref(),
+        Some("At most this many measures on one line.")
+    );
+    assert_eq!(
+        documentation("metadata { hide resting parts : | }", "no").as_deref(),
+        Some("Turn it off.")
+    );
+    // A `##` comment documents nothing.
+    assert_eq!(documentation("metadata { | }", "parts list columns"), None);
+}
+
+#[test]
 fn a_wrong_value_is_a_problem_naming_the_values_there_are() {
     let messages = |source: &str| {
         Poentaro

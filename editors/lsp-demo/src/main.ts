@@ -2,7 +2,7 @@
  * Monaco, talking to an anyx language server that runs as WebAssembly in a
  * Web Worker (see worker.ts), so the page needs no server. The client is
  * small on purpose: it speaks just enough of the protocol for diagnostics,
- * completion, formatting and folding.
+ * completion (with the grammar's `#` documentation), formatting and folding.
  */
 
 import * as monaco from 'monaco-editor'
@@ -130,7 +130,12 @@ monaco.languages.registerCompletionItemProvider(languageId, {
   triggerCharacters: [' ', '[', '{', '('],
   async provideCompletionItems(model, position) {
     await ready
-    const items: { label: string; detail?: string; insertText: string }[] = await request(
+    const items: {
+      label: string
+      detail?: string
+      documentation?: { kind: string; value: string }
+      insertText: string
+    }[] = await request(
       'textDocument/completion',
       { textDocument, position: { line: position.lineNumber - 1, character: position.column - 1 } },
     )
@@ -140,6 +145,7 @@ monaco.languages.registerCompletionItemProvider(languageId, {
       suggestions: items.map((item) => ({
         label: item.label,
         detail: item.detail,
+        documentation: item.documentation && { value: item.documentation.value },
         kind: monaco.languages.CompletionItemKind.Keyword,
         insertText: item.insertText,
         insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,

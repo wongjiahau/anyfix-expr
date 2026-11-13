@@ -71,6 +71,7 @@ pub enum MetadataField {
     Style(TextStyle),
     Number(NumberField),
     Flag(FlagField),
+    /// How far the directives above a row move, in points: `(0, -4)`.
     DirectiveRowOffset {
         key: Span,
         offset: MetadataFieldDirectiveRowOffsetOffset,
@@ -92,16 +93,19 @@ pub struct MetadataFieldDirectiveRowOffsetOffset {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum TextField {
+    /// The title at the top of the first page.
     Title {
         key: Span,
         text: Spanned<StringLiteral>,
         span: Span,
     },
+    /// The line under the title.
     Subtitle {
         key: Span,
         text: Spanned<StringLiteral>,
         span: Span,
     },
+    /// Who wrote the piece, at the right under the subtitle.
     Author {
         key: Span,
         text: Spanned<StringLiteral>,
@@ -185,11 +189,13 @@ pub enum TextStyle {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum NumberField {
+    /// The height of each row of a system, in points.
     RowHeight {
         key: Span,
         number: Positive,
         span: Span,
     },
+    /// At most this many measures on one line.
     MaxMeasuresPerSystem {
         key: Span,
         number: Positive,
@@ -219,16 +225,32 @@ pub enum NumberField {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum FlagField {
-    MergeDuplicateMeasuresAcrossParts { key: Span, flag: Flag, span: Span },
-    HideRestingParts { key: Span, flag: Flag, span: Span },
-    HideSystemDividers { key: Span, flag: Flag, span: Span },
+    /// Show a measure once when every part plays the same notes in it.
+    MergeDuplicateMeasuresAcrossParts {
+        key: Span,
+        flag: Flag,
+        span: Span,
+    },
+    /// Leave out a part's row on a system where it only rests.
+    HideRestingParts {
+        key: Span,
+        flag: Flag,
+        span: Span,
+    },
+    HideSystemDividers {
+        key: Span,
+        flag: Flag,
+        span: Span,
+    },
 }
 
 pub type Positive = Spanned<u64>;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Flag {
+    /// Turn it on.
     Yes(Span),
+    /// Turn it off.
     No(Span),
 }
 
@@ -240,11 +262,13 @@ pub struct PresetRecord {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum PresetField {
+    /// Show only these parts, by abbreviation: `[S, A1]`.
     VisibleParts {
         key: Span,
         parts: PartReferences,
         span: Span,
     },
+    /// Play only these parts.
     SoloedParts {
         key: Span,
         parts: PartReferences,
@@ -2487,6 +2511,81 @@ fn decode_line_choice_part(node: &Node) -> Result<Spanned<Abbreviation>, DecodeE
 pub fn parse_document(source: &str) -> support::Parsed<Document> {
     support::parse(source, decode_document)
 }
+
+/// What the grammar's `#` line strings say about what may be written,
+/// by what errors call it: ``the call `title _` ``, ``the word `yes` ``.
+pub const DOCUMENTATION: &[(&str, &str)] = &[
+    (
+        "the call `directive row offset _`",
+        "How far the directives above a row move, in points: `(0, -4)`.",
+    ),
+    (
+        "the word `directive row offset`",
+        "How far the directives above a row move, in points: `(0, -4)`.",
+    ),
+    (
+        "the call `title _`",
+        "The title at the top of the first page.",
+    ),
+    (
+        "the word `title`",
+        "The title at the top of the first page.",
+    ),
+    ("the call `subtitle _`", "The line under the title."),
+    ("the word `subtitle`", "The line under the title."),
+    (
+        "the call `author _`",
+        "Who wrote the piece, at the right under the subtitle.",
+    ),
+    (
+        "the word `author`",
+        "Who wrote the piece, at the right under the subtitle.",
+    ),
+    (
+        "the call `row height _`",
+        "The height of each row of a system, in points.",
+    ),
+    (
+        "the word `row height`",
+        "The height of each row of a system, in points.",
+    ),
+    (
+        "the call `max measures per system _`",
+        "At most this many measures on one line.",
+    ),
+    (
+        "the word `max measures per system`",
+        "At most this many measures on one line.",
+    ),
+    (
+        "the call `merge duplicate measures across parts _`",
+        "Show a measure once when every part plays the same notes in it.",
+    ),
+    (
+        "the word `merge duplicate measures across parts`",
+        "Show a measure once when every part plays the same notes in it.",
+    ),
+    (
+        "the call `hide resting parts _`",
+        "Leave out a part's row on a system where it only rests.",
+    ),
+    (
+        "the word `hide resting parts`",
+        "Leave out a part's row on a system where it only rests.",
+    ),
+    ("the word `yes`", "Turn it on."),
+    ("the word `no`", "Turn it off."),
+    (
+        "the call `visible parts _`",
+        "Show only these parts, by abbreviation: `[S, A1]`.",
+    ),
+    (
+        "the word `visible parts`",
+        "Show only these parts, by abbreviation: `[S, A1]`.",
+    ),
+    ("the call `soloed parts _`", "Play only these parts."),
+    ("the word `soloed parts`", "Play only these parts."),
+];
 
 /// How [`format`] lays out calls, from the grammar's `FORMAT`s.
 pub const LAYOUT: &[support::LayoutRule] = &[];

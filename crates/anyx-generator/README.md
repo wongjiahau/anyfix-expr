@@ -62,6 +62,22 @@ its commas. `ENTRY: x` is short for `ENTRY [x]`.
 lowercase words (letters and digits, starting with a letter): `value`,
 `key value`, `utf8 text`.
 
+### Documentation and comments
+
+A `#` line string just above a rule, a field or a choice documents it. A
+`##` comment is for whoever reads the grammar, and is dropped:
+
+```text
+## Sizes are checked in Rust as well.
+# The size of the text, in points.
+size: NUMBER [AT LEAST 1],
+```
+
+The documentation becomes the `///` of the generated type, variant or field,
+and goes into `DOCUMENTATION`, which pairs it with what an error calls the
+thing documented (``the call `size _` ``, ``the word `yes` ``). anyx-lsp shows
+it beside each completion.
+
 ### Rule references
 
 A bare lowercase name is a reference to the rule of that name: `value`,

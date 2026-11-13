@@ -16,10 +16,10 @@ use lsp_types::request::{
 use lsp_types::{
     CompletionItem, CompletionItemKind, CompletionOptions, CompletionParams, CompletionResponse,
     Diagnostic, DiagnosticSeverity, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
-    DidOpenTextDocumentParams, DocumentFormattingParams, FoldingRange, FoldingRangeParams,
-    FoldingRangeProviderCapability, InitializeResult, InsertTextFormat, OneOf,
-    PublishDiagnosticsParams, ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind,
-    TextEdit, Url,
+    DidOpenTextDocumentParams, DocumentFormattingParams, Documentation, FoldingRange,
+    FoldingRangeParams, FoldingRangeProviderCapability, InitializeResult, InsertTextFormat,
+    MarkupContent, MarkupKind, OneOf, PublishDiagnosticsParams, ServerCapabilities,
+    TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit, Url,
 };
 
 use crate::{Language, LineIndex, ProblemKind};
@@ -188,6 +188,12 @@ impl Server<'_> {
                             label: completion.label,
                             kind: Some(CompletionItemKind::KEYWORD),
                             detail: Some(completion.detail),
+                            documentation: completion.documentation.map(|text| {
+                                Documentation::MarkupContent(MarkupContent {
+                                    kind: MarkupKind::Markdown,
+                                    value: text,
+                                })
+                            }),
                             insert_text: Some(completion.snippet),
                             insert_text_format: Some(InsertTextFormat::SNIPPET),
                             ..CompletionItem::default()

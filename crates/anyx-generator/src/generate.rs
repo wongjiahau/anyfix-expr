@@ -37,6 +37,7 @@ pub fn generate(grammar: &Grammar) -> Result<String, Vec<Diagnostic>> {
     }
     builder.mark_boxes();
     let printer = Printer {
+        documentation: grammar.documentation(),
         layouts: &grammar.layouts,
         definitions: &builder.definitions,
         rule_definitions: &builder.rule_definitions,
@@ -53,6 +54,8 @@ struct Definition {
     /// Whether it is a rule, whose decoder is public.
     is_rule: bool,
     body: Body,
+    /// The `#` line string above the rule, for its type.
+    documentation: Option<String>,
 }
 
 enum Body {
@@ -117,11 +120,13 @@ struct Field {
     /// The element's name in the grammar, for errors about it.
     label: String,
     boxed: bool,
+    documentation: Option<String>,
 }
 
 struct Variant {
     name: String,
     payload: Payload,
+    documentation: Option<String>,
 }
 
 enum Payload {
@@ -172,6 +177,29 @@ enum Shape {
     Method,
     /// The value is a span.
     Itself,
+}
+
+/// `///` lines for `documentation`, or nothing.
+fn doc_comment(documentation: Option<&str>) -> String {
+    documentation
+        .map(|text| {
+            text.lines()
+                .map(|line| match line {
+                    "" => "///\n".to_string(),
+                    line => format!("/// {line}\n"),
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// `///` lines for the field of `record` named `field`, or nothing.
+fn field_documentation(record: &Record, field: &str) -> String {
+    let documentation = record.steps.iter().find_map(|step| match step {
+        Step::Field(known) if known.name == field => known.documentation.as_deref(),
+        _ => None,
+    });
+    doc_comment(documentation)
 }
 
 fn words(name: &str) -> Vec<String> {
@@ -253,6 +281,9 @@ impl Builder<'_> {
                     _ => unreachable!("a rule with a body of its own gets a definition"),
                 },
             };
+            if self.definitions[definition].documentation.is_none() {
+                self.definitions[definition].documentation = rule.documentation.clone();
+            }
             self.rule_definitions.push(definition);
         }
     }
@@ -274,6 +305,7 @@ impl Builder<'_> {
             path: path.to_vec(),
             is_rule,
             body: Body::Enum(Vec::new()),
+            documentation: None,
         });
         self.definitions.len() - 1
     }
@@ -442,6 +474,7 @@ impl Builder<'_> {
                     expected: self.grammar.describe_one(&element.pattern),
                     label: name.to_string(),
                     boxed: false,
+                    documentation: element.documentation.clone(),
                 })
             })
             .collect()
@@ -473,7 +506,11 @@ impl Builder<'_> {
                 boxed: false,
             },
         };
-        Variant { name, payload }
+        Variant {
+            name,
+            payload,
+            documentation: choice.documentation.clone(),
+        }
     }
 
     /// One Rust condition on `variable` for each of `conditions`.
@@ -717,6 +754,8 @@ impl Names {
 }
 
 struct Printer<'a> {
+    /// Each expectation with its documentation.
+    documentation: Vec<(String, String)>,
     definitions: &'a [Definition],
     rule_definitions: &'a [usize],
     names: Names,
@@ -749,6 +788,16 @@ impl Printer<'_> {
         body.push_str(
             "/// Parses `source` with anyx and decodes its document.\npub fn parse_document(source: &str) -> support::Parsed<Document> {\nsupport::parse(source, decode_document)\n}\n\n",
         );
+        let documentation: String = self
+            .documentation
+            .iter()
+            .map(|(expected, text)| format!("({expected:?}, {text:?}),\n"))
+            .collect();
+        writeln!(
+            body,
+            "/// What the grammar's `#` line strings say about what may be written,\n/// by what errors call it: ``the call `title _` ``, ``the word `yes` ``.\npub const DOCUMENTATION: &[(&str, &str)] = &[\n{documentation}];\n"
+        )
+        .unwrap();
         let quoted = |words: &[String]| {
             words
                 .iter()
@@ -953,6 +1002,12 @@ impl Printer<'_> {
         let name = pascal_case(&definition.path);
         let derive = "#[derive(Clone, Debug, PartialEq)]";
         let span = self.names.get("Span");
+        if matches!(
+            definition.body,
+            Body::Alias(_) | Body::Struct(_) | Body::Enum(_)
+        ) {
+            output.push_str(&doc_comment(definition.documentation.as_deref()));
+        }
         match &definition.body {
             Body::Alias(value) => {
                 writeln!(output, "pub type {name} = {};\n", self.value_type(value)).unwrap();
@@ -960,13 +1015,15 @@ impl Printer<'_> {
             Body::Struct(record) => {
                 writeln!(output, "{derive}\npub struct {name} {{").unwrap();
                 for (field, field_type) in self.record_fields(record) {
-                    writeln!(output, "pub {field}: {field_type},").unwrap();
+                    let documentation = field_documentation(record, &field);
+                    writeln!(output, "{documentation}pub {field}: {field_type},").unwrap();
                 }
                 writeln!(output, "pub span: {span},\n}}\n").unwrap();
             }
             Body::Enum(variants) => {
                 writeln!(output, "{derive}\npub enum {name} {{").unwrap();
                 for variant in variants {
+                    output.push_str(&doc_comment(variant.documentation.as_deref()));
                     match &variant.payload {
                         Payload::Word(_) => writeln!(output, "{}({span}),", variant.name),
                         Payload::Value { value, boxed } => writeln!(
@@ -982,7 +1039,8 @@ impl Printer<'_> {
                             };
                             write!(output, "{} {{", variant.name).unwrap();
                             for (field, field_type) in self.record_fields(record) {
-                                write!(output, "{field}: {field_type}, ").unwrap();
+                                let documentation = field_documentation(record, &field);
+                                write!(output, "{documentation}{field}: {field_type}, ").unwrap();
                             }
                             writeln!(output, "span: {span} }},")
                         }

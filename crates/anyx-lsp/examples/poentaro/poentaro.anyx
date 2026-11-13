@@ -36,7 +36,7 @@ metadata field: ONE OF [
   style: text style,
   number: number field,
   flag: flag field,
-  ## `(0, -4)`: how far the directives above a row move, in points.
+  # How far the directives above a row move, in points: `(0, -4)`.
   directive row offset: ANYFIX CALL [
     key: WORDS "directive row offset",
     offset: PARENTHESIS [x: signed integer, y: signed integer],
@@ -47,8 +47,11 @@ metadata field: ONE OF [
 
 ## `title "Minuet in G"`.
 text field: ONE OF [
+  # The title at the top of the first page.
   title: ANYFIX CALL [key: WORDS "title", text: STRING],
+  # The line under the title.
   subtitle: ANYFIX CALL [key: WORDS "subtitle", text: STRING],
+  # Who wrote the piece, at the right under the subtitle.
   author: ANYFIX CALL [key: WORDS "author", text: STRING],
 ],
 
@@ -72,7 +75,9 @@ text style: ONE OF [
 
 ## `max measures per system 4`.
 number field: ONE OF [
+  # The height of each row of a system, in points.
   row height: ANYFIX CALL [key: WORDS "row height", number: positive],
+  # At most this many measures on one line.
   max measures per system: ANYFIX CALL [key: WORDS "max measures per system", number: positive],
   note number width: ANYFIX CALL [key: WORDS "note number width", number: positive],
   parts list columns: ANYFIX CALL [key: WORDS "parts list columns", number: positive],
@@ -82,21 +87,29 @@ number field: ONE OF [
 
 ## `hide resting parts : yes`.
 flag field: ONE OF [
+  # Show a measure once when every part plays the same notes in it.
   merge duplicate measures across parts: ANYFIX CALL [key: WORDS "merge duplicate measures across parts", flag],
+  # Leave out a part's row on a system where it only rests.
   hide resting parts: ANYFIX CALL [key: WORDS "hide resting parts", flag],
   hide system dividers: ANYFIX CALL [key: WORDS "hide system dividers", flag],
 ],
 
 positive: NUMBER [INTEGER, AT LEAST 1],
 
-flag: ONE OF [WORDS "yes", WORDS "no"],
+flag: ONE OF [
+  # Turn it on.
+  yes: WORDS "yes",
+  # Turn it off.
+  no: WORDS "no",
+],
 
 ## A preset's own keys, and the metadata it overrides.
 preset record: CURLY BRACE: EACH: preset field,
 
 preset field: ONE OF [
-  ## `[S, A1]`.
+  # Show only these parts, by abbreviation: `[S, A1]`.
   visible parts: ANYFIX CALL [key: WORDS "visible parts", parts: part references],
+  # Play only these parts.
   soloed parts: ANYFIX CALL [key: WORDS "soloed parts", parts: part references],
   notation: ANYFIX CALL [key: WORDS "notation", notation],
   metadata: metadata field,

@@ -59,9 +59,9 @@ impl LanguageServer {
 macro_rules! wasm {
     ($name:ident) => {
         #[$crate::wasm::wasm_bindgen::prelude::wasm_bindgen(
-                    js_name = languageServer,
-                    wasm_bindgen = $crate::wasm::wasm_bindgen
-                )]
+                            js_name = languageServer,
+                            wasm_bindgen = $crate::wasm::wasm_bindgen
+                        )]
         pub fn language_server() -> $crate::wasm::LanguageServer {
             $crate::wasm::LanguageServer::new(&$name)
         }

@@ -241,11 +241,17 @@ impl<'a> Overlap<'a> {
                     }
             }
             (Pattern::AnyCall { name, arguments }, Pattern::SpecificCall(parts)) => {
-                // The words of a `WORDS` are unknown, so any name may fit.
-                let fits_a_name = has_words(parts)
-                    || possible_names(parts)
+                // The words of a `WORDS` are unknown, but its slots and
+                // other words are not.
+                let fits_a_name = match has_words(parts) {
+                    true => conditions_overlap(
+                        name,
+                        &[StringCondition::MatchingRegex(name_shape(parts))],
+                    ),
+                    false => possible_names(parts)
                         .iter()
-                        .any(|text| name.iter().all(|condition| condition.holds(text)));
+                        .any(|text| name.iter().all(|condition| condition.holds(text))),
+                };
                 let slots: Vec<Element> = parts
                     .iter()
                     .filter(|part| !matches!(part.pattern, Pattern::Word(_) | Pattern::Words(_)))
@@ -432,6 +438,25 @@ fn only_word(parts: &[Element]) -> Option<&str> {
     alone.then_some(word)
 }
 
+/// A regex for every name text a specific call can have: its words, `_`
+/// for each slot, and any words but `_` for a `WORDS`. It takes a little
+/// more than those, since each space between them may be left out.
+fn name_shape(parts: &[Element]) -> String {
+    const WORD: &str = "(?:[^ _][^ ]*|_[^ ]+)";
+    let shape: String = parts
+        .iter()
+        .map(|part| match (&part.pattern, part.repetition) {
+            (Pattern::Word(text), _) => format!("(?: ?{})", regex::escape(text)),
+            (Pattern::Words(_), _) => format!("(?: ?{WORD}(?: {WORD})*)"),
+            (_, Repetition::One) => "(?: ?_)".to_string(),
+            (_, Repetition::Optional) => "(?: ?_)?".to_string(),
+            (_, Repetition::ZeroOrMore | Repetition::Each) => "(?: ?_)*".to_string(),
+            (_, Repetition::OneOrMore) => "(?: ?_)+".to_string(),
+        })
+        .collect();
+    format!("^{shape}$")
+}
+
 /// Name texts a specific call can have, such as `print`, `print _` and
 /// `print _ _`. A slot that repeats is tried up to twice.
 fn possible_names(parts: &[Element]) -> Vec<String> {
@@ -480,6 +505,7 @@ fn sign_calls(number: &NumberPattern) -> [Pattern; 2] {
             repetition: Repetition::One,
             pattern,
             span: Span::empty(0),
+            documentation: None,
         };
         let unsigned = NumberPattern {
             signed: false,

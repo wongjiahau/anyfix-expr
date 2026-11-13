@@ -15,7 +15,8 @@
 //!
 //! - diagnostics: anyx's syntax errors, and every error the decoder kept
 //!   (one per element of an `EACH` list, so one mistake does not hide the rest);
-//! - completion: the words and calls the grammar allows where the cursor is;
+//! - completion: the words and calls the grammar allows where the cursor is,
+//!   each with the `#` line string the grammar wrote above it;
 //! - formatting, with the grammar's `FORMAT` layouts;
 //! - folding of brackets and strings that span lines.
 //!
@@ -71,6 +72,13 @@ pub trait Language {
 
     /// `source` laid out canonically, or `None` when it has syntax errors.
     fn format(&self, source: &str) -> Option<String>;
+
+    /// What the grammar's `#` line strings say about `expected`, as the
+    /// decoder describes it: ``the call `title _` ``.
+    fn documentation(&self, expected: &str) -> Option<&str> {
+        let _ = expected;
+        None
+    }
 }
 
 /// Writes a [`Language`] named `$name` for the generated decoder in the
@@ -99,6 +107,13 @@ macro_rules! language {
             fn format(&self, source: &str) -> ::std::option::Option<::std::string::String> {
                 $($module)::+::format(source).ok()
             }
+
+            fn documentation(&self, expected: &str) -> ::std::option::Option<&str> {
+                $($module)::+::DOCUMENTATION
+                    .iter()
+                    .find(|(known, _)| *known == expected)
+                    .map(|(_, text)| *text)
+            }
         }
     };
 }
@@ -116,6 +131,8 @@ pub struct Completion {
     pub snippet: String,
     /// Where the expectation came from: ``the call `metadata _` ``.
     pub detail: String,
+    /// What the grammar's `#` line string says about it, in Markdown.
+    pub documentation: Option<String>,
 }
 
 /// What the grammar allows at `offset`: the words and calls the decoder
@@ -143,6 +160,7 @@ pub fn complete(language: &dyn Language, source: &str, offset: usize) -> Vec<Com
     let mut completions: Vec<Completion> = Vec::new();
     for expected in &problem.expected {
         if let Some(mut completion) = completion(expected) {
+            completion.documentation = language.documentation(expected).map(str::to_string);
             completion.snippet = without_typed_words(&source[..start], &completion.snippet);
             if !completions
                 .iter()
@@ -185,6 +203,7 @@ fn completion(expected: &str) -> Option<Completion> {
             label: word.clone(),
             snippet: word,
             detail: expected.to_string(),
+            documentation: None,
         });
     }
     let call = quoted("the call ")?;
@@ -213,6 +232,7 @@ fn completion(expected: &str) -> Option<Completion> {
         label,
         snippet: parts.join(" "),
         detail: expected.to_string(),
+        documentation: None,
     })
 }
 
