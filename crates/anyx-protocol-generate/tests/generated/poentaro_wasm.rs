@@ -2,7 +2,9 @@
 
 use wasm_bindgen::prelude::wasm_bindgen;
 
-const SCHEMA: &str = r#"# Poentaro turns `.poentaro` text into numbered musical notation (jianpu) and
+const SCHEMA_FILES: &[anyx_protocol::SchemaFile<'static>] = &[anyx_protocol::SchemaFile {
+    path: "protocol.anyx",
+    source: r#"# Poentaro turns `.poentaro` text into numbered musical notation (jianpu) and
 # keeps the account owner's scores in the cloud. When you save, anyone who
 # has the score open sees the change.
 #
@@ -73,26 +75,28 @@ METHOD create (path: TEXT) content (content: TEXT)
 METHOD export midi (path: TEXT)
     RETURNS (midi: BYTES)
     ERRORS file errors,
-"#;
+"#,
+}];
 
 fn schema() -> &'static anyx_protocol::Schema {
-    static SCHEMA_READ: std::sync::LazyLock<anyx_protocol::Schema> =
-        std::sync::LazyLock::new(|| {
-            anyx_protocol::Schema::parse(SCHEMA).expect("the generator checked the schema")
+    static SCHEMA_READ: ::std::sync::LazyLock<anyx_protocol::Schema> =
+        ::std::sync::LazyLock::new(|| {
+            anyx_protocol::Schema::parse_files(SCHEMA_FILES)
+                .expect("the generator checked the schema")
         });
     &SCHEMA_READ
 }
 
-/// Writes a request with one call of the method `shape`, such as `read _`.
-/// `arguments` is a JSON array with one value per parameter.
+/// Writes a request with one call of `method`, by its full name, such as
+/// `files/read _`. `arguments` is a JSON array with one value per parameter.
 #[wasm_bindgen(js_name = encodePoentaroRequest)]
-pub fn encode_poentaro_request(shape: &str, arguments: &str) -> Result<String, String> {
-    anyx_protocol::json::encode_request_json(schema(), shape, arguments)
+pub fn encode_poentaro_request(method: &str, arguments: &str) -> Result<String, String> {
+    anyx_protocol::json::encode_request_json(schema(), method, arguments)
 }
 
-/// Reads the response to one call of the method `shape` as JSON, in the
+/// Reads the response to one call of `method` as JSON, in the
 /// TypeScript client's `Outcome`.
 #[wasm_bindgen(js_name = decodePoentaroResponse)]
-pub fn decode_poentaro_response(shape: &str, response: &str) -> Result<String, String> {
-    anyx_protocol::json::decode_response_json(schema(), shape, response)
+pub fn decode_poentaro_response(method: &str, response: &str) -> Result<String, String> {
+    anyx_protocol::json::decode_response_json(schema(), method, response)
 }

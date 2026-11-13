@@ -1,13 +1,14 @@
 //! The TypeScript client of a schema: its types as JSON, and a `Client` that
-//! encodes and decodes through the wasm functions of [`crate::wasm`].
+//! encodes and decodes through the wasm functions of [`crate::wasm`]. A
+//! scope's methods are an object on the client, named after the scope.
 
 use std::fmt::Write;
 
 use anyx_protocol::Schema;
-use anyx_protocol::schema::{Field, Shaped, Type, TypeKind};
+use anyx_protocol::schema::{Field, Method, Shaped, Type, TypeKind};
 
-use crate::names::{camel_case, pascal_case};
-use crate::{Error, error_enum_name};
+use crate::names::camel_case;
+use crate::{Error, children, has_methods, methods_in, scoped_pascal_case, typescript_error_name};
 
 pub fn typescript(schema: &Schema) -> Result<String, Error> {
     crate::check_names(schema)?;
@@ -20,7 +21,7 @@ pub fn typescript(schema: &Schema) -> Result<String, Error> {
     .unwrap();
     for definition in &schema.types {
         out.push_str(&doc(&definition.doc, ""));
-        let name = pascal_case(&definition.name);
+        let name = scoped_pascal_case(&definition.scope, &definition.name);
         match &definition.kind {
             TypeKind::Record(fields) => record(&mut out, schema, &name, fields),
             TypeKind::Choice(variants) => union(&mut out, schema, &name, variants),
@@ -28,20 +29,63 @@ pub fn typescript(schema: &Schema) -> Result<String, Error> {
     }
     for method in &schema.methods {
         if !method.errors.is_empty() {
-            writeln!(out, "/** The errors of `{}`. */", method.shape.text).unwrap();
+            writeln!(out, "/** The errors of `{}`. */", method.full_name()).unwrap();
             let errors: Vec<Shaped> = schema.errors_of(method).into_iter().cloned().collect();
-            union(&mut out, schema, &error_enum_name(method), &errors);
+            union(&mut out, schema, &typescript_error_name(method), &errors);
         }
     }
     out.push_str(PRELUDE);
-    for (index, method) in schema.methods.iter().enumerate() {
-        if index > 0 {
-            out.push('\n');
-        }
-        out.push_str(&doc(&method.doc, "  "));
-        let parameters: Vec<String> = method
-            .shape
-            .parameters
+    let root_methods: Vec<String> = methods_in(schema, &[])
+        .into_iter()
+        .map(|(_, method)| {
+            let signature = signature(schema, method);
+            format!(
+                "{}  {}({}): {} {{\n    return this.call({:?}, [{}]);\n  }}\n",
+                doc(&method.doc, "  "),
+                camel_case(&method.shape.text),
+                signature.parameters,
+                signature.returned,
+                method.full_name(),
+                signature.arguments,
+            )
+        })
+        .collect();
+    let scopes: Vec<String> = children(schema, &[])
+        .into_iter()
+        .filter(|child| has_methods(schema, child))
+        .map(|child| {
+            format!(
+                "  readonly {} = {};\n",
+                camel_case(child.last().expect("a child scope has a name")),
+                scope_object(schema, &child, "  ")
+            )
+        })
+        .collect();
+    out.push_str(
+        &root_methods
+            .into_iter()
+            .chain(scopes)
+            .collect::<Vec<_>>()
+            .join("\n"),
+    );
+    out.push_str("}\n");
+    Ok(out)
+}
+
+struct Signature {
+    parameters: String,
+    arguments: String,
+    returned: String,
+}
+
+fn signature(schema: &Schema, method: &Method) -> Signature {
+    let parameters = &method.shape.parameters;
+    let errors = match method.errors.is_empty() {
+        true => "never".to_string(),
+        false => typescript_error_name(method),
+    };
+    Signature {
+        parameters: parameters
             .iter()
             .map(|parameter| {
                 format!(
@@ -50,30 +94,50 @@ pub fn typescript(schema: &Schema) -> Result<String, Error> {
                     ts_type(schema, &parameter.r#type)
                 )
             })
-            .collect();
-        let arguments: Vec<String> = method
-            .shape
-            .parameters
+            .collect::<Vec<_>>()
+            .join(", "),
+        arguments: parameters
             .iter()
             .map(|parameter| camel_case(&parameter.name))
-            .collect();
-        let errors = match method.errors.is_empty() {
-            true => "never".to_string(),
-            false => error_enum_name(method),
-        };
-        write!(
-            out,
-            "  {}({}): Promise<Outcome<{}, {errors}>> {{\n    return this.call({:?}, [{}]);\n  }}\n",
-            camel_case(&method.shape.text),
-            parameters.join(", "),
-            ts_type(schema, &method.returns.r#type),
-            method.shape.text,
-            arguments.join(", "),
-        )
-        .unwrap();
+            .collect::<Vec<_>>()
+            .join(", "),
+        returned: format!(
+            "Promise<Outcome<{}, {errors}>>",
+            ts_type(schema, &method.returns.r#type)
+        ),
     }
-    out.push_str("}\n");
-    Ok(out)
+}
+
+/// The object of a scope's methods, and the objects of the scopes in it, on
+/// the client: `client.files.export.pdf(path)`.
+fn scope_object(schema: &Schema, scope: &[String], indent: &str) -> String {
+    let inner = format!("{indent}  ");
+    let methods = methods_in(schema, scope).into_iter().map(|(_, method)| {
+        let signature = signature(schema, method);
+        format!(
+            "{}{inner}{}: ({}): {} =>\n{inner}  this.call({:?}, [{}]),\n",
+            doc(&method.doc, &inner),
+            camel_case(&method.shape.text),
+            signature.parameters,
+            signature.returned,
+            method.full_name(),
+            signature.arguments,
+        )
+    });
+    let scopes = children(schema, scope)
+        .into_iter()
+        .filter(|child| has_methods(schema, child))
+        .map(|child| {
+            format!(
+                "{inner}{}: {},\n",
+                camel_case(child.last().expect("a child scope has a name")),
+                scope_object(schema, &child, &inner)
+            )
+        });
+    format!(
+        "{{\n{}{indent}}}",
+        methods.chain(scopes).collect::<String>()
+    )
 }
 
 const PRELUDE: &str = r#"/** What came of one call. */
@@ -89,8 +153,8 @@ export type Outcome<T, E> =
 
 /** The generated wasm functions, which encode and decode in Rust. */
 export interface Codec {
-  encodeRequest(shape: string, args: string): string;
-  decodeResponse(shape: string, response: string): string;
+  encodeRequest(method: string, args: string): string;
+  decodeResponse(method: string, response: string): string;
 }
 
 /** Calls the schema's methods, one call per request. `send` sends a request
@@ -104,10 +168,11 @@ export class Client {
     this.send = send;
   }
 
-  private async call<T, E>(shape: string, args: unknown[]): Promise<Outcome<T, E>> {
-    const request = this.codec.encodeRequest(shape, JSON.stringify(args));
+  /** Calls a method by its full name, such as `files/read _`. */
+  private async call<T, E>(method: string, args: unknown[]): Promise<Outcome<T, E>> {
+    const request = this.codec.encodeRequest(method, JSON.stringify(args));
     const response = await this.send(request);
-    return JSON.parse(this.codec.decodeResponse(shape, response)) as Outcome<T, E>;
+    return JSON.parse(this.codec.decodeResponse(method, response)) as Outcome<T, E>;
   }
 
 "#;
@@ -120,7 +185,10 @@ fn ts_type(schema: &Schema, r#type: &Type) -> String {
         Type::Integer | Type::Number => "number".to_string(),
         Type::Boolean => "boolean".to_string(),
         Type::List(item) => format!("{}[]", ts_type(schema, item)),
-        Type::Named(index) => pascal_case(&schema.types[*index].name),
+        Type::Named(index) => {
+            let definition = &schema.types[*index];
+            scoped_pascal_case(&definition.scope, &definition.name)
+        }
     }
 }
 

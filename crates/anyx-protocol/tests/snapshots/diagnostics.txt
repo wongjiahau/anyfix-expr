@@ -12,7 +12,7 @@ schema:1:41: found a `RETURNS` without a name; expected `RETURNS (name: TYPE)`, 
 
 == a type defined twice
 PROTOCOL a VERSION 1, RECORD x { a: TEXT }, CHOICE x { b },
-schema:1:52: found a second type named `x`; expected each type to be defined once; rename or remove one of them
+schema:1:52: found a second type named `x`; expected each type to be defined once in a scope; rename or remove one of them
   PROTOCOL a VERSION 1, RECORD x { a: TEXT }, CHOICE x { b },
                                                      ^
 
@@ -36,7 +36,7 @@ schema:1:45: found a second parameter named `x`; expected each parameter once; r
 
 == a method twice
 PROTOCOL a VERSION 1, METHOD f RETURNS (y: TEXT), METHOD f RETURNS (z: TEXT),
-schema:1:58: found a second method `f`; expected each method shape once; rename or remove one of them
+schema:1:58: found a second method `f`; expected each method shape once in a scope; rename or remove one of them
   PROTOCOL a VERSION 1, METHOD f RETURNS (y: TEXT), METHOD f RETURNS (z: TEXT),
                                                            ^
 
@@ -72,9 +72,9 @@ schema:1:37: found a parameter named `kind`; expected another name, since a vari
 
 == a missing protocol line
 RECORD x { a: TEXT },
-schema:1:1: found the word `RECORD`; expected the word `PROTOCOL`
+schema:1:1: found no `PROTOCOL` header; expected the schema to start with one, such as `PROTOCOL notes VERSION 1`
   RECORD x { a: TEXT },
-  ^^^^^^
+  ^
 
 == a keyword in a name
 PROTOCOL a VERSION 1, RECORD x { a TEXT b: TEXT },
@@ -90,7 +90,7 @@ schema:1:58: found `gone`, which is not an error of this schema; expected the wo
 
 == an error and an alias of one name
 PROTOCOL a VERSION 1, ERROR gone, ERRORS gone [gone],
-schema:1:42: found a second error or error alias named `gone`; expected each name once, since an `ERRORS` list refers to them by name; rename one of them
+schema:1:42: found a second error or error alias named `gone`; expected each name once in a scope, since an `ERRORS` list refers to them by name; rename one of them
   PROTOCOL a VERSION 1, ERROR gone, ERRORS gone [gone],
                                            ^^^^
 

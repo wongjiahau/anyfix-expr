@@ -1,12 +1,15 @@
 //! The Rust module of a schema: its types, a `Server` trait with `handle`,
-//! and a `Client`.
+//! and a `Client`. Each scope is a module of its own, with its types, the
+//! errors of its methods, a `Server` trait of its methods and a `Client`.
 
 use std::fmt::Write;
 
 use anyx_protocol::schema::{Field, Method, Parameter, Schema, Shape, Shaped, Type, TypeKind};
 
 use crate::names::{doc_comment, pascal_case, raw_string, snake_case};
-use crate::{Error, error_enum_name};
+use crate::{Error, children, error_enum_name, has_methods, methods_in};
+
+const IMPORTS: &str = "use anyx_protocol::client::{CallError, Transport};\nuse anyx_protocol::{FieldsBuilder, FieldsReader, FromValue, IntoValue, Value};\n\n";
 
 pub fn rust(schema: &Schema) -> Result<String, Error> {
     crate::check_names(schema)?;
@@ -20,60 +23,127 @@ pub fn rust(schema: &Schema) -> Result<String, Error> {
     out.push_str(
         "#![allow(clippy::all, dead_code, unused_imports, unused_mut, unused_variables)]\n\n",
     );
-    out.push_str("use anyx_protocol::client::{CallError, Transport};\n");
-    out.push_str("use anyx_protocol::server;\n");
-    out.push_str(
-        "use anyx_protocol::{FieldsBuilder, FieldsReader, FromValue, IntoValue, Value};\n\n",
-    );
+    out.push_str(IMPORTS);
     writeln!(
         out,
-        "/// The schema as written.\npub const SCHEMA: &str = {};\n",
-        raw_string(&schema.source)
+        "/// The schema as written, a file per scope.\npub const SCHEMA_FILES: &[anyx_protocol::SchemaFile<'static>] = &[\n{}];\n",
+        schema_files(schema)
     )
     .unwrap();
     out.push_str(
-        "/// The schema, read once.\npub fn schema() -> &'static anyx_protocol::Schema {\n    static SCHEMA_READ: std::sync::LazyLock<anyx_protocol::Schema> =\n        std::sync::LazyLock::new(|| anyx_protocol::Schema::parse(SCHEMA).expect(\"the generator checked the schema\"));\n    &SCHEMA_READ\n}\n\n",
+        "/// The schema, read once.\npub fn schema() -> &'static anyx_protocol::Schema {\n    static SCHEMA_READ: ::std::sync::LazyLock<anyx_protocol::Schema> =\n        ::std::sync::LazyLock::new(|| anyx_protocol::Schema::parse_files(SCHEMA_FILES).expect(\"the generator checked the schema\"));\n    &SCHEMA_READ\n}\n\n",
     );
-    for definition in &schema.types {
-        let name = pascal_case(&definition.name);
-        let doc = doc_comment(&definition.doc, "///");
-        match &definition.kind {
-            TypeKind::Record(fields) => record(&mut out, schema, &doc, &name, fields),
-            TypeKind::Choice(variants) => choice(&mut out, schema, &doc, &name, variants),
-        }
-    }
-    for method in &schema.methods {
-        if !method.errors.is_empty() {
-            let errors: Vec<Shaped> = schema.errors_of(method).into_iter().cloned().collect();
-            let doc = format!("/// The errors of `{}`.\n", method.shape.text);
-            choice(&mut out, schema, &doc, &error_enum_name(method), &errors);
-        }
-    }
-    server(&mut out, schema);
-    client(&mut out, schema);
+    scope_body(&mut out, schema, &[]);
     Ok(out)
 }
 
-pub fn rust_type(schema: &Schema, r#type: &Type) -> String {
+/// The entries of `SCHEMA_FILES`.
+pub fn schema_files(schema: &Schema) -> String {
+    schema
+        .files
+        .iter()
+        .map(|file| {
+            format!(
+                "    anyx_protocol::SchemaFile {{ path: {:?}, source: {} }},\n",
+                file.path,
+                raw_string(&file.source)
+            )
+        })
+        .collect()
+}
+
+/// The module path from `from` to the module of `to`: empty when they are
+/// the same scope.
+fn path_to(from: &[String], to: &[String]) -> String {
+    match from == to {
+        true => String::new(),
+        false => {
+            "super::".repeat(from.len())
+                + &to
+                    .iter()
+                    .map(|segment| snake_case(segment) + "::")
+                    .collect::<String>()
+        }
+    }
+}
+
+/// What the module of `scope` holds, and the modules of the scopes in it.
+fn scope_body(out: &mut String, schema: &Schema, scope: &[String]) {
+    for definition in schema
+        .types
+        .iter()
+        .filter(|definition| definition.scope == scope)
+    {
+        let name = pascal_case(&definition.name);
+        let doc = doc_comment(&definition.doc, "///");
+        match &definition.kind {
+            TypeKind::Record(fields) => record(out, schema, scope, &doc, &name, fields),
+            TypeKind::Choice(variants) => choice(out, schema, scope, &doc, &name, variants),
+        }
+    }
+    let methods = methods_in(schema, scope);
+    for (_, method) in &methods {
+        if !method.errors.is_empty() {
+            let errors: Vec<Shaped> = schema.errors_of(method).into_iter().cloned().collect();
+            let doc = format!("/// The errors of `{}`.\n", method.full_name());
+            choice(out, schema, scope, &doc, &error_enum_name(method), &errors);
+        }
+    }
+    match scope.is_empty() {
+        true => {
+            root_server(out, schema);
+            handle(out, schema);
+        }
+        false if !methods.is_empty() => scope_server(out, schema, scope),
+        false => {}
+    }
+    if scope.is_empty() || has_methods(schema, scope) {
+        client(out, schema, scope);
+    }
+    for child in children(schema, scope) {
+        writeln!(
+            out,
+            "/// The scope `{}`.\npub mod {} {{\n{IMPORTS}",
+            child.join("/"),
+            snake_case(child.last().expect("a child scope has a name"))
+        )
+        .unwrap();
+        scope_body(out, schema, &child);
+        out.push_str("}\n\n");
+    }
+}
+
+/// `r#type` as written in the module of `scope`.
+pub fn rust_type(schema: &Schema, scope: &[String], r#type: &Type) -> String {
     match r#type {
         Type::Text => "String".to_string(),
         Type::Bytes => "Vec<u8>".to_string(),
         Type::Integer => "i64".to_string(),
         Type::Number => "f64".to_string(),
         Type::Boolean => "bool".to_string(),
-        Type::List(item) => format!("Vec<{}>", rust_type(schema, item)),
-        Type::Named(index) => pascal_case(&schema.types[*index].name),
+        Type::List(item) => format!("Vec<{}>", rust_type(schema, scope, item)),
+        Type::Named(index) => {
+            let definition = &schema.types[*index];
+            path_to(scope, &definition.scope) + &pascal_case(&definition.name)
+        }
     }
 }
 
-fn field_type(schema: &Schema, field: &Field) -> String {
+fn field_type(schema: &Schema, scope: &[String], field: &Field) -> String {
     match field.optional {
-        true => format!("Option<{}>", rust_type(schema, &field.r#type)),
-        false => rust_type(schema, &field.r#type),
+        true => format!("Option<{}>", rust_type(schema, scope, &field.r#type)),
+        false => rust_type(schema, scope, &field.r#type),
     }
 }
 
-fn record(out: &mut String, schema: &Schema, doc: &str, name: &str, fields: &[Field]) {
+fn record(
+    out: &mut String,
+    schema: &Schema,
+    scope: &[String],
+    doc: &str,
+    name: &str,
+    fields: &[Field],
+) {
     let declared: String = fields
         .iter()
         .map(|field| {
@@ -81,7 +151,7 @@ fn record(out: &mut String, schema: &Schema, doc: &str, name: &str, fields: &[Fi
                 "{}    pub {}: {},\n",
                 doc_comment(&field.doc, "    ///"),
                 snake_case(&field.name),
-                field_type(schema, field)
+                field_type(schema, scope, field)
             )
         })
         .collect();
@@ -117,7 +187,14 @@ fn record(out: &mut String, schema: &Schema, doc: &str, name: &str, fields: &[Fi
 }
 
 /// A choice, or a method's errors: an enum with a variant per shape.
-fn choice(out: &mut String, schema: &Schema, doc: &str, name: &str, variants: &[Shaped]) {
+fn choice(
+    out: &mut String,
+    schema: &Schema,
+    scope: &[String],
+    doc: &str,
+    name: &str,
+    variants: &[Shaped],
+) {
     let declared: String = variants
         .iter()
         .map(|variant| {
@@ -134,7 +211,7 @@ fn choice(out: &mut String, schema: &Schema, doc: &str, name: &str, variants: &[
                         .map(|parameter| format!(
                             "{}: {}",
                             snake_case(&parameter.name),
-                            rust_type(schema, &parameter.r#type)
+                            rust_type(schema, scope, &parameter.r#type)
                         ))
                         .collect::<Vec<_>>()
                         .join(", ")
@@ -211,21 +288,21 @@ fn bindings(shape: &Shape) -> String {
     }
 }
 
-fn parameters(schema: &Schema, parameters: &[Parameter]) -> String {
+fn parameters(schema: &Schema, scope: &[String], parameters: &[Parameter]) -> String {
     parameters
         .iter()
         .map(|parameter| {
             format!(
                 ", {}: {}",
                 snake_case(&parameter.name),
-                rust_type(schema, &parameter.r#type)
+                rust_type(schema, scope, &parameter.r#type)
             )
         })
         .collect()
 }
 
 fn returned(schema: &Schema, method: &Method) -> String {
-    let value = rust_type(schema, &method.returns.r#type);
+    let value = rust_type(schema, &method.scope, &method.returns.r#type);
     match method.errors.is_empty() {
         true => value,
         false => format!("Result<{value}, {}>", error_enum_name(method)),
@@ -240,56 +317,93 @@ fn method_doc(method: &Method) -> String {
     writeln!(
         doc,
         "    /// `{}`, returning `{}`.",
-        method.shape.text, method.returns.name
+        method.full_name(),
+        method.returns.name
     )
     .unwrap();
     doc
 }
 
-fn server(out: &mut String, schema: &Schema) {
-    let methods: String = schema
-        .methods
-        .iter()
-        .map(|method| {
+/// The trait methods of `scope`'s own methods.
+fn trait_methods(schema: &Schema, scope: &[String]) -> String {
+    let methods: String = methods_in(schema, scope)
+        .into_iter()
+        .map(|(_, method)| {
             format!(
                 "{}    async fn {}(&self{}) -> Result<{}, Self::Error>;\n\n",
                 method_doc(method),
                 snake_case(&method.shape.text),
-                parameters(schema, &method.shape.parameters),
+                parameters(schema, scope, &method.shape.parameters),
                 returned(schema, method)
             )
         })
         .collect();
+    methods.trim_end_matches('\n').to_string() + "\n"
+}
+
+fn root_server(out: &mut String, schema: &Schema) {
+    write!(
+        out,
+        "/// The methods of the schema's root, for a server to implement, with the\n/// `Server` trait of each scope. An `Err` is the server's own failure: the\n/// caller gets `INTERNAL ERROR`, and the calls after it don't run.\n#[allow(async_fn_in_trait)]\npub trait Server {{\n    type Error;\n\n{}}}\n\n",
+        trait_methods(schema, &[])
+    )
+    .unwrap();
+}
+
+fn scope_server(out: &mut String, schema: &Schema, scope: &[String]) {
+    write!(
+        out,
+        "/// The methods of the scope `{}`, for a server to implement. Its\n/// `Error` is the root `Server`'s.\n#[allow(async_fn_in_trait)]\npub trait Server: {}Server {{\n{}}}\n\n",
+        scope.join("/"),
+        "super::".repeat(scope.len()),
+        trait_methods(schema, scope)
+    )
+    .unwrap();
+}
+
+/// The `Server` traits `handle` needs: the root's, and each scope's with
+/// methods.
+fn server_traits(schema: &Schema) -> Vec<String> {
+    let scoped = schema
+        .scopes()
+        .into_iter()
+        .filter(|scope| !scope.is_empty() && !methods_in(schema, scope).is_empty())
+        .map(|scope| path_to(&[], &scope) + "Server");
+    std::iter::once("Server".to_string())
+        .chain(scoped)
+        .collect()
+}
+
+fn handle(out: &mut String, schema: &Schema) {
     let arms: String = schema
         .methods
         .iter()
         .enumerate()
         .map(|(index, method)| {
-            let arguments = method
+            let arguments: String = method
                 .shape
                 .parameters
                 .iter()
-                .map(|_| "server::argument(&mut arguments)")
-                .collect::<Vec<_>>()
-                .join(", ");
+                .map(|_| ", anyx_protocol::server::argument(&mut arguments)")
+                .collect();
             let wrap = if method.errors.is_empty() {
                 "value"
             } else {
                 "result"
             };
             format!(
-                "            {index} => server::{wrap}(implementation.{}({arguments}).await),\n",
+                "            {index} => anyx_protocol::server::{wrap}(<S as {}Server>::{}(implementation{arguments}).await),\n",
+                path_to(&[], &method.scope),
                 snake_case(&method.shape.text)
             )
         })
         .collect();
     write!(
         out,
-        "/// The methods of the schema, for a server to implement. An `Err` is the\n/// server's own failure: the caller gets `INTERNAL ERROR`, and the calls\n/// after it don't run.\n#[allow(async_fn_in_trait)]\npub trait Server {{\n    type Error;\n\n{}}}\n\n\
-         /// Runs `request` against `implementation` and writes the response. Every\n/// call runs, in order, until one fails with an internal error, which\n/// `on_internal_error` hears; the calls after it don't run.\n\
-         pub async fn handle<S: Server>(implementation: &S, request: &str, mut on_internal_error: impl FnMut(S::Error)) -> String {{\n\
+        "/// Runs `request` against `implementation` and writes the response. Every\n/// call runs, in order, until one fails with an internal error, which\n/// `on_internal_error` hears; the calls after it don't run.\n\
+         pub async fn handle<S: {}>(implementation: &S, request: &str, mut on_internal_error: impl FnMut(<S as Server>::Error)) -> String {{\n\
          \x20   let schema = schema();\n\
-         \x20   let calls = match server::read_request(schema, request) {{\n        Ok(calls) => calls,\n        Err(response) => return response,\n    }};\n\
+         \x20   let calls = match anyx_protocol::server::read_request(schema, request) {{\n        Ok(calls) => calls,\n        Err(response) => return response,\n    }};\n\
          \x20   let methods: Vec<usize> = calls.iter().map(|call| call.method).collect();\n\
          \x20   let mut outcomes = Vec::new();\n\
          \x20   let mut stopped = false;\n\
@@ -298,20 +412,27 @@ fn server(out: &mut String, schema: &Schema) {
          \x20       let mut arguments = call.arguments.into_iter();\n\
          \x20       let outcome = match call.method {{\n{arms}            _ => unreachable!(\"the codec read a method of the schema\"),\n        }};\n\
          \x20       outcomes.push(outcome.unwrap_or_else(|error| {{\n            on_internal_error(error);\n            stopped = true;\n            anyx_protocol::Outcome::InternalError\n        }}));\n    }}\n\
-         \x20   server::respond(schema, &methods, outcomes)\n}}\n\n",
-        methods.trim_end_matches('\n').to_string() + "\n"
+         \x20   anyx_protocol::server::respond(schema, &methods, outcomes)\n}}\n\n",
+        server_traits(schema).join(" + ")
     )
     .unwrap();
 }
 
-fn client(out: &mut String, schema: &Schema) {
-    let methods: String = schema
-        .methods
-        .iter()
-        .enumerate()
+/// The client of `scope`: the root's owns its transport, and a scope's
+/// borrows it from the client it came from.
+fn client(out: &mut String, schema: &Schema, scope: &[String]) {
+    let root = scope.is_empty();
+    let transport = if root {
+        "&self.transport"
+    } else {
+        "self.transport"
+    };
+    let to_root = "super::".repeat(scope.len());
+    let methods: String = methods_in(schema, scope)
+        .into_iter()
         .map(|(index, method)| {
             let errors = match method.errors.is_empty() {
-                true => "std::convert::Infallible".to_string(),
+                true => "::std::convert::Infallible".to_string(),
                 false => error_enum_name(method),
             };
             let arguments = method
@@ -322,18 +443,39 @@ fn client(out: &mut String, schema: &Schema) {
                 .collect::<Vec<_>>()
                 .join(", ");
             format!(
-                "{}    pub async fn {}(&self{}) -> Result<{}, CallError<{errors}, T::Error>> {{\n        anyx_protocol::client::call(&self.transport, schema(), {index}, vec![{arguments}]).await\n    }}\n\n",
+                "{}    pub async fn {}(&self{}) -> Result<{}, CallError<{errors}, T::Error>> {{\n        anyx_protocol::client::call({transport}, {to_root}schema(), {index}, vec![{arguments}]).await\n    }}\n\n",
                 method_doc(method),
                 snake_case(&method.shape.text),
-                parameters(schema, &method.shape.parameters),
-                rust_type(schema, &method.returns.r#type),
+                parameters(schema, scope, &method.shape.parameters),
+                rust_type(schema, scope, &method.returns.r#type),
             )
         })
         .collect();
-    write!(
-        out,
-        "/// Calls the methods of the schema through a [`Transport`], one call per\n/// request.\npub struct Client<T> {{\n    pub transport: T,\n}}\n\n\
-         impl<T: Transport> Client<T> {{\n    pub fn new(transport: T) -> Self {{\n        Self {{ transport }}\n    }}\n\n{methods}}}\n"
-    )
+    let lifetime = if root { "'_" } else { "'a" };
+    let scopes: String = children(schema, scope)
+        .into_iter()
+        .filter(|child| has_methods(schema, child))
+        .map(|child| {
+            let name = snake_case(child.last().expect("a child scope has a name"));
+            format!(
+                "    /// The methods of the scope `{}`.\n    pub fn {name}(&self) -> {name}::Client<{lifetime}, T> {{\n        {name}::Client {{ transport: {transport} }}\n    }}\n\n",
+                child.join("/")
+            )
+        })
+        .collect();
+    let members = (methods + &scopes).trim_end_matches('\n').to_string() + "\n";
+    match root {
+        true => write!(
+            out,
+            "/// Calls the methods of the schema through a [`Transport`], one call per\n/// request.\npub struct Client<T> {{\n    pub transport: T,\n}}\n\n\
+             impl<T: Transport> Client<T> {{\n    pub fn new(transport: T) -> Self {{\n        Self {{ transport }}\n    }}\n\n{members}}}\n\n"
+        ),
+        false => write!(
+            out,
+            "/// Calls the methods of the scope `{}` through the transport of the root\n/// `Client`.\npub struct Client<'a, T> {{\n    pub transport: &'a T,\n}}\n\n\
+             impl<'a, T: Transport> Client<'a, T> {{\n{members}}}\n\n",
+            scope.join("/")
+        ),
+    }
     .unwrap();
 }

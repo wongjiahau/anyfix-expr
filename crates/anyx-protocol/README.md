@@ -6,6 +6,7 @@ easily, checked against the schema.
 
 ```rust
 let schema = anyx_protocol::Schema::parse(source)?;
+// or, for a folder of scopes: Schema::parse_files(&[SchemaFile { path, source }, …])
 let calls = anyx_protocol::decode_request(&schema, request)?;
 // Run each call, then:
 let response = anyx_protocol::encode_response(&schema, &methods, &outcomes)?;

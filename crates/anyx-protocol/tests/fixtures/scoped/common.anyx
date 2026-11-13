@@ -1,0 +1,5 @@
+# One problem in a note.
+PUBLIC RECORD diagnostic { line: INTEGER, message: TEXT },
+
+# No note has this path.
+PUBLIC ERROR missing,

@@ -82,8 +82,8 @@ export type Outcome<T, E> =
 
 /** The generated wasm functions, which encode and decode in Rust. */
 export interface Codec {
-  encodeRequest(shape: string, args: string): string;
-  decodeResponse(shape: string, response: string): string;
+  encodeRequest(method: string, args: string): string;
+  decodeResponse(method: string, response: string): string;
 }
 
 /** Calls the schema's methods, one call per request. `send` sends a request
@@ -97,10 +97,11 @@ export class Client {
     this.send = send;
   }
 
-  private async call<T, E>(shape: string, args: unknown[]): Promise<Outcome<T, E>> {
-    const request = this.codec.encodeRequest(shape, JSON.stringify(args));
+  /** Calls a method by its full name, such as `files/read _`. */
+  private async call<T, E>(method: string, args: unknown[]): Promise<Outcome<T, E>> {
+    const request = this.codec.encodeRequest(method, JSON.stringify(args));
     const response = await this.send(request);
-    return JSON.parse(this.codec.decodeResponse(shape, response)) as Outcome<T, E>;
+    return JSON.parse(this.codec.decodeResponse(method, response)) as Outcome<T, E>;
   }
 
   /** Every file this account owns. */

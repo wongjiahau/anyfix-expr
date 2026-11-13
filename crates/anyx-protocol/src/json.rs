@@ -29,20 +29,20 @@ pub fn camel_case(name: &str) -> String {
         .collect()
 }
 
-/// Writes one call of the method `shape` as a request. `arguments` is a JSON
-/// array with one value per parameter.
+/// Writes one call of the method `full_name`, such as `files/read _`, as a
+/// request. `arguments` is a JSON array with one value per parameter.
 pub fn encode_request_json(
     schema: &Schema,
-    shape: &str,
+    full_name: &str,
     arguments: &str,
 ) -> Result<String, String> {
-    let index = method_index(schema, shape)?;
+    let index = method_index(schema, full_name)?;
     let method = &schema.methods[index];
     let arguments: Vec<Json> =
         serde_json::from_str(arguments).map_err(|error| error.to_string())?;
     if arguments.len() != method.shape.parameters.len() {
         return Err(format!(
-            "found {} arguments for `{shape}`; expected {}",
+            "found {} arguments for `{full_name}`; expected {}",
             arguments.len(),
             method.shape.parameters.len()
         ));
@@ -67,13 +67,17 @@ pub fn encode_request_json(
     .map_err(|error| error.message)
 }
 
-/// Reads the response to one call of the method `shape`, as JSON:
+/// Reads the response to one call of the method `full_name`, as JSON:
 /// `{ "kind": "value", "value": … }`, `{ "kind": "error", "error": … }`,
 /// `{ "kind": "notRun" }`,
 /// `{ "kind": "internalError" }`, or
 /// `{ "kind": "invalidRequest", "line": …, "column": …, "message": … }`.
-pub fn decode_response_json(schema: &Schema, shape: &str, text: &str) -> Result<String, String> {
-    let index = method_index(schema, shape)?;
+pub fn decode_response_json(
+    schema: &Schema,
+    full_name: &str,
+    text: &str,
+) -> Result<String, String> {
+    let index = method_index(schema, full_name)?;
     let response =
         decode_response(schema, &[index], text).map_err(|problem| problem.to_string())?;
     let json = match response {
@@ -106,12 +110,12 @@ pub fn decode_response_json(schema: &Schema, shape: &str, text: &str) -> Result<
     Ok(json.to_string())
 }
 
-fn method_index(schema: &Schema, shape: &str) -> Result<usize, String> {
+fn method_index(schema: &Schema, full_name: &str) -> Result<usize, String> {
     schema
         .methods
         .iter()
-        .position(|method| method.shape.text == shape)
-        .ok_or_else(|| format!("found the method `{shape}`; expected a method of the schema"))
+        .position(|method| method.full_name() == full_name)
+        .ok_or_else(|| format!("found the method `{full_name}`; expected a method of the schema"))
 }
 
 /// `value` as JSON.

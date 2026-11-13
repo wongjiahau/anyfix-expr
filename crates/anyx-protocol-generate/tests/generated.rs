@@ -1,8 +1,9 @@
-//! The code generated from Poentaro's schema, kept in `tests/generated` so a
-//! change to the generator shows up as a diff. `round_trip.rs` compiles the
-//! Rust module.
+//! The code generated from Poentaro's schema, and from the schema of scopes
+//! in `anyx-protocol`'s fixtures, kept in `tests/generated` so a change to
+//! the generator shows up as a diff. `round_trip.rs` and
+//! `scoped_round_trip.rs` compile the Rust modules.
 
-use anyx_protocol::Schema;
+use anyx_protocol::{Schema, SchemaFile};
 
 fn read(path: &str) -> String {
     let full = format!("{}/{path}", env!("CARGO_MANIFEST_DIR"));
@@ -26,6 +27,39 @@ fn poentaro() -> Schema {
         "../anyx-protocol/tests/fixtures/poentaro.protocol.anyx",
     ))
     .unwrap()
+}
+
+/// The scoped fixture: a file per scope.
+fn scoped() -> Schema {
+    let paths = [
+        "protocol.anyx",
+        "common.anyx",
+        "files.anyx",
+        "files/export.anyx",
+    ];
+    let sources: Vec<String> = paths
+        .iter()
+        .map(|path| read(&format!("../anyx-protocol/tests/fixtures/scoped/{path}")))
+        .collect();
+    let files: Vec<SchemaFile> = paths
+        .iter()
+        .zip(&sources)
+        .map(|(path, source)| SchemaFile { path, source })
+        .collect();
+    Schema::parse_files(&files).unwrap()
+}
+
+#[test]
+fn the_scoped_rust_module_is_up_to_date() {
+    let code = anyx_protocol_generate::rust(&scoped()).unwrap();
+    let code = anyx_protocol_generate::format_rust(&code).expect("rustfmt is installed");
+    assert_snapshot("tests/generated/scoped.rs", &code);
+}
+
+#[test]
+fn the_scoped_typescript_client_is_up_to_date() {
+    let code = anyx_protocol_generate::typescript(&scoped()).unwrap();
+    assert_snapshot("tests/generated/scoped.ts", &code);
 }
 
 #[test]
@@ -81,4 +115,37 @@ fn a_keyword_becomes_a_raw_identifier() {
     let code = anyx_protocol_generate::rust(&schema).unwrap();
     assert!(code.contains("pub r#type: String"), "{code}");
     assert!(code.contains("pub r#loop: i64"), "{code}");
+}
+
+fn scoped_error(files: &[(&str, &str)]) -> String {
+    let files: Vec<SchemaFile> = files
+        .iter()
+        .map(|(path, source)| SchemaFile { path, source })
+        .collect();
+    let schema = Schema::parse_files(&files).unwrap();
+    let rust = anyx_protocol_generate::rust(&schema).unwrap_err();
+    let typescript = anyx_protocol_generate::typescript(&schema).unwrap_err();
+    assert_eq!(rust, typescript);
+    rust.message
+}
+
+#[test]
+fn names_in_scopes_that_become_the_same_name_are_rejected() {
+    let root = ("protocol.anyx", "PROTOCOL p VERSION 1,");
+    assert_eq!(
+        scoped_error(&[
+            root,
+            ("files.anyx", "METHOD read RETURNS (a: TEXT),"),
+            ("files/read.anyx", "METHOD open RETURNS (a: TEXT),"),
+        ]),
+        "found the scope `files/read` in the scope `files`, which becomes the method `read`, like `files/read`; expected names that stay distinct in the generated code, so rename one"
+    );
+    assert_eq!(
+        scoped_error(&[
+            root,
+            ("files.anyx", "RECORD export page { a: TEXT },"),
+            ("files/export.anyx", "RECORD page { a: TEXT },"),
+        ]),
+        "found the type `files/export/page`, which becomes the TypeScript type `FilesExportPage`, like the type `files/export page`; expected names that stay distinct in the generated code, so rename one"
+    );
 }

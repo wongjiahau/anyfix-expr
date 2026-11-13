@@ -3,10 +3,10 @@
 
 use anyx_protocol::Schema;
 
-use crate::names::{pascal_case, raw_string, snake_case};
+use crate::names::{pascal_case, snake_case};
 
-/// For a schema named `poentaro`: `encode_poentaro_request(shape, arguments)`
-/// and `decode_poentaro_response(shape, response)`, which JavaScript sees as
+/// For a schema named `poentaro`: `encode_poentaro_request(method, arguments)`
+/// and `decode_poentaro_response(method, response)`, which JavaScript sees as
 /// `encodePoentaroRequest` and `decodePoentaroResponse`. The crate that
 /// includes them needs `wasm-bindgen`, and `anyx-protocol` with its `json`
 /// feature.
@@ -18,29 +18,30 @@ pub fn wasm(schema: &Schema) -> String {
 
 use wasm_bindgen::prelude::wasm_bindgen;
 
-const SCHEMA: &str = {source};
+const SCHEMA_FILES: &[anyx_protocol::SchemaFile<'static>] = &[
+{files}];
 
 fn schema() -> &'static anyx_protocol::Schema {{
-    static SCHEMA_READ: std::sync::LazyLock<anyx_protocol::Schema> =
-        std::sync::LazyLock::new(|| anyx_protocol::Schema::parse(SCHEMA).expect("the generator checked the schema"));
+    static SCHEMA_READ: ::std::sync::LazyLock<anyx_protocol::Schema> =
+        ::std::sync::LazyLock::new(|| anyx_protocol::Schema::parse_files(SCHEMA_FILES).expect("the generator checked the schema"));
     &SCHEMA_READ
 }}
 
-/// Writes a request with one call of the method `shape`, such as `read _`.
-/// `arguments` is a JSON array with one value per parameter.
+/// Writes a request with one call of `method`, by its full name, such as
+/// `files/read _`. `arguments` is a JSON array with one value per parameter.
 #[wasm_bindgen(js_name = encode{pascal}Request)]
-pub fn encode_{name}_request(shape: &str, arguments: &str) -> Result<String, String> {{
-    anyx_protocol::json::encode_request_json(schema(), shape, arguments)
+pub fn encode_{name}_request(method: &str, arguments: &str) -> Result<String, String> {{
+    anyx_protocol::json::encode_request_json(schema(), method, arguments)
 }}
 
-/// Reads the response to one call of the method `shape` as JSON, in the
+/// Reads the response to one call of `method` as JSON, in the
 /// TypeScript client's `Outcome`.
 #[wasm_bindgen(js_name = decode{pascal}Response)]
-pub fn decode_{name}_response(shape: &str, response: &str) -> Result<String, String> {{
-    anyx_protocol::json::decode_response_json(schema(), shape, response)
+pub fn decode_{name}_response(method: &str, response: &str) -> Result<String, String> {{
+    anyx_protocol::json::decode_response_json(schema(), method, response)
 }}
 "#,
         schema_name = schema.name,
-        source = raw_string(&schema.source),
+        files = crate::rust::schema_files(schema),
     )
 }

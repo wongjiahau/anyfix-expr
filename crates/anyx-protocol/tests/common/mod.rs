@@ -47,3 +47,64 @@ pub fn diagnostics(source: &str) -> String {
             .join("\n"),
     }
 }
+
+/// The files of the schema in `tests/fixtures/<folder>`, each path relative
+/// to it, in no particular order.
+pub fn schema_files(folder: &str) -> Vec<(String, String)> {
+    fn walk(root: &std::path::Path, at: &std::path::Path, files: &mut Vec<(String, String)>) {
+        for entry in std::fs::read_dir(at).unwrap() {
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                walk(root, &path, files);
+            } else {
+                let relative = path
+                    .strip_prefix(root)
+                    .unwrap()
+                    .to_string_lossy()
+                    .replace('\\', "/");
+                files.push((relative, std::fs::read_to_string(&path).unwrap()));
+            }
+        }
+    }
+    let root = std::path::PathBuf::from(format!(
+        "{}/tests/fixtures/{folder}",
+        env!("CARGO_MANIFEST_DIR")
+    ));
+    let mut files = Vec::new();
+    walk(&root, &root, &mut files);
+    files
+}
+
+/// Reads the schema of `files`, each a path and its source.
+pub fn parse_files(files: &[(&str, &str)]) -> Result<Schema, Vec<anyx_protocol::Diagnostic>> {
+    let files: Vec<anyx_protocol::SchemaFile> = files
+        .iter()
+        .map(|(path, source)| anyx_protocol::SchemaFile { path, source })
+        .collect();
+    Schema::parse_files(&files)
+}
+
+/// The scoped schema in `tests/fixtures/scoped`.
+pub fn scoped() -> Schema {
+    let files = schema_files("scoped");
+    let files: Vec<(&str, &str)> = files
+        .iter()
+        .map(|(path, source)| (path.as_str(), source.as_str()))
+        .collect();
+    parse_files(&files).unwrap_or_else(|diagnostics| panic!("{}", render(&files, &diagnostics)))
+}
+
+/// Each diagnostic for the schema of `files`, rendered in its file.
+pub fn render(files: &[(&str, &str)], diagnostics: &[anyx_protocol::Diagnostic]) -> String {
+    diagnostics
+        .iter()
+        .map(|diagnostic| {
+            let source = files
+                .iter()
+                .find(|(path, _)| *path == diagnostic.path)
+                .map_or("", |(_, source)| source);
+            diagnostic.render(source, &diagnostic.path)
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}

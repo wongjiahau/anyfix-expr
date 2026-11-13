@@ -3,11 +3,12 @@
 #![allow(clippy::all, dead_code, unused_imports, unused_mut, unused_variables)]
 
 use anyx_protocol::client::{CallError, Transport};
-use anyx_protocol::server;
 use anyx_protocol::{FieldsBuilder, FieldsReader, FromValue, IntoValue, Value};
 
-/// The schema as written.
-pub const SCHEMA: &str = r#"# Poentaro turns `.poentaro` text into numbered musical notation (jianpu) and
+/// The schema as written, a file per scope.
+pub const SCHEMA_FILES: &[anyx_protocol::SchemaFile<'static>] = &[anyx_protocol::SchemaFile {
+    path: "protocol.anyx",
+    source: r#"# Poentaro turns `.poentaro` text into numbered musical notation (jianpu) and
 # keeps the account owner's scores in the cloud. When you save, anyone who
 # has the score open sees the change.
 #
@@ -78,13 +79,15 @@ METHOD create (path: TEXT) content (content: TEXT)
 METHOD export midi (path: TEXT)
     RETURNS (midi: BYTES)
     ERRORS file errors,
-"#;
+"#,
+}];
 
 /// The schema, read once.
 pub fn schema() -> &'static anyx_protocol::Schema {
-    static SCHEMA_READ: std::sync::LazyLock<anyx_protocol::Schema> =
-        std::sync::LazyLock::new(|| {
-            anyx_protocol::Schema::parse(SCHEMA).expect("the generator checked the schema")
+    static SCHEMA_READ: ::std::sync::LazyLock<anyx_protocol::Schema> =
+        ::std::sync::LazyLock::new(|| {
+            anyx_protocol::Schema::parse_files(SCHEMA_FILES)
+                .expect("the generator checked the schema")
         });
     &SCHEMA_READ
 }
@@ -385,9 +388,9 @@ impl FromValue for ExportMidiError {
     }
 }
 
-/// The methods of the schema, for a server to implement. An `Err` is the
-/// server's own failure: the caller gets `INTERNAL ERROR`, and the calls
-/// after it don't run.
+/// The methods of the schema's root, for a server to implement, with the
+/// `Server` trait of each scope. An `Err` is the server's own failure: the
+/// caller gets `INTERNAL ERROR`, and the calls after it don't run.
 #[allow(async_fn_in_trait)]
 pub trait Server {
     type Error;
@@ -434,10 +437,10 @@ pub trait Server {
 pub async fn handle<S: Server>(
     implementation: &S,
     request: &str,
-    mut on_internal_error: impl FnMut(S::Error),
+    mut on_internal_error: impl FnMut(<S as Server>::Error),
 ) -> String {
     let schema = schema();
-    let calls = match server::read_request(schema, request) {
+    let calls = match anyx_protocol::server::read_request(schema, request) {
         Ok(calls) => calls,
         Err(response) => return response,
     };
@@ -451,29 +454,37 @@ pub async fn handle<S: Server>(
         }
         let mut arguments = call.arguments.into_iter();
         let outcome = match call.method {
-            0 => server::value(implementation.list_files().await),
-            1 => server::result(implementation.read(server::argument(&mut arguments)).await),
-            2 => server::result(
-                implementation
-                    .write_at_revision_content(
-                        server::argument(&mut arguments),
-                        server::argument(&mut arguments),
-                        server::argument(&mut arguments),
-                    )
-                    .await,
+            0 => anyx_protocol::server::value(<S as Server>::list_files(implementation).await),
+            1 => anyx_protocol::server::result(
+                <S as Server>::read(
+                    implementation,
+                    anyx_protocol::server::argument(&mut arguments),
+                )
+                .await,
             ),
-            3 => server::result(
-                implementation
-                    .create_content(
-                        server::argument(&mut arguments),
-                        server::argument(&mut arguments),
-                    )
-                    .await,
+            2 => anyx_protocol::server::result(
+                <S as Server>::write_at_revision_content(
+                    implementation,
+                    anyx_protocol::server::argument(&mut arguments),
+                    anyx_protocol::server::argument(&mut arguments),
+                    anyx_protocol::server::argument(&mut arguments),
+                )
+                .await,
             ),
-            4 => server::result(
-                implementation
-                    .export_midi(server::argument(&mut arguments))
-                    .await,
+            3 => anyx_protocol::server::result(
+                <S as Server>::create_content(
+                    implementation,
+                    anyx_protocol::server::argument(&mut arguments),
+                    anyx_protocol::server::argument(&mut arguments),
+                )
+                .await,
+            ),
+            4 => anyx_protocol::server::result(
+                <S as Server>::export_midi(
+                    implementation,
+                    anyx_protocol::server::argument(&mut arguments),
+                )
+                .await,
             ),
             _ => unreachable!("the codec read a method of the schema"),
         };
@@ -483,7 +494,7 @@ pub async fn handle<S: Server>(
             anyx_protocol::Outcome::InternalError
         }));
     }
-    server::respond(schema, &methods, outcomes)
+    anyx_protocol::server::respond(schema, &methods, outcomes)
 }
 
 /// Calls the methods of the schema through a [`Transport`], one call per
@@ -502,7 +513,7 @@ impl<T: Transport> Client<T> {
     /// `list files`, returning `files`.
     pub async fn list_files(
         &self,
-    ) -> Result<Vec<FileSummary>, CallError<std::convert::Infallible, T::Error>> {
+    ) -> Result<Vec<FileSummary>, CallError<::std::convert::Infallible, T::Error>> {
         anyx_protocol::client::call(&self.transport, schema(), 0, vec![]).await
     }
 

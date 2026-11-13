@@ -9,9 +9,9 @@
 
 use std::collections::BTreeMap;
 
-use anyx::{Node, NodeKind, Span, line_column};
+use anyx::{NamePart, Node, NodeKind, Span, line_column};
 
-use crate::schema::{Field, Schema, Shape, Type, TypeKind};
+use crate::schema::{Field, Schema, Shape, Type, TypeKind, scoped};
 use crate::value::Value;
 
 /// One call of a request: which method, and its arguments in order.
@@ -115,36 +115,122 @@ pub fn decode_request(schema: &Schema, source: &str) -> Result<Vec<Call>, Proble
                 schema
                     .methods
                     .first()
-                    .map_or("a method", |method| method.shape.text.as_str())
+                    .map_or("a method".to_string(), |method| method.full_name())
             ),
         ));
     }
-    let shapes: Vec<&Shape> = schema.methods.iter().map(|method| &method.shape).collect();
     nodes
         .iter()
-        .map(|node| {
-            let (method, arguments) = decode_shape(schema, &shapes, node).map_err(|mismatch| {
-                let expected = || {
-                    format!(
-                        "expected one of the methods {}",
-                        quoted_shapes(shapes.iter().copied())
-                    )
-                };
-                match mismatch {
-                    ShapeMismatch::NoShape(found) => Mismatch {
-                        span: node.span,
-                        message: format!(
-                            "found {found}; {}; a word in a slot, such as a choice's variant or `true`, goes in parentheses",
-                            expected()
-                        ),
-                    },
-                    ShapeMismatch::Argument(mismatch) => mismatch,
-                }
-            })?;
-            Ok(Call { method, arguments })
-        })
+        .map(|node| decode_call(schema, node))
         .collect::<Result<Vec<_>, Mismatch>>()
         .map_err(|mismatch| problem(source, mismatch.span, mismatch.message))
+}
+
+/// A call in a scope: `files/export/midi "a"` reads as the call `_/_/_` of
+/// `files`, `export` and `midi "a"`.
+struct ScopedCall<'n> {
+    scope: Vec<String>,
+    call: &'n Node,
+}
+
+/// `node` as a call in a scope, if its name is slots between `/`s and each
+/// slot before the last holds a single word.
+fn scoped_call(node: &Node) -> Option<ScopedCall<'_>> {
+    let NodeKind::Call(call) = &node.kind else {
+        return None;
+    };
+    let slashes_between_slots = call.name.len() >= 3
+        && call.name.len() % 2 == 1
+        && call
+            .name
+            .iter()
+            .enumerate()
+            .all(|(index, part)| match part {
+                NamePart::Slot => index % 2 == 0,
+                NamePart::Word { text, .. } => index % 2 == 1 && text == "/",
+            });
+    if !slashes_between_slots {
+        return None;
+    }
+    let (last, segments) = call.arguments.split_last()?;
+    let scope = segments
+        .iter()
+        .map(|segment| match &segment.kind {
+            NodeKind::Call(word) if word.arguments.is_empty() => match word.name.as_slice() {
+                [NamePart::Word { text, .. }] => Some(text.clone()),
+                _ => None,
+            },
+            _ => None,
+        })
+        .collect::<Option<Vec<_>>>()?;
+    Some(ScopedCall { scope, call: last })
+}
+
+/// Reads `node` as a call of one of the schema's methods: in the root, or
+/// in the scope its path names.
+fn decode_call(schema: &Schema, node: &Node) -> Result<Call, Mismatch> {
+    let ScopedCall { scope, call } = scoped_call(node).unwrap_or(ScopedCall {
+        scope: Vec::new(),
+        call: node,
+    });
+    let methods: Vec<usize> = (0..schema.methods.len())
+        .filter(|index| schema.methods[*index].scope == scope)
+        .collect();
+    let shapes: Vec<&Shape> = methods
+        .iter()
+        .map(|index| &schema.methods[*index].shape)
+        .collect();
+    let all_methods = || {
+        schema
+            .methods
+            .iter()
+            .map(|method| format!("`{}`", method.full_name()))
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    if methods.is_empty() && !scope.is_empty() {
+        return Err(Mismatch {
+            span: node.span,
+            message: format!(
+                "found the scope `{}`, which has no methods; expected one of the methods {}",
+                scope.join("/"),
+                all_methods()
+            ),
+        });
+    }
+    let (index, arguments) = decode_shape(schema, &shapes, call).map_err(|mismatch| match mismatch {
+        ShapeMismatch::NoShape(found) => {
+            let found = match &call.kind {
+                NodeKind::Call(call) => format!("the call `{}`", scoped(&scope, &call.name_text())),
+                _ => found,
+            };
+            let elsewhere: Vec<String> = match &call.kind {
+                NodeKind::Call(call) => schema
+                    .methods
+                    .iter()
+                    .filter(|method| method.shape.text == call.name_text() && method.scope != scope)
+                    .map(|method| format!("`{}`", method.full_name()))
+                    .collect(),
+                _ => Vec::new(),
+            };
+            let hint = match elsewhere.is_empty() {
+                true => String::new(),
+                false => format!("; a method of that shape is in a scope, so write its full name: {}", elsewhere.join(", ")),
+            };
+            Mismatch {
+                span: node.span,
+                message: format!(
+                    "found {found}; expected one of the methods {}; a word in a slot, such as a choice's variant or `true`, goes in parentheses{hint}",
+                    all_methods()
+                ),
+            }
+        }
+        ShapeMismatch::Argument(mismatch) => mismatch,
+    })?;
+    Ok(Call {
+        method: methods[index],
+        arguments,
+    })
 }
 
 enum ShapeMismatch {
@@ -366,19 +452,23 @@ fn decode_fields(
     Ok(values)
 }
 
-/// Writes calls as a request, laid out the way `anyx::format` lays it out.
+/// Writes calls as a request, each call laid out the way `anyx::format`
+/// lays it out, after its scope's path: `files/export/midi "a"`. The
+/// formatter would space the `/`s, which reads less like a name.
 pub fn encode_request(schema: &Schema, calls: &[Call]) -> Result<String, EncodeError> {
-    let mut out = String::new();
-    for call in calls {
-        write_shape(
-            schema,
-            &schema.methods[call.method].shape,
-            &call.arguments,
-            &mut out,
-        )?;
-        out.push_str(",\n");
-    }
-    Ok(layout(out))
+    let written = calls
+        .iter()
+        .map(|call| {
+            let method = &schema.methods[call.method];
+            let mut shape = String::new();
+            write_shape(schema, &method.shape, &call.arguments, &mut shape)?;
+            Ok(scoped(&method.scope, layout(shape).trim_end()))
+        })
+        .collect::<Result<Vec<_>, EncodeError>>()?;
+    Ok(match written.as_slice() {
+        [call] => format!("{call}\n"),
+        calls => calls.iter().map(|call| format!("{call},\n")).collect(),
+    })
 }
 
 /// Writes a response to calls of `methods`, one outcome each.
@@ -420,7 +510,7 @@ pub fn encode_response(
                             return Err(EncodeError {
                                 message: format!(
                                     "found the error `{shape}`; expected an error of `{}`",
-                                    method.shape.text
+                                    method.full_name()
                                 ),
                             });
                         };
@@ -484,7 +574,7 @@ pub fn decode_response(
                             schema,
                             &shapes,
                             &call.arguments[0],
-                            &format!("an error of `{}`", method.shape.text),
+                            &format!("an error of `{}`", method.full_name()),
                         )
                         .map(Outcome::Error)
                     }

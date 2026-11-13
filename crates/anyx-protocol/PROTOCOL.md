@@ -62,6 +62,49 @@ METHOD write (path: TEXT) at revision (revision: INTEGER) content (content: TEXT
 Schemas are formatted with `anyx_protocol::format_schema`, which puts a long
 `METHOD`'s `RETURNS` and `ERRORS` on lines of their own.
 
+### Scopes
+
+A schema can be a folder instead of one file. `protocol.anyx` at its root
+holds only the `PROTOCOL` header, and every other `.anyx` file is a *scope*,
+named by its path without `.anyx`:
+
+```text
+notes/
+  protocol.anyx        PROTOCOL notes VERSION 1,
+  common.anyx          scope `common`
+  files.anyx           scope `files`
+  files/export.anyx    scope `files/export`
+```
+
+A file or folder name is one lowercase word, letters and digits.
+
+- **A method is called by its full name**: the scope's path, `/`, then its
+  shape. `METHOD pdf (path: TEXT)` in `files/export.anyx` is called as
+  `files/export/pdf "a.note"`. A method's own shape has no `/`.
+- **Types and errors are private** to the scope that declares them; folders
+  give no special access, so `files/export` can't see what `files` keeps to
+  itself. **`PUBLIC`** before `RECORD`, `CHOICE`, `ERROR` or `ERRORS` shares
+  it, and another scope then names it by its full path:
+
+```anyx
+## common.anyx
+PUBLIC RECORD diagnostic { line: INTEGER, message: TEXT },
+PUBLIC ERROR missing,
+
+## files.anyx
+PUBLIC ERROR trashed,
+PUBLIC ERRORS file errors [trashed, common/missing],
+METHOD read (path: TEXT) RETURNS (file: file) ERRORS file errors,
+
+## files/export.anyx
+ERROR unreadable (diagnostics: LIST common/diagnostic),
+METHOD pdf (path: TEXT) RETURNS (pdf: BYTES) ERRORS [unreadable, files/file errors],
+```
+
+- In its own scope, a type or error is named without its path.
+- An error is written on the wire by its words alone, `ERROR missing`, so a
+  method can't list two errors of the same words from different scopes.
+
 ## Requests
 
 A request is calls separated by commas, each in a method's shape with a value
@@ -73,6 +116,9 @@ write "Hymns/a.poentaro" at revision 3 content """
     title "Ode"
     """,
 ```
+
+In a schema of scopes, each call starts with its scope's path:
+`files/export/pdf "a.note", files/list`. Spaces around the `/` are allowed.
 
 Every call runs, in order.
 
@@ -128,4 +174,4 @@ A result is `{ "kind": "value", "value": … }`, `{ "kind": "error",
 
 `anyx_protocol::guide(schema, how_to_send)` writes the markdown an agent
 reads before its first request: these rules, briefly, then the schema with
-its `#` lines.
+its `#` lines, a section per scope's file.

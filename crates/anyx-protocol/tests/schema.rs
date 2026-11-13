@@ -94,7 +94,7 @@ fn poentaros_schema_reads_with_its_docs_shapes_and_errors() {
     assert!(list.errors.is_empty());
     let conflict = &schema.errors[2];
     assert_eq!(
-        conflict.doc.as_deref(),
+        conflict.error.doc.as_deref(),
         Some("Someone saved first. Apply your change to `content`, then write at\n`revision`.")
     );
 }

@@ -2,7 +2,10 @@
 ## `src/grammar.rs` is generated from it; `tests/schema.rs` checks that it is
 ## up to date.
 
-ENTRY [protocol, ZERO OR MORE: definition],
+## A schema of one file has the `PROTOCOL` header first. A schema of a
+## folder has it alone in `protocol.anyx`; every other file is a scope, and
+## holds only definitions.
+ENTRY [header: OPTIONAL: protocol, ZERO OR MORE: definition],
 
 protocol: ANYFIX CALL [
   doc: OPTIONAL: STRING,
@@ -12,7 +15,10 @@ protocol: ANYFIX CALL [
 
 definition: ONE OF [record, choice, error, errors, method],
 
-record: ANYFIX CALL [doc: OPTIONAL: STRING, WORD "RECORD", body: record body],
+record: ONE OF [
+  public: ANYFIX CALL [doc: OPTIONAL: STRING, WORD "PUBLIC", WORD "RECORD", body: record body],
+  private: ANYFIX CALL [doc: OPTIONAL: STRING, WORD "RECORD", body: record body],
+],
 
 record body: ANYFIX CALL [name: WORDS [NO KEYWORD], fields: CURLY BRACE [ZERO OR MORE: field]],
 
@@ -20,7 +26,10 @@ field: ANYFIX CALL [doc: OPTIONAL: STRING, name: WORDS [NO KEYWORD], type: field
 
 field type: ONE OF [optional: ANYFIX CALL [WORD "OPTIONAL", type], type],
 
-choice: ANYFIX CALL [doc: OPTIONAL: STRING, WORD "CHOICE", body: choice body],
+choice: ONE OF [
+  public: ANYFIX CALL [doc: OPTIONAL: STRING, WORD "PUBLIC", WORD "CHOICE", body: choice body],
+  private: ANYFIX CALL [doc: OPTIONAL: STRING, WORD "CHOICE", body: choice body],
+],
 
 choice body: ANYFIX CALL [
   name: WORDS [NO KEYWORD],
@@ -33,13 +42,20 @@ variant: ANYFIX CALL [NAME [NO KEYWORD], ARGUMENTS: ZERO OR MORE: variant slot],
 
 variant slot: ONE OF [doc: STRING, parameter],
 
-error: ANYFIX CALL [doc: OPTIONAL: STRING, WORD "ERROR", shape: shape],
+## `PUBLIC` lets other scopes use a type or an error, by its full path.
+error: ONE OF [
+  public: ANYFIX CALL [doc: OPTIONAL: STRING, WORD "PUBLIC", WORD "ERROR", shape: shape],
+  private: ANYFIX CALL [doc: OPTIONAL: STRING, WORD "ERROR", shape: shape],
+],
 
-errors: ANYFIX CALL [doc: OPTIONAL: STRING, WORD "ERRORS", body: errors body],
+errors: ONE OF [
+  public: ANYFIX CALL [doc: OPTIONAL: STRING, WORD "PUBLIC", WORD "ERRORS", body: errors body],
+  private: ANYFIX CALL [doc: OPTIONAL: STRING, WORD "ERRORS", body: errors body],
+],
 
 errors body: ANYFIX CALL [
   name: WORDS [NO KEYWORD],
-  members: SQUARE BRACKET [ONE OR MORE: type name],
+  members: SQUARE BRACKET [ONE OR MORE: reference],
 ],
 
 method: ONE OF [
@@ -59,7 +75,7 @@ method: ONE OF [
 ## What a method returns is named too: `RETURNS (new revision: INTEGER)`.
 returns: parameter,
 
-error list: ONE OF [several: SQUARE BRACKET [ONE OR MORE: type name], one: type name],
+error list: ONE OF [several: SQUARE BRACKET [ONE OR MORE: reference], one: reference],
 
 shape: ANYFIX CALL [NAME [NO KEYWORD], ARGUMENTS: ZERO OR MORE: parameter],
 
@@ -72,7 +88,12 @@ type: ONE OF [
   WORD "NUMBER",
   WORD "BOOLEAN",
   list: ANYFIX CALL [WORD "LIST", item: type],
-  named: type name,
+  named: reference,
 ],
+
+## A type or an error by its name, `diagnostic`, or by its full path from
+## another scope, `common/diagnostic`, which reads as the call `_/_` of
+## `common` and `diagnostic`. The schema checker tells the two apart.
+reference: ANYFIX CALL [NAME [NO KEYWORD], ARGUMENTS: ZERO OR MORE: type name],
 
 type name: ANYFIX CALL [NAME [NO KEYWORD], NO ARGUMENTS],

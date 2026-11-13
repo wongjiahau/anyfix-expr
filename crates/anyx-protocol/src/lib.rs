@@ -3,6 +3,7 @@
 //! See `PROTOCOL.md` for the schema language and the wire format.
 
 mod bytes;
+mod check;
 pub mod client;
 pub mod codec;
 // Generated from `protocol.anyx`; its definitions are as big as they come.
@@ -26,5 +27,5 @@ pub use guide::guide;
 pub fn format_schema(source: &str) -> Result<String, Vec<anyx::Error>> {
     grammar::format(source)
 }
-pub use schema::{Diagnostic, Schema};
+pub use schema::{Diagnostic, Schema, SchemaFile};
 pub use value::{FieldsBuilder, FieldsReader, FromValue, IntoValue, Value};

@@ -1,0 +1,65 @@
+== a private type from another scope
+files.anyx:1:18: found `common/secret`, which is private to the scope `common`; expected a `PUBLIC` type, or one of the scope `files`; write `PUBLIC` before its definition in `common.anyx` to share it
+  RECORD file { a: common/secret },
+                   ^^^^^^^^^^^^^
+
+== a full path that names nothing
+files.anyx:1:18: found `common/nothing`, which names no type; expected the full path of a `PUBLIC` `RECORD` or `CHOICE`, such as `common/diagnostic` for `PUBLIC RECORD diagnostic` in `common.anyx`
+  RECORD file { a: common/nothing },
+                   ^^^^^^^^^^^^^^
+
+== a public type written without its path
+files.anyx:1:18: found `diagnostic`, which is not a type of the scope `files`; expected `TEXT`, `BYTES`, `INTEGER`, `NUMBER`, `BOOLEAN`, `LIST: type`, or a `RECORD` or `CHOICE` defined here; define `diagnostic`, or fix the name; another scope has `common/diagnostic`, so write its full path
+  RECORD file { a: diagnostic },
+                   ^^^^^^^^^^
+
+== a private error from another scope
+files.anyx:1:38: found `common/gone`, which is private to the scope `common`; expected a `PUBLIC` error or alias, or one of the scope `files`; write `PUBLIC` before its definition in `common.anyx` to share it
+  METHOD read RETURNS (a: TEXT) ERRORS common/gone,
+                                       ^^^^^^^^^^^
+
+== a public error written without its path
+files.anyx:1:38: found `missing`, which is not an error of the scope `files`; expected the words of an `ERROR`, such as `conflict at revision` for `ERROR conflict at revision (revision: INTEGER)`, or an `ERRORS` alias; another scope has `common/missing`, so write its full path
+  METHOD read RETURNS (a: TEXT) ERRORS missing,
+                                       ^^^^^^^
+
+== errors of the same words from two scopes
+files.anyx:1:63: found the errors `files/missing` and `common/missing` both listed for this method; expected errors of distinct words, since a response writes an error by its shape alone, without its scope; rename one of them
+  ERROR missing, METHOD read RETURNS (a: TEXT) ERRORS [missing, common/missing],
+                                                                ^^^^^^^^^^^^^^
+
+== a path of two words
+files.anyx:1:18: found `my common/diagnostic`; expected a name, such as `diagnostic`, or the full path of a `PUBLIC` one in another scope, such as `common/diagnostic`
+  RECORD file { a: my common/diagnostic },
+                   ^^^^^^^^^^^^^^^^^^^^
+
+== a definition next to the header
+protocol.anyx:1:27: found a definition in `protocol.anyx`; expected only the `PROTOCOL` header there, since the schema has a file per scope; move it into a scope's file, such as `common.anyx`
+  PROTOCOL notes VERSION 1, RECORD x { a: TEXT },
+                            ^^^^^^^^^^^^^^^^^^^^
+
+== a header in a scope
+files.anyx:1:1: found a `PROTOCOL` header in `files.anyx`; expected it only in `protocol.anyx`, since this file is the scope `files`; remove it
+  PROTOCOL files VERSION 1,
+  ^^^^^^^^^^^^^^^^^^^^^^^^
+
+== no root file
+protocol.anyx:1:1: found no `protocol.anyx` among the schema's files; expected it, with the `PROTOCOL` header
+  
+  ^
+
+== a file name that is no scope
+Files.anyx:1:1: found the schema file `Files.anyx`; expected a path of single lowercase words, each of ASCII letters and digits starting with a letter, ending in `.anyx`, such as `files/export.anyx`, since each word names a scope that requests write
+  RECORD x { a: TEXT },
+  ^
+
+== a file that is not anyx
+files.txt:1:1: found the schema file `files.txt`; expected a path of single lowercase words, each of ASCII letters and digits starting with a letter, ending in `.anyx`, such as `files/export.anyx`, since each word names a scope that requests write
+  RECORD x { a: TEXT },
+  ^
+
+== a `/` in a method's name
+files.anyx:1:8: found the method `files/read (path: TEXT)`, with `/` in its name; expected words alone, since a method's scope is its file: `METHOD read` in `files.anyx` is called as `files/read`
+  METHOD files/read (path: TEXT) RETURNS (a: TEXT),
+         ^^^^^^^^^^^^^^^^^^^^^^^
+
