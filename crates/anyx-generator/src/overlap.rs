@@ -104,6 +104,40 @@ impl<'a> Overlap<'a> {
                 },
                 _,
             ) => call_name_covers(name, specific),
+            // `ANYFIX CALL [NAME [...], ARGUMENTS: value]` after a call of
+            // words and slots: its name holds and each slot is a `value`.
+            (
+                Pattern::AnyCall {
+                    name,
+                    arguments: Some(argument),
+                },
+                Pattern::SpecificCall(parts),
+            ) => {
+                let slots: Vec<&Element> = parts
+                    .iter()
+                    .filter(|part| !matches!(part.pattern, Pattern::Word(_)))
+                    .collect();
+                let count_fits = match argument.repetition {
+                    Repetition::One => {
+                        matches!(&slots[..], [slot] if slot.repetition == Repetition::One)
+                    }
+                    Repetition::Optional => match &slots[..] {
+                        [] => true,
+                        [slot] => matches!(slot.repetition, Repetition::One | Repetition::Optional),
+                        _ => false,
+                    },
+                    Repetition::ZeroOrMore | Repetition::Each => true,
+                    Repetition::OneOrMore => {
+                        slots.iter().any(|slot| slot.repetition == Repetition::One)
+                            || slots.iter().any(|slot| slot.repetition == Repetition::OneOrMore)
+                    }
+                };
+                count_fits
+                    && call_name_covers(name, specific)
+                    && slots
+                        .iter()
+                        .all(|slot| self.covers(&argument.pattern, &slot.pattern))
+            }
             _ => false,
         }
     }

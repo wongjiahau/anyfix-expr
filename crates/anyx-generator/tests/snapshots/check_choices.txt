@@ -142,3 +142,14 @@ grammar:1:46: warning: found the choices `a` and `b` able to match the same inpu
   ENTRY: value, value: ONE OF [a: WORD "null", b: ANYFIX CALL [name: WORDS, x: OPTIONAL: STRING]]
                                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+## ENTRY: value, value: ONE OF [size: ANYFIX CALL [key: WORDS "max size", x], field: ANYFIX CALL [NAME [ENDS WITH " _"], ARGUMENTS: x]], x: ONE OF [s: STRING, n: NUMBER]
+nothing to report
+
+## ENTRY: value, value: ONE OF [size: ANYFIX CALL [key: WORDS "max size", x: ZERO OR MORE: STRING], field: ANYFIX CALL [NAME [ENDS WITH " _"], ARGUMENTS: STRING]]
+grammar:1:98: warning: found the choices `size` and `field` able to match the same input; expected at most one choice to fit any input, since `size` comes first and always wins it; make one of them more specific, or put the more specific one first
+  ENTRY: value, value: ONE OF [size: ANYFIX CALL [key: WORDS "max size", x: ZERO OR MORE: STRING], field: ANYFIX CALL [NAME [ENDS WITH " _"], ARGUMENTS: STRING]]
+                                                                                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+## ENTRY: value, value: ONE OF [pair: ANYFIX CALL [x: STRING, WORD "to", y: STRING], field: ANYFIX CALL [NAME [ENDS WITH " _"], ARGUMENTS: ZERO OR MORE: STRING]]
+nothing to report
+
