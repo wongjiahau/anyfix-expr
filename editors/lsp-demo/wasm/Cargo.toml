@@ -1,0 +1,14 @@
+[package]
+name = "poentaro-lsp-web"
+version.workspace = true
+edition.workspace = true
+description = "The poentaro language server as WebAssembly, for the static demo page"
+license.workspace = true
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+anyx = { path = "../../../crates/anyx" }
+anyx-lsp = { path = "../../../crates/anyx-lsp", features = ["wasm"] }

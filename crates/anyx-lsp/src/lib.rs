@@ -18,12 +18,18 @@
 //! - completion: the words and calls the grammar allows where the cursor is;
 //! - formatting, with the grammar's `FORMAT` layouts;
 //! - folding of brackets and strings that span lines.
+//!
+//! [`serve`] runs it over standard input and output, for editors. With the
+//! `wasm` feature, [`wasm!`] exports it to a web page, which runs it in a Web
+//! Worker: the page needs no server.
 
 mod position;
 mod server;
+#[cfg(feature = "wasm")]
+pub mod wasm;
 
 pub use position::LineIndex;
-pub use server::serve;
+pub use server::{Server, serve};
 
 use anyx::{Node, NodeKind, Span};
 

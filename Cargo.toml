@@ -7,6 +7,7 @@ members = [
     "crates/anyx-protocol",
     "crates/anyx-protocol-generate",
     "crates/edition-2021-check",
+    "editors/lsp-demo/wasm",
 ]
 
 [workspace.package]

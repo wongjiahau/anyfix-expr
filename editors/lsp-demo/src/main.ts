@@ -1,8 +1,8 @@
 /**
- * Monaco, talking to an anyx language server over a WebSocket (see
- * vite.config.ts for the bridge). The client is small on purpose: it speaks
- * just enough of the protocol for diagnostics, completion, formatting and
- * folding.
+ * Monaco, talking to an anyx language server that runs as WebAssembly in a
+ * Web Worker (see worker.ts), so the page needs no server. The client is
+ * small on purpose: it speaks just enough of the protocol for diagnostics,
+ * completion, formatting and folding.
  */
 
 import * as monaco from 'monaco-editor'
@@ -46,22 +46,22 @@ const editor = monaco.editor.create(document.getElementById('editor')!, {
   minimap: { enabled: false },
 })
 
-// ── JSON-RPC over the WebSocket ────────────────────────────────────────────
+// ── JSON-RPC with the worker ───────────────────────────────────────────────
 
 type Position = { line: number; character: number }
 type Range = { start: Position; end: Position }
 
-const socket = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/lsp`)
+const server = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' })
 const pending = new Map<number, (result: unknown) => void>()
 let nextId = 1
 
 function send(message: object) {
-  socket.send(JSON.stringify({ jsonrpc: '2.0', ...message }))
+  server.postMessage(JSON.stringify({ jsonrpc: '2.0', ...message }))
 }
 
 // Resolves once the server has answered `initialize` and been told
 // `initialized`; until then it takes no other request.
-let markReady: () => void
+let markReady = () => {}
 const ready = new Promise<void>((resolve) => (markReady = resolve))
 
 function request<T>(method: string, params: unknown): Promise<T> {
@@ -83,7 +83,7 @@ const toRange = (range: Range): monaco.IRange => ({
 
 const textDocument = { uri: uri.toString() }
 
-socket.addEventListener('message', (event) => {
+server.addEventListener('message', (event: MessageEvent<string>) => {
   const message = JSON.parse(event.data)
   if ('id' in message && pending.has(message.id)) {
     pending.get(message.id)!(message.result)
@@ -105,9 +105,9 @@ socket.addEventListener('message', (event) => {
   }
 })
 
-socket.addEventListener('close', () => (status.textContent = 'disconnected'))
+server.addEventListener('error', () => (status.textContent = 'the language server failed to start'))
 
-socket.addEventListener('open', async () => {
+;(async () => {
   await request('initialize', { processId: null, rootUri: null, capabilities: {} })
   notify('initialized', {})
   markReady()
@@ -122,7 +122,7 @@ socket.addEventListener('open', async () => {
       contentChanges: [{ text: model.getValue() }],
     })
   })
-})
+})()
 
 // ── Monaco providers, each one request to the server ───────────────────────
 

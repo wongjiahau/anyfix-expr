@@ -138,3 +138,40 @@ fn a_wrong_value_is_a_problem_naming_the_values_there_are() {
         ["found the number `0`; expected an integer of at least 1"]
     );
 }
+
+#[test]
+fn the_server_answers_each_message_with_the_messages_to_send_back() {
+    use lsp_server::{Message, Notification, Request, RequestId};
+    let mut server = anyx_lsp::Server::new(&Poentaro);
+    let replies = server.handle(Message::Request(Request::new(
+        RequestId::from(1),
+        "initialize".into(),
+        serde_json::json!({ "capabilities": {} }),
+    )));
+    assert!(
+        matches!(&replies[..], [Message::Response(response)] if response.result.is_some()),
+        "{replies:?}"
+    );
+    let replies = server.handle(Message::Notification(Notification::new(
+        "textDocument/didOpen".into(),
+        serde_json::json!({ "textDocument": {
+            "uri": "file:///a.poentaro",
+            "languageId": "poentaro",
+            "version": 1,
+            "text": "metadata { max measures per system : 0 }",
+        } }),
+    )));
+    let [Message::Notification(diagnostics)] = &replies[..] else {
+        panic!("{replies:?}");
+    };
+    assert_eq!(
+        diagnostics.params["diagnostics"][0]["message"],
+        "found the number `0`; expected an integer of at least 1"
+    );
+    assert!(!server.has_exited());
+    server.handle(Message::Notification(Notification::new(
+        "exit".into(),
+        serde_json::json!(null),
+    )));
+    assert!(server.has_exited());
+}
