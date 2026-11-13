@@ -2,7 +2,7 @@
 ## every kind of number and word, fields named like Rust keywords, brackets
 ## with and without fields, recursion through an optional field, `EACH`
 ## among the parts of a call, a call with no arguments, a node kept as it
-## is, and name words taken as text.
+## is, name words taken as text, and fixed words written as one `WORDS`.
 
 ENTRY [header: OPTIONAL: string, ZERO OR MORE: node],
 
@@ -24,6 +24,8 @@ node: ONE OF [
   unset: ANYFIX CALL [WORD "UNSET", name: ANYFIX CALL [NAME [NO KEYWORD], NO ARGUMENTS]],
   exact: STRING "exact",
   spanned: span,
+  per page: ANYFIX CALL [key: WORDS "max size", size: NUMBER, WORDS "per page"],
+  WORDS "sans serif",
   WORD "type",
   WORD "NOT_NULL",
 ],

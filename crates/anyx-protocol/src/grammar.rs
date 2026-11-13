@@ -290,6 +290,231 @@ impl Type {
     }
 }
 
+impl support::Errors for Document {
+    fn errors<'a>(&'a self, found: &mut std::vec::Vec<&'a support::DecodeError>) {
+        support::Errors::errors(&self.header, found);
+        support::Errors::errors(&self.definition, found);
+    }
+}
+
+impl support::Errors for Protocol {
+    fn errors<'a>(&'a self, found: &mut std::vec::Vec<&'a support::DecodeError>) {
+        support::Errors::errors(&self.doc, found);
+        support::Errors::errors(&self.name, found);
+        support::Errors::errors(&self.version, found);
+    }
+}
+
+impl support::Errors for Definition {
+    fn errors<'a>(&'a self, found: &mut std::vec::Vec<&'a support::DecodeError>) {
+        match self {
+            Definition::Record(value) => support::Errors::errors(value, found),
+            Definition::Choice(value) => support::Errors::errors(value, found),
+            Definition::Error(value) => support::Errors::errors(value, found),
+            Definition::Errors(value) => support::Errors::errors(value, found),
+            Definition::Method(value) => support::Errors::errors(value, found),
+        }
+    }
+}
+
+impl support::Errors for Record {
+    fn errors<'a>(&'a self, found: &mut std::vec::Vec<&'a support::DecodeError>) {
+        match self {
+            Record::Public { doc, body, .. } => {
+                support::Errors::errors(doc, found);
+                support::Errors::errors(body, found);
+            }
+            Record::Private { doc, body, .. } => {
+                support::Errors::errors(doc, found);
+                support::Errors::errors(body, found);
+            }
+        }
+    }
+}
+
+impl support::Errors for RecordBody {
+    fn errors<'a>(&'a self, found: &mut std::vec::Vec<&'a support::DecodeError>) {
+        support::Errors::errors(&self.name, found);
+        support::Errors::errors(&self.fields, found);
+    }
+}
+
+impl support::Errors for Field {
+    fn errors<'a>(&'a self, found: &mut std::vec::Vec<&'a support::DecodeError>) {
+        support::Errors::errors(&self.doc, found);
+        support::Errors::errors(&self.name, found);
+        support::Errors::errors(&self.r#type, found);
+    }
+}
+
+impl support::Errors for FieldType {
+    fn errors<'a>(&'a self, found: &mut std::vec::Vec<&'a support::DecodeError>) {
+        match self {
+            FieldType::Optional { r#type, .. } => {
+                support::Errors::errors(r#type, found);
+            }
+            FieldType::Type(value) => support::Errors::errors(value, found),
+        }
+    }
+}
+
+impl support::Errors for Choice {
+    fn errors<'a>(&'a self, found: &mut std::vec::Vec<&'a support::DecodeError>) {
+        match self {
+            Choice::Public { doc, body, .. } => {
+                support::Errors::errors(doc, found);
+                support::Errors::errors(body, found);
+            }
+            Choice::Private { doc, body, .. } => {
+                support::Errors::errors(doc, found);
+                support::Errors::errors(body, found);
+            }
+        }
+    }
+}
+
+impl support::Errors for ChoiceBody {
+    fn errors<'a>(&'a self, found: &mut std::vec::Vec<&'a support::DecodeError>) {
+        support::Errors::errors(&self.name, found);
+        support::Errors::errors(&self.variants, found);
+    }
+}
+
+impl support::Errors for Variant {
+    fn errors<'a>(&'a self, found: &mut std::vec::Vec<&'a support::DecodeError>) {
+        support::Errors::errors(&self.name, found);
+        support::Errors::errors(&self.arguments, found);
+    }
+}
+
+impl support::Errors for VariantSlot {
+    fn errors<'a>(&'a self, found: &mut std::vec::Vec<&'a support::DecodeError>) {
+        match self {
+            VariantSlot::Doc(value) => support::Errors::errors(value, found),
+            VariantSlot::Parameter(value) => support::Errors::errors(value, found),
+        }
+    }
+}
+
+impl support::Errors for Error {
+    fn errors<'a>(&'a self, found: &mut std::vec::Vec<&'a support::DecodeError>) {
+        match self {
+            Error::Public { doc, shape, .. } => {
+                support::Errors::errors(doc, found);
+                support::Errors::errors(shape, found);
+            }
+            Error::Private { doc, shape, .. } => {
+                support::Errors::errors(doc, found);
+                support::Errors::errors(shape, found);
+            }
+        }
+    }
+}
+
+impl support::Errors for Errors {
+    fn errors<'a>(&'a self, found: &mut std::vec::Vec<&'a support::DecodeError>) {
+        match self {
+            Errors::Public { doc, body, .. } => {
+                support::Errors::errors(doc, found);
+                support::Errors::errors(body, found);
+            }
+            Errors::Private { doc, body, .. } => {
+                support::Errors::errors(doc, found);
+                support::Errors::errors(body, found);
+            }
+        }
+    }
+}
+
+impl support::Errors for ErrorsBody {
+    fn errors<'a>(&'a self, found: &mut std::vec::Vec<&'a support::DecodeError>) {
+        support::Errors::errors(&self.name, found);
+        support::Errors::errors(&self.members, found);
+    }
+}
+
+impl support::Errors for Method {
+    fn errors<'a>(&'a self, found: &mut std::vec::Vec<&'a support::DecodeError>) {
+        match self {
+            Method::WithErrors {
+                doc,
+                shape,
+                returns,
+                errors,
+                ..
+            } => {
+                support::Errors::errors(doc, found);
+                support::Errors::errors(shape, found);
+                support::Errors::errors(returns, found);
+                support::Errors::errors(errors, found);
+            }
+            Method::WithoutErrors {
+                doc,
+                shape,
+                returns,
+                ..
+            } => {
+                support::Errors::errors(doc, found);
+                support::Errors::errors(shape, found);
+                support::Errors::errors(returns, found);
+            }
+        }
+    }
+}
+
+impl support::Errors for ErrorList {
+    fn errors<'a>(&'a self, found: &mut std::vec::Vec<&'a support::DecodeError>) {
+        match self {
+            ErrorList::Several(value) => support::Errors::errors(value, found),
+            ErrorList::One(value) => support::Errors::errors(value, found),
+        }
+    }
+}
+
+impl support::Errors for Shape {
+    fn errors<'a>(&'a self, found: &mut std::vec::Vec<&'a support::DecodeError>) {
+        support::Errors::errors(&self.name, found);
+        support::Errors::errors(&self.arguments, found);
+    }
+}
+
+impl support::Errors for Parameter {
+    fn errors<'a>(&'a self, found: &mut std::vec::Vec<&'a support::DecodeError>) {
+        support::Errors::errors(&self.name, found);
+        support::Errors::errors(&self.r#type, found);
+    }
+}
+
+impl support::Errors for Type {
+    fn errors<'a>(&'a self, found: &mut std::vec::Vec<&'a support::DecodeError>) {
+        match self {
+            Type::Text(_) => {}
+            Type::Bytes(_) => {}
+            Type::Integer(_) => {}
+            Type::Number(_) => {}
+            Type::Boolean(_) => {}
+            Type::List { item, .. } => {
+                support::Errors::errors(item, found);
+            }
+            Type::Named(value) => support::Errors::errors(value, found),
+        }
+    }
+}
+
+impl support::Errors for Reference {
+    fn errors<'a>(&'a self, found: &mut std::vec::Vec<&'a support::DecodeError>) {
+        support::Errors::errors(&self.name, found);
+        support::Errors::errors(&self.arguments, found);
+    }
+}
+
+impl support::Errors for TypeName {
+    fn errors<'a>(&'a self, found: &mut std::vec::Vec<&'a support::DecodeError>) {
+        support::Errors::errors(&self.name, found);
+        support::Errors::errors(&self.arguments, found);
+    }
+}
+
 pub fn decode_document(nodes: &[Node]) -> Result<Document, DecodeError> {
     let mut elements = support::document(nodes);
     let decoded = Document {
@@ -761,6 +986,93 @@ pub mod support {
         }
     }
 
+    /// A decoded value that can hold errors: the ones `EACH` keeps in place of
+    /// the elements that did not fit, and the ones `ANY ORDER` keeps for the
+    /// nodes that fit nothing. Every generated type has it, so a tool such as a
+    /// language server can list every error in a document without knowing its
+    /// grammar.
+    pub trait Errors {
+        /// Adds every error inside `self` to `found`, in source order.
+        fn errors<'a>(&'a self, found: &mut Vec<&'a DecodeError>);
+
+        /// Every error inside `self`, in source order.
+        fn all_errors(&self) -> Vec<&DecodeError> {
+            let mut found = Vec::new();
+            self.errors(&mut found);
+            found
+        }
+    }
+
+    impl Errors for DecodeError {
+        fn errors<'a>(&'a self, found: &mut Vec<&'a DecodeError>) {
+            found.push(self);
+        }
+    }
+
+    impl<T: Errors> Errors for Result<T, DecodeError> {
+        fn errors<'a>(&'a self, found: &mut Vec<&'a DecodeError>) {
+            match self {
+                Ok(value) => value.errors(found),
+                Err(error) => found.push(error),
+            }
+        }
+    }
+
+    impl<T: Errors> Errors for Vec<T> {
+        fn errors<'a>(&'a self, found: &mut Vec<&'a DecodeError>) {
+            for value in self {
+                value.errors(found);
+            }
+        }
+    }
+
+    impl<T: Errors> Errors for Option<T> {
+        fn errors<'a>(&'a self, found: &mut Vec<&'a DecodeError>) {
+            if let Some(value) = self {
+                value.errors(found);
+            }
+        }
+    }
+
+    impl<T: Errors> Errors for Box<T> {
+        fn errors<'a>(&'a self, found: &mut Vec<&'a DecodeError>) {
+            (**self).errors(found);
+        }
+    }
+
+    impl<T: Errors> Errors for Spanned<T> {
+        fn errors<'a>(&'a self, found: &mut Vec<&'a DecodeError>) {
+            self.value.errors(found);
+        }
+    }
+
+    macro_rules! no_errors {
+    ($($type:ty),*) => {
+        $(impl Errors for $type {
+            fn errors<'a>(&'a self, _: &mut Vec<&'a DecodeError>) {}
+        })*
+    };
+}
+
+    no_errors!(
+        Span,
+        Node,
+        StringLiteral,
+        String,
+        CallName,
+        u8,
+        u16,
+        u32,
+        u64,
+        u128,
+        i8,
+        i16,
+        i32,
+        i64,
+        i128,
+        f64
+    );
+
     /// The name of a call matched by `ANYFIX CALL`: its text, such as
     /// `max size _`, its words and slots, and where its words are.
     #[derive(Clone, Debug, PartialEq)]
@@ -1116,19 +1428,25 @@ pub mod support {
             Ok(self)
         }
 
-        /// Like [`Sequence::word`], giving the word's span.
+        /// Like [`Sequence::word`], giving the word's span. `text` may be
+        /// several words separated by spaces, from `WORDS "a b"`: they are
+        /// matched in a row, and the span runs from the first to the last.
         pub fn word_span(&mut self, text: &str) -> Result<Span, DecodeError> {
-            let span = match self.items.get(self.index) {
-                Some(Item::Word(found, span)) if *found == text => *span,
-                Some(Item::Node(node)) if is_word(node, text) => node.span,
-                Some(Item::Node(_)) if self.other_call.is_some() => {
-                    return Err(self.is_other_call());
-                }
-                _ => return Err(self.unexpected(&format!("the word `{text}`"))),
-            };
-            self.index += 1;
-            self.other_call = None;
-            Ok(span)
+            let mut span: Option<Span> = None;
+            for word in text.split(' ') {
+                let found = match self.items.get(self.index) {
+                    Some(Item::Word(found, at)) if *found == word => *at,
+                    Some(Item::Node(node)) if is_word(node, word) => node.span,
+                    Some(Item::Node(_)) if self.other_call.is_some() => {
+                        return Err(self.is_other_call());
+                    }
+                    _ => return Err(self.unexpected(&format!("the word `{text}`"))),
+                };
+                self.index += 1;
+                self.other_call = None;
+                span = Some(span.map_or(found, |first| first.to(found)));
+            }
+            Ok(span.unwrap_or(Span::empty(0)))
         }
 
         /// Matches every name word in a row, at least one, whose text, the

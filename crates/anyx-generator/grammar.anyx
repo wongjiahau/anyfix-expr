@@ -34,6 +34,7 @@ pattern: ONE OF [
   any call,
   word,
   any word,
+  exact words,
   words,
   string,
   number,
@@ -100,6 +101,11 @@ call condition: ONE OF [
 name condition: ONE OF [no keyword: ANYFIX CALL [WORD "NO", WORD "KEYWORD"], string condition],
 
 word: ANYFIX CALL [WORD "WORD", text: STRING],
+
+## `WORDS "max measures per system"`: those words, written as one string.
+## It matches them in a row, as one `WORD` per word would, but as one part:
+## a mismatch expects all of them, and a name gives their span.
+exact words: ANYFIX CALL [WORD "WORDS", text: STRING],
 
 ## Among the parts of a call: one or more of its name words in a row.
 words: ANYFIX CALL [

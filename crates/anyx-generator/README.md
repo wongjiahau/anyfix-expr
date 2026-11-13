@@ -163,6 +163,20 @@ A `WORD` part is one of the call's name words. Every other part fills the
 call's next slot. A repetition makes the call variadic: the last example
 matches `print`, `print _`, `print _ _` and so on.
 
+`WORDS "max measures per system"` matches those words in a row, as
+`WORD "max", WORD "measures", WORD "per", WORD "system"` would, but as one
+part: a mismatch expects the whole ``the word `max measures per system` ``,
+and a name gives one span, from the first word to the last. It is written
+wherever `WORD` can be, and, alone in a `ONE OF`, is the choice named after
+its words (`WORDS "sans serif"` is `sans serif`):
+
+```text
+setting: ONE OF [
+  max size: ANYFIX CALL [key: WORDS "max size", size: NUMBER],
+  WORDS "sans serif",
+]
+```
+
 A `WORDS` part takes the call's name words that stand in a row there, one
 or more of them, and decodes to their text joined by spaces. It lets a
 language's users name things with words of their own:

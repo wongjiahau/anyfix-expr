@@ -197,3 +197,15 @@ fn any_order_takes_named_elements_that_compete_with_none() {
         ]),
     );
 }
+
+#[test]
+fn words_in_one_string_must_be_words() {
+    assert_snapshot(
+        "check_exact_words.txt",
+        &reports(&[
+            "ENTRY: value, value: ANYFIX CALL [WORDS \"\", x: NUMBER]",
+            "ENTRY: value, value: ANYFIX CALL [WORDS \"max, size\", x: NUMBER]",
+            "ENTRY: value, value: ONE OF [a: ANYFIX CALL [WORDS \"max size\", x: NUMBER], b: ANYFIX CALL [WORD \"max\", WORD \"size\", y: NUMBER]]",
+        ]),
+    );
+}

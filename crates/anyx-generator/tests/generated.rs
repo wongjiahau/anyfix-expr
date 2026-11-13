@@ -481,6 +481,9 @@ fn conditions_are_checked_where_the_value_is() {
             "SET: x \"y\"",
             "UNSET: OLD",
             "UNSET: old (1)",
+            "max sise 3 per page",
+            "max size 3 per pages",
+            "sans",
         ],
         |nodes| Ok(corners::decode_document(nodes)?),
     );
@@ -513,6 +516,19 @@ fn words_decode_to_their_text_after_an_optional_leading_part() {
     assert_eq!(second.doc, None);
     assert_eq!(second.name.value, "min port");
     assert_eq!(name.name.text, "old thing");
+}
+
+#[test]
+fn words_in_one_string_match_in_a_row_and_keep_their_span() {
+    let source = "max size 3 per page, sans serif";
+    let document = corners::decode_document(&parse(source)).unwrap();
+    let [corners::Node::PerPage { key, size, .. }, corners::Node::SansSerif { .. }] =
+        &document.node[..]
+    else {
+        panic!("{:?}", document.node);
+    };
+    assert_eq!(&source[key.start..key.end], "max size");
+    assert_eq!(size.value, 3.0);
 }
 
 #[test]
