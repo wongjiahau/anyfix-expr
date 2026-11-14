@@ -280,7 +280,7 @@ fn the_example_in_protocol_md_reads() {
         schema
             .errors_of(schema.method("write _ at revision _ content _").unwrap())
             .len(),
-        3
+        4
     );
     assert_eq!(anyx_protocol::format_schema(example).unwrap(), example);
 }

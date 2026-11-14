@@ -26,6 +26,7 @@ ERRORS file errors [
     # The owner moved this file to the trash.
     trashed,
     missing,
+    (path: TEXT) would be both file and folder,
 ],
 
 # Saves the score, if the file is still at `revision`.
@@ -69,6 +70,30 @@ METHOD write (path: TEXT) at revision (revision: INTEGER) content (content: TEXT
 - Each error is defined once in a scope, in the brackets of the one method
   or group that has it. To share an error, put it in a group.
 - A parameter can't be named `kind`, which JSON uses for a variant's name.
+
+### Writing shapes
+
+A shape is read as a sentence: in a call, an error and the guide. Write it
+so the sentence says what a `#` doc would, and keep `#` for what no shape
+can say.
+
+- **Put each slot where its word goes**, at the start, middle or end:
+  `(path: TEXT) would be both file and folder`, `(email: TEXT) is not a
+  test account`, `move (path: TEXT) to (new path: TEXT)`. On the wire it
+  reads `"Hymns/a.poentaro" would be both file and folder`.
+- **Words after a slot give its unit**, and the slot's name says what the
+  value is: `locked for (duration: INTEGER) seconds` reads `locked for 30
+  seconds`. Don't repeat the unit as the name, as in `(seconds: INTEGER)
+  seconds`.
+- **Don't write a `#` doc that restates the shape**, like `# The path would
+  be both a file and a folder.` above `(path: TEXT) would be both file and
+  folder`. Keep a doc for a rule the shape can't carry, such as
+  `# Nothing moved.`
+- **A shape whose slot is a sentence keeps it last**: `weak password
+  (message: TEXT)`, since no words could follow a message well.
+- Generated code names a variant by its words alone, so
+  `locked for (duration: INTEGER) seconds` is `LockedForSeconds { duration }`.
+  Two variants can't differ only by where their slots sit.
 
 Schemas are formatted with `anyx_protocol::format_schema`, which puts a long
 `METHOD`'s `RETURNS` and `ERRORS` on lines of their own.
