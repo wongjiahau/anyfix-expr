@@ -132,7 +132,11 @@ export class Client {
       const outcomes = JSON.parse(
         this.codec.decodeResponse(JSON.stringify(calls.map((call) => call.method)), response),
       ) as Outcome<never, never>[];
-      for (const [index, call] of calls.entries()) call.resolve(outcomes[index]);
+      for (const [index, call] of calls.entries()) {
+        const outcome = outcomes[index];
+        if (outcome) call.resolve(outcome);
+        else call.reject(new Error(`no outcome for ${call.method}`));
+      }
     } catch (error) {
       for (const call of calls) call.reject(error);
     }
