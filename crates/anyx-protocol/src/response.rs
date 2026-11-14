@@ -67,10 +67,21 @@ fn encode_outcome(schema: &Schema, call: &Call, outcome: &Outcome) -> Result<Str
         &mut out,
     )?;
     match outcome {
-        Outcome::Value(value) => {
-            out.push_str(" RETURNS ");
-            write(schema, &method.returns.r#type, value, Form::Whole, &mut out)?;
-        }
+        Outcome::Value(value) => match (&method.returns, value) {
+            (Some(returns), _) => {
+                out.push_str(" RETURNS ");
+                write(schema, &returns.r#type, value, Form::Whole, &mut out)?;
+            }
+            (None, Value::Nothing) => out.push_str(" RETURNS NOTHING"),
+            (None, _) => {
+                return Err(EncodeError {
+                    message: format!(
+                        "found a value returned by `{}`; expected nothing, since it `RETURNS NOTHING`",
+                        method.full_name()
+                    ),
+                });
+            }
+        },
         Outcome::Error(error) => {
             out.push_str(" ERROR ");
             let Value::Variant { shape, arguments } = error else {
@@ -145,6 +156,7 @@ pub fn decode_response(
 /// What follows the repeated call.
 enum Ending<'n> {
     Returns(&'n Node),
+    ReturnsNothing,
     Error(&'n Node),
     NotRun,
     InternalError,
@@ -170,6 +182,13 @@ fn split(node: &Node) -> Option<Split<'_>> {
             arguments: &call.arguments,
             ending: Ending::NotRun,
         }),
+        [name @ .., returns, nothing] if word(returns, "RETURNS") && word(nothing, "NOTHING") => {
+            Some(Split {
+                name,
+                arguments: &call.arguments,
+                ending: Ending::ReturnsNothing,
+            })
+        }
         [name @ .., internal, error] if word(internal, "INTERNAL") && word(error, "ERROR") => {
             Some(Split {
                 name,
@@ -238,26 +257,48 @@ fn decode_outcome(schema: &Schema, method: &Method, node: &Node) -> Result<Outco
             )
             .map(Outcome::Error)
         }
-        Ending::Returns(value) => decode(schema, &method.returns.r#type, value)
-            .map(Outcome::Value)
-            .map_err(|mismatch| match &value.kind {
-                NodeKind::Call(call)
-                    if schema
-                        .errors_of(method)
-                        .iter()
-                        .any(|error| error.shape.text == call.name_text()) =>
-                {
-                    Mismatch {
-                        message: format!(
-                            "{}; an error is written after `ERROR`, as in `{example} ERROR {}`",
-                            mismatch.message,
-                            call.name_text().replace(" _", " …")
-                        ),
-                        ..mismatch
-                    }
-                }
-                _ => mismatch,
+        Ending::ReturnsNothing => match &method.returns {
+            None => Ok(Outcome::Value(Value::Nothing)),
+            Some(returns) => Err(Mismatch {
+                span: node.span,
+                message: format!(
+                    "found `RETURNS NOTHING`; expected `RETURNS` and its `{}`, which `{}` returns",
+                    returns.name,
+                    method.full_name()
+                ),
             }),
+        },
+        Ending::Returns(value) => {
+            let Some(returns) = &method.returns else {
+                return Err(Mismatch {
+                    span: value.span,
+                    message: format!(
+                        "found a value after `RETURNS`; expected `RETURNS NOTHING`, since `{}` returns nothing",
+                        method.full_name()
+                    ),
+                });
+            };
+            decode(schema, &returns.r#type, value)
+                .map(Outcome::Value)
+                .map_err(|mismatch| match &value.kind {
+                    NodeKind::Call(call)
+                        if schema
+                            .errors_of(method)
+                            .iter()
+                            .any(|error| error.shape.text == call.name_text()) =>
+                    {
+                        Mismatch {
+                            message: format!(
+                                "{}; an error is written after `ERROR`, as in `{example} ERROR {}`",
+                                mismatch.message,
+                                call.name_text().replace(" _", " …")
+                            ),
+                            ..mismatch
+                        }
+                    }
+                    _ => mismatch,
+                })
+        }
     }
 }
 

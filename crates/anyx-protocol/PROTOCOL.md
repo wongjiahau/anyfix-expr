@@ -55,7 +55,8 @@ METHOD write (path: TEXT) at revision (revision: INTEGER) content (content: TEXT
   their words.
 - **`METHOD shape RETURNS (name: TYPE) ERRORS errors`**: the method's
   shape, what it returns, and the errors it may return. The returned value
-  has a name, which says what it is. `ERRORS` may be left out.
+  has a name, which says what it is. `ERRORS` may be left out. A method with
+  nothing to return, such as `sign out`, says `RETURNS NOTHING`.
 - **Errors** are written where they are used, in full: a shape like a
   variant's, with its `#` doc before it. A method's `ERRORS` has its own
   errors in brackets, then the groups it shares joined with `+`:
@@ -162,7 +163,8 @@ One result per call, in order, separated by commas. Each result repeats
 the call it answers, so a reader can tell which call it answers without
 counting, then says what came of it:
 
-- `RETURNS` and the value the method returns;
+- `RETURNS` and the value the method returns, or `RETURNS NOTHING` for a
+  method that returns nothing;
 - `ERROR` and one of the method's errors, filled in. A method that returns
   an error has changed nothing;
 - `INTERNAL ERROR`: the server failed, and logged why. The calls after it
@@ -196,7 +198,8 @@ client calling the codec through wasm. Names are camelCase. A record is an
 object; a variant or an error is an object whose `kind` is its words in
 camelCase, next to its parameters:
 `{ "kind": "conflictAtRevisionContent", "revision": 4, "content": "…" }`.
-A result is `{ "kind": "value", "value": … }`, `{ "kind": "error",
+A result is `{ "kind": "value", "value": … }` (with no `value` for a method
+that returns nothing), `{ "kind": "error",
 "error": … }`, `{ "kind": "notRun" }`, `{ "kind": "internalError" }` or
 `{ "kind": "invalidRequest", "line": …, "column": …, "message": … }`.
 

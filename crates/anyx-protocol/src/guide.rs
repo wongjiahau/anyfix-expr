@@ -70,7 +70,8 @@ The response has one result per call, in order. Each result repeats its
 call, with text over 32 characters and lists over 3 items cut short with
 `…`, then one of:
 
-- `RETURNS` and the value the method returns.
+- `RETURNS` and the value the method returns, or `RETURNS NOTHING` for a
+  method that returns nothing.
 - `ERROR` and one of the method's errors, in the error's shape. They follow
   `ERRORS`: its own in brackets, then those of each group joined with `+`.
   For example: `read \"a\" ERROR missing`. The call didn't do anything.

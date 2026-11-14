@@ -34,6 +34,13 @@ export type FilesWriteAtRevisionContentError =
   /** No note has this path. */
   | { kind: "missing" };
 
+/** The errors of `files/trash _`. */
+export type FilesTrashError =
+  /** The note is in the trash. */
+  | { kind: "trashed" }
+  /** No note has this path. */
+  | { kind: "missing" };
+
 /** The errors of `files/export/html _`. */
 export type FilesExportHtmlError =
   /** The note is in the trash. */
@@ -98,6 +105,12 @@ export class Client {
     /** Saves the note, if it is still at `revision`. */
     writeAtRevisionContent: (path: string, revision: number, content: string): Promise<Outcome<CommonDiagnostic[], FilesWriteAtRevisionContentError>> =>
       this.call("files/write _ at revision _ content _", [path, revision, content]),
+    /** Moves the note to the trash. */
+    trash: (path: string): Promise<Outcome<void, FilesTrashError>> =>
+      this.call("files/trash _", [path]),
+    /** Forgets every note in the trash. */
+    emptyTrash: (): Promise<Outcome<void, never>> =>
+      this.call("files/empty trash", []),
     export: {
       html: (path: string): Promise<Outcome<FilesExportPage[], FilesExportHtmlError>> =>
         this.call("files/export/html _", [path]),

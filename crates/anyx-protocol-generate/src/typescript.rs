@@ -105,7 +105,10 @@ fn signature(schema: &Schema, method: &Method) -> Signature {
             .join(", "),
         returned: format!(
             "Promise<Outcome<{}, {errors}>>",
-            ts_type(schema, &method.returns.r#type)
+            method.returns.as_ref().map_or_else(
+                || "void".to_string(),
+                |returns| ts_type(schema, &returns.r#type)
+            )
         ),
     }
 }

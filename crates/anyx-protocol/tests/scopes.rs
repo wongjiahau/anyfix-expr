@@ -20,6 +20,8 @@ fn methods_are_named_by_their_scope() {
             "files/list",
             "files/read _",
             "files/write _ at revision _ content _",
+            "files/trash _",
+            "files/empty trash",
             "files/export/html _",
             "files/export/pdf _",
         ]
@@ -34,7 +36,7 @@ fn methods_are_named_by_their_scope() {
         .method("files/write _ at revision _ content _")
         .unwrap();
     assert_eq!(
-        schema.type_name(&write.returns.r#type),
+        schema.type_name(&write.returns.as_ref().unwrap().r#type),
         "LIST: common/diagnostic"
     );
     let errors: Vec<&str> = schema
@@ -87,15 +89,15 @@ fn request_error(request: &str) -> String {
 fn a_call_outside_its_scope_is_pointed_to_its_full_name() {
     assert_eq!(
         request_error("read \"a\""),
-        "1:1: found the call `read _`; expected one of the methods `files/list`, `files/read _`, `files/write _ at revision _ content _`, `files/export/html _`, `files/export/pdf _`; a word in a slot, such as a choice's variant or `true`, goes in parentheses; a method of that shape is in a scope, so write its full name: `files/read _`"
+        "1:1: found the call `read _`; expected one of the methods `files/list`, `files/read _`, `files/write _ at revision _ content _`, `files/trash _`, `files/empty trash`, `files/export/html _`, `files/export/pdf _`; a word in a slot, such as a choice's variant or `true`, goes in parentheses; a method of that shape is in a scope, so write its full name: `files/read _`"
     );
     assert_eq!(
         request_error("files/pdf \"a\""),
-        "1:1: found the call `files/pdf _`; expected one of the methods `files/list`, `files/read _`, `files/write _ at revision _ content _`, `files/export/html _`, `files/export/pdf _`; a word in a slot, such as a choice's variant or `true`, goes in parentheses; a method of that shape is in a scope, so write its full name: `files/export/pdf _`"
+        "1:1: found the call `files/pdf _`; expected one of the methods `files/list`, `files/read _`, `files/write _ at revision _ content _`, `files/trash _`, `files/empty trash`, `files/export/html _`, `files/export/pdf _`; a word in a slot, such as a choice's variant or `true`, goes in parentheses; a method of that shape is in a scope, so write its full name: `files/export/pdf _`"
     );
     assert_eq!(
         request_error("common/read \"a\""),
-        "1:1: found the scope `common`, which has no methods; expected one of the methods `files/list`, `files/read _`, `files/write _ at revision _ content _`, `files/export/html _`, `files/export/pdf _`"
+        "1:1: found the scope `common`, which has no methods; expected one of the methods `files/list`, `files/read _`, `files/write _ at revision _ content _`, `files/trash _`, `files/empty trash`, `files/export/html _`, `files/export/pdf _`"
     );
 }
 

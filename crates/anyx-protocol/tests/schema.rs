@@ -73,8 +73,8 @@ fn poentaros_schema_reads_with_its_docs_shapes_and_errors() {
             ("content", &Type::Text)
         ]
     );
-    assert_eq!(write.returns.name, "new revision");
-    assert_eq!(write.returns.r#type, Type::Integer);
+    assert_eq!(write.returns.as_ref().unwrap().name, "new revision");
+    assert_eq!(write.returns.as_ref().unwrap().r#type, Type::Integer);
     let errors: Vec<&str> = schema
         .errors_of(write)
         .iter()
@@ -90,7 +90,10 @@ fn poentaros_schema_reads_with_its_docs_shapes_and_errors() {
         ]
     );
     let list = schema.method("list files").unwrap();
-    assert_eq!(schema.type_name(&list.returns.r#type), "LIST: file summary");
+    assert_eq!(
+        schema.type_name(&list.returns.as_ref().unwrap().r#type),
+        "LIST: file summary"
+    );
     assert!(list.errors.is_empty());
     let conflict = schema
         .errors
@@ -280,4 +283,19 @@ fn the_example_in_protocol_md_reads() {
         3
     );
     assert_eq!(anyx_protocol::format_schema(example).unwrap(), example);
+}
+
+#[test]
+fn a_method_may_return_nothing() {
+    let schema = schema(
+        "PROTOCOL a VERSION 1,
+        METHOD sign out RETURNS NOTHING,
+        METHOD trash (path: TEXT) RETURNS NOTHING ERRORS [missing],",
+    );
+    let sign_out = schema.method("sign out").unwrap();
+    assert_eq!(sign_out.returns, None);
+    assert!(sign_out.errors.is_empty());
+    let trash = schema.method("trash _").unwrap();
+    assert_eq!(trash.returns, None);
+    assert_eq!(trash.errors.len(), 1);
 }

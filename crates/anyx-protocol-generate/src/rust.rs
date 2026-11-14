@@ -301,8 +301,16 @@ fn parameters(schema: &Schema, scope: &[String], parameters: &[Parameter]) -> St
         .collect()
 }
 
+/// The Rust type of what `method` returns: `()` for `RETURNS NOTHING`.
+fn returned_value(schema: &Schema, scope: &[String], method: &Method) -> String {
+    method.returns.as_ref().map_or_else(
+        || "()".to_string(),
+        |returns| rust_type(schema, scope, &returns.r#type),
+    )
+}
+
 fn returned(schema: &Schema, method: &Method) -> String {
-    let value = rust_type(schema, &method.scope, &method.returns.r#type);
+    let value = returned_value(schema, &method.scope, method);
     match method.errors.is_empty() {
         true => value,
         false => format!("Result<{value}, {}>", error_enum_name(method)),
@@ -314,12 +322,15 @@ fn method_doc(method: &Method) -> String {
     if !doc.is_empty() {
         doc.push_str("    ///\n");
     }
-    writeln!(
-        doc,
-        "    /// `{}`, returning `{}`.",
-        method.full_name(),
-        method.returns.name
-    )
+    match &method.returns {
+        Some(returns) => writeln!(
+            doc,
+            "    /// `{}`, returning `{}`.",
+            method.full_name(),
+            returns.name
+        ),
+        None => writeln!(doc, "    /// `{}`, returning nothing.", method.full_name()),
+    }
     .unwrap();
     doc
 }
@@ -447,7 +458,7 @@ fn client(out: &mut String, schema: &Schema, scope: &[String]) {
                 method_doc(method),
                 snake_case(&method.shape.text),
                 parameters(schema, scope, &method.shape.parameters),
-                rust_type(schema, scope, &method.returns.r#type),
+                returned_value(schema, scope, method),
             )
         })
         .collect();

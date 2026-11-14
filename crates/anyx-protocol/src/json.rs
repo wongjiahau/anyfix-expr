@@ -90,10 +90,13 @@ pub fn decode_response_json(
             "message": problem.message,
         }),
         Response::Outcomes(outcomes) => match outcomes.into_iter().next() {
-            Some(Outcome::Value(value)) => json!({
-                "kind": "value",
-                "value": to_json(schema, &schema.method_at(index).returns.r#type, &value),
-            }),
+            Some(Outcome::Value(value)) => match &schema.method_at(index).returns {
+                Some(returns) => json!({
+                    "kind": "value",
+                    "value": to_json(schema, &returns.r#type, &value),
+                }),
+                None => json!({ "kind": "value" }),
+            },
             Some(Outcome::Error(Value::Variant { shape, arguments })) => {
                 let method = schema.method_at(index);
                 let shapes: Vec<&Shape> = schema
@@ -126,6 +129,7 @@ pub fn to_json(schema: &Schema, r#type: &Type, value: &Value) -> Json {
         Value::Integer(integer) => json!(integer),
         Value::Number(number) => json!(number),
         Value::Boolean(boolean) => Json::Bool(*boolean),
+        Value::Nothing => Json::Null,
         Value::List(items) => {
             let item = match r#type {
                 Type::List(item) => item.as_ref(),

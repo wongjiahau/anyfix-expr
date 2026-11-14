@@ -249,8 +249,10 @@ impl<'a> Checker<'a> {
                     if methods.iter().any(|other| {
                         other.scope == method.scope && other.shape.text == method.shape.text
                     }) {
-                        let (ast::Method::WithErrors { shape, .. }
-                        | ast::Method::WithoutErrors { shape, .. }) = found;
+                        let (ast::Method::ValueWithErrors { shape, .. }
+                        | ast::Method::Value { shape, .. }
+                        | ast::Method::NothingWithErrors { shape, .. }
+                        | ast::Method::Nothing { shape, .. }) = found;
                         self.error(
                                 shape.name.span,
                                 format!(
@@ -799,19 +801,23 @@ impl<'a> Checker<'a> {
 
     fn method(&mut self, method: &'a ast::Method, found: &mut Vec<ErrorDefinition>) -> Method {
         let (doc_string, shape, returns, list) = match method {
-            ast::Method::WithErrors {
+            ast::Method::ValueWithErrors {
                 doc,
                 shape,
                 returns,
                 errors,
                 ..
-            } => (doc, shape, returns, Some(errors)),
-            ast::Method::WithoutErrors {
+            } => (doc, shape, Some(returns), Some(errors)),
+            ast::Method::Value {
                 doc,
                 shape,
                 returns,
                 ..
-            } => (doc, shape, returns, None),
+            } => (doc, shape, Some(returns), None),
+            ast::Method::NothingWithErrors {
+                doc, shape, errors, ..
+            } => (doc, shape, None, Some(errors)),
+            ast::Method::Nothing { doc, shape, .. } => (doc, shape, None, None),
         };
         let checked_shape = self.shape(&shape.name, &shape.arguments, "a method");
         let terms = list.and_then(|list| self.error_terms(list));
@@ -874,7 +880,7 @@ impl<'a> Checker<'a> {
             scope: self.scope.clone(),
             doc: doc(doc_string),
             shape: checked_shape,
-            returns: self.parameter(returns),
+            returns: returns.map(|returns| self.parameter(returns)),
             errors,
         }
     }

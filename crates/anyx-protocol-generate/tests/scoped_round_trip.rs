@@ -14,7 +14,7 @@ use std::task::{Context, Poll, Waker};
 use anyx_protocol::client::{CallError, Transport};
 use notes::common::Diagnostic;
 use notes::files::export::{HtmlError, Page, PdfError};
-use notes::files::{File, ReadError, WriteAtRevisionContentError};
+use notes::files::{File, ReadError, TrashError, WriteAtRevisionContentError};
 use notes::{Client, files};
 
 /// Runs a future that never waits, as every future here is.
@@ -75,6 +75,17 @@ impl files::Server for Notes {
             .borrow_mut()
             .insert(path, (revision + 1, content));
         Ok(Ok(vec![]))
+    }
+
+    async fn trash(&self, path: String) -> Result<Result<(), TrashError>, Self::Error> {
+        Ok(match self.notes.borrow_mut().remove(&path) {
+            Some(_) => Ok(()),
+            None => Err(TrashError::Missing),
+        })
+    }
+
+    async fn empty_trash(&self) -> Result<(), Self::Error> {
+        Ok(())
     }
 }
 
@@ -188,6 +199,37 @@ fn a_request_calls_each_method_by_its_full_name() {
         response,
         "files/list RETURNS [\"a\"],\nfiles/export/pdf \"a\" RETURNS \"aGk=\",\n"
     );
+}
+
+#[test]
+fn a_method_that_returns_nothing_answers_returns_nothing() {
+    let server = Notes {
+        notes: RefCell::new(BTreeMap::from([("a".to_string(), (1, "hi".to_string()))])),
+    };
+    let response = run(notes::handle(
+        &server,
+        "files/trash \"a\", files/trash \"a\", files/empty trash",
+        |error| match error {},
+    ));
+    assert_eq!(
+        response,
+        "files/trash \"a\" RETURNS NOTHING,\nfiles/trash \"a\" ERROR missing,\nfiles/empty trash RETURNS NOTHING,\n"
+    );
+}
+
+#[test]
+fn a_client_gets_unit_from_a_method_that_returns_nothing() {
+    let client = client();
+    run(client
+        .files()
+        .write_at_revision_content("a".into(), 0, "hi".into()))
+    .unwrap();
+    assert_eq!(run(client.files().trash("a".into())), Ok(()));
+    assert_eq!(
+        run(client.files().trash("a".into())),
+        Err(CallError::Method(TrashError::Missing))
+    );
+    assert_eq!(run(client.files().empty_trash()), Ok(()));
 }
 
 #[test]

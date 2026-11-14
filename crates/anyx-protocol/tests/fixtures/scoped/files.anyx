@@ -16,3 +16,9 @@ METHOD write (path: TEXT) at revision (revision: INTEGER) content (content: TEXT
         # The note has errors, so nothing was saved.
         rejected (diagnostics: LIST common/diagnostic),
     ] + file errors,
+
+# Moves the note to the trash.
+METHOD trash (path: TEXT) RETURNS NOTHING ERRORS file errors,
+
+# Forgets every note in the trash.
+METHOD empty trash RETURNS NOTHING,

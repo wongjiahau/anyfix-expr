@@ -77,3 +77,10 @@ fn bytes_are_base64_in_json() {
         "in `file`: found \"%%\"; expected base64 in a string"
     );
 }
+
+#[test]
+fn nothing_returned_is_a_value_without_a_value_in_json() {
+    let schema = common::schema("PROTOCOL a VERSION 1, METHOD sign out RETURNS NOTHING,");
+    let json = decode_response_json(&schema, "sign out", "sign out RETURNS NOTHING").unwrap();
+    assert_eq!(json, r#"{"kind":"value"}"#);
+}

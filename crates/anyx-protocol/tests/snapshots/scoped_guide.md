@@ -46,7 +46,8 @@ The response has one result per call, in order. Each result repeats its
 call, with text over 32 characters and lists over 3 items cut short with
 `…`, then one of:
 
-- `RETURNS` and the value the method returns.
+- `RETURNS` and the value the method returns, or `RETURNS NOTHING` for a
+  method that returns nothing.
 - `ERROR` and one of the method's errors, in the error's shape. They follow
   `ERRORS`: its own in brackets, then those of each group joined with `+`.
   For example: `read "a" ERROR missing`. The call didn't do anything.
@@ -86,7 +87,7 @@ PUBLIC ERRORS common errors [
 
 ### `files` (`files.anyx`)
 
-Methods: `files/list`, `files/read _`, `files/write _ at revision _ content _`.
+Methods: `files/list`, `files/read _`, `files/write _ at revision _ content _`, `files/trash _`, `files/empty trash`.
 
 RECORD file { path: TEXT, revision: INTEGER, content: TEXT },
 
@@ -106,6 +107,12 @@ METHOD write (path: TEXT) at revision (revision: INTEGER) content (content: TEXT
         # The note has errors, so nothing was saved.
         rejected (diagnostics: LIST common/diagnostic),
     ] + file errors,
+
+# Moves the note to the trash.
+METHOD trash (path: TEXT) RETURNS NOTHING ERRORS file errors,
+
+# Forgets every note in the trash.
+METHOD empty trash RETURNS NOTHING,
 
 ### `files/export` (`files/export.anyx`)
 

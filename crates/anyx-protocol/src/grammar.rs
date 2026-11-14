@@ -113,17 +113,28 @@ pub enum Errors {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Method {
-    WithErrors {
+    ValueWithErrors {
         doc: Option<Spanned<StringLiteral>>,
         shape: Shape,
         returns: Returns,
         errors: ErrorList,
         span: Span,
     },
-    WithoutErrors {
+    Value {
         doc: Option<Spanned<StringLiteral>>,
         shape: Shape,
         returns: Returns,
+        span: Span,
+    },
+    NothingWithErrors {
+        doc: Option<Spanned<StringLiteral>>,
+        shape: Shape,
+        errors: ErrorList,
+        span: Span,
+    },
+    Nothing {
+        doc: Option<Spanned<StringLiteral>>,
+        shape: Shape,
         span: Span,
     },
 }
@@ -239,7 +250,10 @@ impl Errors {
 impl Method {
     pub fn span(&self) -> Span {
         match self {
-            Method::WithErrors { span, .. } | Method::WithoutErrors { span, .. } => *span,
+            Method::ValueWithErrors { span, .. }
+            | Method::Value { span, .. }
+            | Method::NothingWithErrors { span, .. }
+            | Method::Nothing { span, .. } => *span,
         }
     }
 }
@@ -390,7 +404,7 @@ impl support::Errors for Errors {
 impl support::Errors for Method {
     fn errors<'a>(&'a self, found: &mut std::vec::Vec<&'a support::DecodeError>) {
         match self {
-            Method::WithErrors {
+            Method::ValueWithErrors {
                 doc,
                 shape,
                 returns,
@@ -402,7 +416,7 @@ impl support::Errors for Method {
                 support::Errors::errors(returns, found);
                 support::Errors::errors(errors, found);
             }
-            Method::WithoutErrors {
+            Method::Value {
                 doc,
                 shape,
                 returns,
@@ -411,6 +425,17 @@ impl support::Errors for Method {
                 support::Errors::errors(doc, found);
                 support::Errors::errors(shape, found);
                 support::Errors::errors(returns, found);
+            }
+            Method::NothingWithErrors {
+                doc, shape, errors, ..
+            } => {
+                support::Errors::errors(doc, found);
+                support::Errors::errors(shape, found);
+                support::Errors::errors(errors, found);
+            }
+            Method::Nothing { doc, shape, .. } => {
+                support::Errors::errors(doc, found);
+                support::Errors::errors(shape, found);
             }
         }
     }
@@ -712,12 +737,15 @@ fn decode_errors_private(node: &Node) -> Result<Errors, DecodeError> {
 }
 
 pub fn decode_method(node: &Node) -> Result<Method, DecodeError> {
-    decode_method_with_errors(node).or_else(|error| error.or(decode_method_without_errors(node)))
+    decode_method_value_with_errors(node)
+        .or_else(|error| error.or(decode_method_value(node)))
+        .or_else(|error| error.or(decode_method_nothing_with_errors(node)))
+        .or_else(|error| error.or(decode_method_nothing(node)))
 }
 
-fn decode_method_with_errors(node: &Node) -> Result<Method, DecodeError> {
+fn decode_method_value_with_errors(node: &Node) -> Result<Method, DecodeError> {
     let mut parts = support::call(node, "the call `_? METHOD _ RETURNS _ ERRORS _`")?;
-    let decoded = Method::WithErrors {
+    let decoded = Method::ValueWithErrors {
         doc: parts.optional(|node| support::string(node, |_| true, "a string")),
         shape: parts.word("METHOD")?.one(decode_shape, "a shape")?,
         returns: parts.word("RETURNS")?.one(decode_returns, "returns")?,
@@ -730,14 +758,42 @@ fn decode_method_with_errors(node: &Node) -> Result<Method, DecodeError> {
     Ok(decoded)
 }
 
-fn decode_method_without_errors(node: &Node) -> Result<Method, DecodeError> {
+fn decode_method_value(node: &Node) -> Result<Method, DecodeError> {
     let mut parts = support::call(node, "the call `_? METHOD _ RETURNS _`")?;
-    let decoded = Method::WithoutErrors {
+    let decoded = Method::Value {
         doc: parts.optional(|node| support::string(node, |_| true, "a string")),
         shape: parts.word("METHOD")?.one(decode_shape, "a shape")?,
         returns: parts.word("RETURNS")?.one(decode_returns, "returns")?,
         span: node.span,
     };
+    parts.finish()?;
+    Ok(decoded)
+}
+
+fn decode_method_nothing_with_errors(node: &Node) -> Result<Method, DecodeError> {
+    let mut parts = support::call(node, "the call `_? METHOD _ RETURNS NOTHING ERRORS _`")?;
+    let decoded = Method::NothingWithErrors {
+        doc: parts.optional(|node| support::string(node, |_| true, "a string")),
+        shape: parts.word("METHOD")?.one(decode_shape, "a shape")?,
+        errors: parts
+            .word("RETURNS")?
+            .word("NOTHING")?
+            .word("ERRORS")?
+            .one(decode_error_list, "an error list")?,
+        span: node.span,
+    };
+    parts.finish()?;
+    Ok(decoded)
+}
+
+fn decode_method_nothing(node: &Node) -> Result<Method, DecodeError> {
+    let mut parts = support::call(node, "the call `_? METHOD _ RETURNS NOTHING`")?;
+    let decoded = Method::Nothing {
+        doc: parts.optional(|node| support::string(node, |_| true, "a string")),
+        shape: parts.word("METHOD")?.one(decode_shape, "a shape")?,
+        span: node.span,
+    };
+    parts.word("RETURNS")?.word("NOTHING")?;
     parts.finish()?;
     Ok(decoded)
 }
@@ -885,6 +941,14 @@ pub const LAYOUT: &[support::LayoutRule] = &[
     },
     support::LayoutRule {
         words: &["METHOD", "RETURNS"],
+        break_before: &["RETURNS"],
+    },
+    support::LayoutRule {
+        words: &["METHOD", "RETURNS", "NOTHING", "ERRORS"],
+        break_before: &["RETURNS", "ERRORS"],
+    },
+    support::LayoutRule {
+        words: &["METHOD", "RETURNS", "NOTHING"],
         break_before: &["RETURNS"],
     },
 ];

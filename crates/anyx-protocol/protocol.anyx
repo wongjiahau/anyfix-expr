@@ -52,18 +52,32 @@ errors: ONE OF [
 ],
 
 method: ONE OF [
-  with errors: ANYFIX CALL [
+  value with errors: ANYFIX CALL [
     doc: OPTIONAL: STRING,
     WORD "METHOD", shape: shape,
     WORD "RETURNS", returns: returns,
     WORD "ERRORS", errors: error list,
   ] FORMAT [BREAK BEFORE WORD "RETURNS", BREAK BEFORE WORD "ERRORS"],
-  without errors: ANYFIX CALL [
+  value: ANYFIX CALL [
     doc: OPTIONAL: STRING,
     WORD "METHOD", shape: shape,
     WORD "RETURNS", returns: returns,
   ] FORMAT [BREAK BEFORE WORD "RETURNS"],
+  nothing with errors: ANYFIX CALL [
+    doc: OPTIONAL: STRING,
+    WORD "METHOD", shape: shape,
+    WORD "RETURNS", WORD "NOTHING",
+    WORD "ERRORS", errors: error list,
+  ] FORMAT [BREAK BEFORE WORD "RETURNS", BREAK BEFORE WORD "ERRORS"],
+  nothing: ANYFIX CALL [
+    doc: OPTIONAL: STRING,
+    WORD "METHOD", shape: shape,
+    WORD "RETURNS", WORD "NOTHING",
+  ] FORMAT [BREAK BEFORE WORD "RETURNS"],
 ],
+
+## A method that has nothing to return, such as `sign out`, says
+## `RETURNS NOTHING`; a call of it that succeeds answers `RETURNS NOTHING`.
 
 ## What a method returns is named too: `RETURNS (new revision: INTEGER)`.
 returns: parameter,

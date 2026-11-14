@@ -44,6 +44,12 @@ METHOD write (path: TEXT) at revision (revision: INTEGER) content (content: TEXT
         # The note has errors, so nothing was saved.
         rejected (diagnostics: LIST common/diagnostic),
     ] + file errors,
+
+# Moves the note to the trash.
+METHOD trash (path: TEXT) RETURNS NOTHING ERRORS file errors,
+
+# Forgets every note in the trash.
+METHOD empty trash RETURNS NOTHING,
 "#,
     },
     anyx_protocol::SchemaFile {
@@ -120,20 +126,30 @@ pub async fn handle<S: Server + files::Server + files::export::Server>(
                 .await,
             ),
             3 => anyx_protocol::server::result(
+                <S as files::Server>::trash(
+                    implementation,
+                    anyx_protocol::server::argument(&mut arguments),
+                )
+                .await,
+            ),
+            4 => anyx_protocol::server::value(
+                <S as files::Server>::empty_trash(implementation).await,
+            ),
+            5 => anyx_protocol::server::result(
                 <S as files::export::Server>::html(
                     implementation,
                     anyx_protocol::server::argument(&mut arguments),
                 )
                 .await,
             ),
-            4 => anyx_protocol::server::result(
+            6 => anyx_protocol::server::result(
                 <S as files::export::Server>::pdf(
                     implementation,
                     anyx_protocol::server::argument(&mut arguments),
                 )
                 .await,
             ),
-            5 => Ok::<_, <S as Server>::Error>(anyx_protocol::server::introspect(schema)),
+            7 => Ok::<_, <S as Server>::Error>(anyx_protocol::server::introspect(schema)),
             _ => unreachable!("the codec read a method of the schema"),
         };
         outcomes.push(outcome.unwrap_or_else(|error| {
@@ -158,7 +174,7 @@ impl<T: Transport> Client<T> {
 
     /// `SCHEMA`, returning the guide to the schema.
     pub async fn schema(&self) -> Result<String, CallError<::std::convert::Infallible, T::Error>> {
-        anyx_protocol::client::call(&self.transport, schema(), 5, vec![]).await
+        anyx_protocol::client::call(&self.transport, schema(), 7, vec![]).await
     }
 
     /// The methods of the scope `files`.
@@ -331,6 +347,44 @@ pub mod files {
         }
     }
 
+    /// The errors of `files/trash _`.
+    #[derive(Clone, Debug, PartialEq)]
+    pub enum TrashError {
+        /// The note is in the trash.
+        Trashed,
+        /// No note has this path.
+        Missing,
+    }
+
+    impl IntoValue for TrashError {
+        fn into_value(self) -> Value {
+            match self {
+                TrashError::Trashed => Value::Variant {
+                    shape: "trashed".to_string(),
+                    arguments: vec![],
+                },
+                TrashError::Missing => Value::Variant {
+                    shape: "missing".to_string(),
+                    arguments: vec![],
+                },
+            }
+        }
+    }
+
+    impl FromValue for TrashError {
+        fn from_value(value: Value) -> Option<Self> {
+            let Value::Variant { shape, arguments } = value else {
+                return None;
+            };
+            let mut arguments = arguments.into_iter();
+            Some(match shape.as_str() {
+                "trashed" => TrashError::Trashed,
+                "missing" => TrashError::Missing,
+                _ => return None,
+            })
+        }
+    }
+
     /// The methods of the scope `files`, for a server to implement. Its
     /// `Error` is the root `Server`'s.
     #[allow(async_fn_in_trait)]
@@ -350,6 +404,16 @@ pub mod files {
             revision: i64,
             content: String,
         ) -> Result<Result<Vec<super::common::Diagnostic>, WriteAtRevisionContentError>, Self::Error>;
+
+        /// Moves the note to the trash.
+        ///
+        /// `files/trash _`, returning nothing.
+        async fn trash(&self, path: String) -> Result<Result<(), TrashError>, Self::Error>;
+
+        /// Forgets every note in the trash.
+        ///
+        /// `files/empty trash`, returning nothing.
+        async fn empty_trash(&self) -> Result<(), Self::Error>;
     }
 
     /// Calls the methods of the scope `files` through the transport of the root
@@ -393,6 +457,23 @@ pub mod files {
                 ],
             )
             .await
+        }
+
+        /// Moves the note to the trash.
+        ///
+        /// `files/trash _`, returning nothing.
+        pub async fn trash(&self, path: String) -> Result<(), CallError<TrashError, T::Error>> {
+            anyx_protocol::client::call(self.transport, super::schema(), 3, vec![path.into_value()])
+                .await
+        }
+
+        /// Forgets every note in the trash.
+        ///
+        /// `files/empty trash`, returning nothing.
+        pub async fn empty_trash(
+            &self,
+        ) -> Result<(), CallError<::std::convert::Infallible, T::Error>> {
+            anyx_protocol::client::call(self.transport, super::schema(), 4, vec![]).await
         }
 
         /// The methods of the scope `files/export`.
@@ -553,7 +634,7 @@ pub mod files {
                 anyx_protocol::client::call(
                     self.transport,
                     super::super::schema(),
-                    3,
+                    5,
                     vec![path.into_value()],
                 )
                 .await
@@ -567,7 +648,7 @@ pub mod files {
                 anyx_protocol::client::call(
                     self.transport,
                     super::super::schema(),
-                    4,
+                    6,
                     vec![path.into_value()],
                 )
                 .await

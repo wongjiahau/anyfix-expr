@@ -122,8 +122,9 @@ pub struct Method {
     pub scope: Vec<String>,
     pub doc: Option<String>,
     pub shape: Shape,
-    /// What a call returns when it succeeds, named.
-    pub returns: Parameter,
+    /// What a call returns when it succeeds, named, or `None` for a
+    /// method that `RETURNS NOTHING`.
+    pub returns: Option<Parameter>,
     /// Indices into [`Schema::errors`], with aliases expanded, in the order
     /// written.
     pub errors: Vec<usize>,
@@ -171,10 +172,10 @@ pub fn introspection() -> &'static Method {
             text: INTROSPECTION.to_string(),
             parameters: Vec::new(),
         },
-        returns: Parameter {
+        returns: Some(Parameter {
             name: "guide".to_string(),
             r#type: Type::Text,
-        },
+        }),
         errors: Vec::new(),
     });
     &METHOD

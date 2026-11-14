@@ -349,3 +349,69 @@ fn a_response_repeats_each_call_with_long_arguments_shortened() {
         response
     );
 }
+
+#[test]
+fn a_method_that_returns_nothing_answers_returns_nothing() {
+    let schema = schema(
+        "PROTOCOL a VERSION 1,
+        METHOD sign out RETURNS NOTHING,
+        METHOD count RETURNS (count: INTEGER),",
+    );
+    let sign_out = method(&schema, "sign out");
+    let count = method(&schema, "count");
+    let calls = [
+        Call {
+            method: sign_out,
+            arguments: vec![],
+        },
+        Call {
+            method: count,
+            arguments: vec![],
+        },
+    ];
+    let response = Response::Outcomes(vec![
+        Outcome::Value(Value::Nothing),
+        Outcome::Value(Value::Integer(2)),
+    ]);
+    let written = encode_response(&schema, &calls, &response).unwrap();
+    assert_eq!(written, "sign out RETURNS NOTHING,\ncount RETURNS 2,\n");
+    assert_eq!(
+        decode_response(&schema, &[sign_out, count], &written).unwrap(),
+        response
+    );
+}
+
+#[test]
+fn nothing_and_a_value_are_not_mixed_up() {
+    let schema = schema(
+        "PROTOCOL a VERSION 1,
+        METHOD sign out RETURNS NOTHING,
+        METHOD count RETURNS (count: INTEGER),",
+    );
+    let sign_out = method(&schema, "sign out");
+    let count = method(&schema, "count");
+    assert!(
+        decode_response(&schema, &[sign_out], "sign out RETURNS 2")
+            .unwrap_err()
+            .message
+            .contains("expected `RETURNS NOTHING`")
+    );
+    assert!(
+        decode_response(&schema, &[count], "count RETURNS NOTHING")
+            .unwrap_err()
+            .message
+            .contains("found `RETURNS NOTHING`")
+    );
+    let call = Call {
+        method: sign_out,
+        arguments: vec![],
+    };
+    assert!(
+        encode_response(
+            &schema,
+            &[call],
+            &Response::Outcomes(vec![Outcome::Value(Value::Integer(1))])
+        )
+        .is_err()
+    );
+}

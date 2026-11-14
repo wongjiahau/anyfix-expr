@@ -20,6 +20,9 @@ pub enum Value {
         shape: String,
         arguments: Vec<Value>,
     },
+    /// What a method that `RETURNS NOTHING` returns. No type of a schema
+    /// holds it.
+    Nothing,
 }
 
 /// Turns an app's type into a [`Value`]. The generator implements it for
@@ -32,6 +35,22 @@ pub trait IntoValue {
 /// have the type's shape, which a value the codec checked never does.
 pub trait FromValue: Sized {
     fn from_value(value: Value) -> Option<Self>;
+}
+
+/// What a method that `RETURNS NOTHING` returns.
+impl IntoValue for () {
+    fn into_value(self) -> Value {
+        Value::Nothing
+    }
+}
+
+impl FromValue for () {
+    fn from_value(value: Value) -> Option<Self> {
+        match value {
+            Value::Nothing => Some(()),
+            _ => None,
+        }
+    }
 }
 
 impl IntoValue for String {

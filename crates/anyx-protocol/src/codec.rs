@@ -564,6 +564,11 @@ pub(crate) fn write(
             });
         }
         Value::Boolean(boolean) => out.push_str(if *boolean { "true" } else { "false" }),
+        Value::Nothing => {
+            return Err(EncodeError {
+                message: "found nothing where a value goes; expected a value, since only a method that `RETURNS NOTHING` returns nothing".to_string(),
+            });
+        }
         Value::List(items) => {
             let item = match r#type {
                 Type::List(item) => item.as_ref(),
