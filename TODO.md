@@ -85,6 +85,27 @@ the tree from `SyntaxTree::nodes()` into that AST.
 - [x] Every number has a value (`1mb` is `1 mb`)
 - [ ] One-line raw strings, for regexes ([#2](https://github.com/wongjiahau/anyx/issues/2))
 
+## Protocol clients and batching
+
+Typed batches replace `batch(build)`, whose result is one type for every
+position. A batch is for a few calls written out by hand; a method whose
+result grows with the data is the schema's job, not the batch's.
+
+- [ ] Call values: a function per method builds a typed call, such as
+      `files.read(id)` giving `Call<File, ReadError>`. It sends nothing;
+      `client.call(c)` sends one and `client.batch([...])` sends several.
+      `client.files.read(id)` stays as shorthand for
+      `client.call(files.read(id))`. TS and Rust generators both.
+- [ ] Typed tuple batch of 1 to 5 calls, returning the matching tuple of
+      outcomes, each position its own type. Rust: a trait implemented for
+      tuples up to 5. TS: a tuple type of length at most 5. Replaces
+      `batch(build)`.
+- [ ] A Rust client next to the server: call values, `call`, `batch`, and a
+      `Codec` plus `send` like the TS client.
+- [ ] Server limit on calls per request (5, matching the client cap): a
+      request over it is `INVALID REQUEST` before any call runs. Document it
+      in `PROTOCOL.md`.
+
 ## Open questions
 
 - [x] Decode a list's elements each on its own, keeping the errors (`EACH:`)
