@@ -2,7 +2,9 @@
 
 mod common;
 
-use anyx_protocol::json::{decode_request_json, decode_response_json, encode_request_json};
+use anyx_protocol::json::{
+    decode_request_json, decode_response_json, encode_request_json, encode_response_json,
+};
 use common::poentaro;
 
 const WRITE: &str = "write _ at revision _ content _";
@@ -25,6 +27,25 @@ fn a_request_reads_back_as_json_calls() {
         r#"[{"arguments":["a",3,"x\ny"],"method":"write _ at revision _ content _"}]"#
     );
     assert!(decode_request_json(&schema, "nonsense").is_err());
+}
+
+#[test]
+fn a_response_is_written_from_json_outcomes() {
+    let schema = poentaro();
+    let request = encode_request_json(&schema, WRITE, r#"["a", 3, "x"]"#).unwrap();
+    for outcome in [
+        r#"{"kind":"value","value":4}"#,
+        r#"{"error":{"content":"y","kind":"conflictAtRevisionContent","revision":4},"kind":"error"}"#,
+        r#"{"kind":"internalError"}"#,
+    ] {
+        let response = encode_response_json(&schema, &request, &format!("[{outcome}]")).unwrap();
+        assert_eq!(
+            decode_response_json(&schema, WRITE, &response).unwrap(),
+            outcome
+        );
+    }
+    let mistake = encode_response_json(&schema, &request, r#"[{"kind":"value","value":"4"}]"#);
+    assert_eq!(mistake.unwrap_err(), "found \"4\"; expected a whole number");
 }
 
 #[test]

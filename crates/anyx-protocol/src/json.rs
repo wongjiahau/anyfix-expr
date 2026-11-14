@@ -9,7 +9,7 @@ use std::collections::BTreeMap;
 use serde_json::{Map, Value as Json, json};
 
 use crate::codec::{Call, Outcome, Response, decode_request, encode_request};
-use crate::response::decode_response;
+use crate::response::{decode_response, encode_response};
 use crate::schema::{Field, Schema, Shape, Type, TypeKind};
 use crate::value::Value;
 
@@ -91,6 +91,62 @@ pub fn decode_request_json(schema: &Schema, text: &str) -> Result<String, String
         })
         .collect();
     Ok(Json::Array(calls).to_string())
+}
+
+/// Writes the response to `request`, from a JSON array with one outcome per
+/// call in the form [`decode_response_json`] reads them as. For a test that
+/// fakes a server in front of the TypeScript client.
+pub fn encode_response_json(
+    schema: &Schema,
+    request: &str,
+    outcomes: &str,
+) -> Result<String, String> {
+    let calls = decode_request(schema, request).map_err(|problem| problem.to_string())?;
+    let outcomes: Vec<Json> = serde_json::from_str(outcomes).map_err(|error| error.to_string())?;
+    if outcomes.len() != calls.len() {
+        return Err(format!(
+            "found {} outcomes for {} calls",
+            outcomes.len(),
+            calls.len()
+        ));
+    }
+    let outcomes = calls
+        .iter()
+        .zip(&outcomes)
+        .map(|(call, json)| outcome_from_json(schema, call.method, json))
+        .collect::<Result<_, _>>()?;
+    encode_response(schema, &calls, &Response::Outcomes(outcomes)).map_err(|error| error.message)
+}
+
+fn outcome_from_json(schema: &Schema, index: usize, json: &Json) -> Result<Outcome, String> {
+    let method = schema.method_at(index);
+    match json.get("kind").and_then(Json::as_str) {
+        Some("value") => match &method.returns {
+            Some(returns) => {
+                let value = json.get("value").unwrap_or(&Json::Null);
+                from_json(schema, &returns.r#type, value).map(Outcome::Value)
+            }
+            None => Ok(Outcome::Value(Value::Nothing)),
+        },
+        Some("error") => {
+            let shapes: Vec<&Shape> = schema
+                .errors_of(method)
+                .iter()
+                .map(|error| &error.shape)
+                .collect();
+            match json.get("error") {
+                Some(Json::Object(error)) => {
+                    variant_from_json(schema, &shapes, error).map(Outcome::Error)
+                }
+                _ => Err("found an error outcome without an \"error\" object".to_string()),
+            }
+        }
+        Some("notRun") => Ok(Outcome::NotRun),
+        Some("internalError") => Ok(Outcome::InternalError),
+        _ => Err(format!(
+            "found the outcome {json}; expected its \"kind\": \"value\", \"error\", \"notRun\" or \"internalError\""
+        )),
+    }
 }
 
 /// Reads the response to one call of the method `full_name`, as JSON:
