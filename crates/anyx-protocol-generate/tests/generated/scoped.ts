@@ -70,26 +70,72 @@ export type Outcome<T, E> =
 
 /** The generated wasm functions, which encode and decode in Rust. */
 export interface Codec {
-  encodeRequest(method: string, args: string): string;
-  decodeResponse(method: string, response: string): string;
+  /** Writes a request from a JSON array of `{ method, arguments }`. */
+  encodeRequest(calls: string): string;
+  /** Reads a response as a JSON array of `Outcome`s, one per method of the
+   * JSON array `methods`. */
+  decodeResponse(methods: string, response: string): string;
 }
 
-/** Calls the schema's methods, one call per request. `send` sends a request
- * and returns the response, such as with `fetch`. */
+/** A call waiting for its request to be sent. */
+interface QueuedCall {
+  method: string;
+  arguments: unknown[];
+  resolve: (outcome: Outcome<never, never>) => void;
+  reject: (reason: unknown) => void;
+}
+
+/** Calls the schema's methods: each call is a request of its own, and the
+ * calls made in `batch` share one. `send` sends a request and returns the
+ * response, such as with `fetch`. */
 export class Client {
   private readonly codec: Codec;
   private readonly send: (request: string) => Promise<string>;
+  /** Inside `batch`, where its calls wait to be sent together. */
+  private queue: QueuedCall[] | null = null;
 
   constructor(codec: Codec, send: (request: string) => Promise<string>) {
     this.codec = codec;
     this.send = send;
   }
 
+  /**
+   * Sends every call `build` makes on `calls` as one request, in order, and
+   * resolves to their outcomes. After a call fails with an internal error
+   * the rest don't run (`notRun`).
+   */
+  async batch<R>(build: (calls: Client) => Promise<R>[]): Promise<R[]> {
+    const calls = new Client(this.codec, this.send);
+    const queue: QueuedCall[] = [];
+    calls.queue = queue;
+    const outcomes = build(calls);
+    calls.queue = null;
+    if (queue.length > 0) void this.sendCalls(queue);
+    return Promise.all(outcomes);
+  }
+
   /** Calls a method by its full name, such as `files/read _`. */
-  private async call<T, E>(method: string, args: unknown[]): Promise<Outcome<T, E>> {
-    const request = this.codec.encodeRequest(method, JSON.stringify(args));
-    const response = await this.send(request);
-    return JSON.parse(this.codec.decodeResponse(method, response)) as Outcome<T, E>;
+  private call<T, E>(method: string, args: unknown[]): Promise<Outcome<T, E>> {
+    return new Promise<Outcome<T, E>>((resolve, reject) => {
+      const call = { method, arguments: args, resolve, reject };
+      if (this.queue) this.queue.push(call);
+      else void this.sendCalls([call]);
+    });
+  }
+
+  private async sendCalls(calls: QueuedCall[]): Promise<void> {
+    try {
+      const request = this.codec.encodeRequest(
+        JSON.stringify(calls.map((call) => ({ method: call.method, arguments: call.arguments }))),
+      );
+      const response = await this.send(request);
+      const outcomes = JSON.parse(
+        this.codec.decodeResponse(JSON.stringify(calls.map((call) => call.method)), response),
+      ) as Outcome<never, never>[];
+      calls.forEach((call, index) => call.resolve(outcomes[index]));
+    } catch (error) {
+      for (const call of calls) call.reject(error);
+    }
   }
 
   /** `SCHEMA`, returning the guide to the schema. */

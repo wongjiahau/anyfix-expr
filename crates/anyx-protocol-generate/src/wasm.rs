@@ -5,8 +5,8 @@ use anyx_protocol::Schema;
 
 use crate::names::{pascal_case, snake_case};
 
-/// For a schema named `poentaro`: `encode_poentaro_request(method, arguments)`
-/// and `decode_poentaro_response(method, response)`, which JavaScript sees as
+/// For a schema named `poentaro`: `encode_poentaro_request(calls)` and
+/// `decode_poentaro_response(methods, response)`, which JavaScript sees as
 /// `encodePoentaroRequest` and `decodePoentaroResponse`. The crate that
 /// includes them needs `wasm-bindgen`, and `anyx-protocol` with its `json`
 /// feature.
@@ -27,18 +27,18 @@ fn schema() -> &'static anyx_protocol::Schema {{
     &SCHEMA_READ
 }}
 
-/// Writes a request with one call of `method`, by its full name, such as
-/// `files/read _`. `arguments` is a JSON array with one value per parameter.
+/// Writes a request from a JSON array of calls, each `{{ "method": …,
+/// "arguments": […] }}` with the method's full name, such as `files/read _`.
 #[wasm_bindgen(js_name = encode{pascal}Request)]
-pub fn encode_{name}_request(method: &str, arguments: &str) -> Result<String, String> {{
-    anyx_protocol::json::encode_request_json(schema(), method, arguments)
+pub fn encode_{name}_request(calls: &str) -> Result<String, String> {{
+    anyx_protocol::json::encode_requests_json(schema(), calls)
 }}
 
-/// Reads the response to one call of `method` as JSON, in the
-/// TypeScript client's `Outcome`.
+/// Reads the response to calls of `methods`, a JSON array of full names, as
+/// a JSON array of the TypeScript client's `Outcome`s.
 #[wasm_bindgen(js_name = decode{pascal}Response)]
-pub fn decode_{name}_response(method: &str, response: &str) -> Result<String, String> {{
-    anyx_protocol::json::decode_response_json(schema(), method, response)
+pub fn decode_{name}_response(methods: &str, response: &str) -> Result<String, String> {{
+    anyx_protocol::json::decode_responses_json(schema(), methods, response)
 }}
 "#,
         schema_name = schema.name,

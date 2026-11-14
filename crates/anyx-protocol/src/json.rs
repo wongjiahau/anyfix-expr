@@ -38,10 +38,37 @@ pub fn encode_request_json(
     full_name: &str,
     arguments: &str,
 ) -> Result<String, String> {
+    let arguments: Json = serde_json::from_str(arguments).map_err(|error| error.to_string())?;
+    let call = call_from_json(schema, full_name, &arguments)?;
+    encode_request(schema, &[call]).map_err(|error| error.message)
+}
+
+/// Writes several calls as one request, from a JSON array with one
+/// `{ "method": …, "arguments": […] }` per call, in the form
+/// [`decode_request_json`] reads them as. The server runs them in order.
+pub fn encode_requests_json(schema: &Schema, calls: &str) -> Result<String, String> {
+    let calls: Vec<Json> = serde_json::from_str(calls).map_err(|error| error.to_string())?;
+    let calls = calls
+        .iter()
+        .map(|call| {
+            let method = call
+                .get("method")
+                .and_then(Json::as_str)
+                .ok_or_else(|| format!("found the call {call}; expected its \"method\""))?;
+            call_from_json(schema, method, call.get("arguments").unwrap_or(&Json::Null))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    encode_request(schema, &calls).map_err(|error| error.message)
+}
+
+fn call_from_json(schema: &Schema, full_name: &str, arguments: &Json) -> Result<Call, String> {
     let index = method_index(schema, full_name)?;
     let method = schema.method_at(index);
-    let arguments: Vec<Json> =
-        serde_json::from_str(arguments).map_err(|error| error.to_string())?;
+    let Json::Array(arguments) = arguments else {
+        return Err(format!(
+            "found the arguments {arguments} for `{full_name}`; expected an array"
+        ));
+    };
     if arguments.len() != method.shape.parameters.len() {
         return Err(format!(
             "found {} arguments for `{full_name}`; expected {}",
@@ -53,20 +80,16 @@ pub fn encode_request_json(
         .shape
         .parameters
         .iter()
-        .zip(&arguments)
+        .zip(arguments)
         .map(|(parameter, json)| {
             from_json(schema, &parameter.r#type, json)
                 .map_err(|message| format!("in `{}`: {message}", parameter.name))
         })
         .collect::<Result<_, _>>()?;
-    encode_request(
-        schema,
-        &[Call {
-            method: index,
-            arguments,
-        }],
-    )
-    .map_err(|error| error.message)
+    Ok(Call {
+        method: index,
+        arguments,
+    })
 }
 
 /// Reads a request, as a JSON array with one `{ "method": …, "arguments":
@@ -160,39 +183,78 @@ pub fn decode_response_json(
     text: &str,
 ) -> Result<String, String> {
     let index = method_index(schema, full_name)?;
-    let response =
-        decode_response(schema, &[index], text).map_err(|problem| problem.to_string())?;
-    let json = match response {
-        Response::InvalidRequest(problem) => json!({
-            "kind": "invalidRequest",
-            "line": problem.line,
-            "column": problem.column,
-            "message": problem.message,
-        }),
-        Response::Outcomes(outcomes) => match outcomes.into_iter().next() {
-            Some(Outcome::Value(value)) => match &schema.method_at(index).returns {
-                Some(returns) => json!({
-                    "kind": "value",
-                    "value": to_json(schema, &returns.r#type, &value),
-                }),
-                None => json!({ "kind": "value" }),
-            },
-            Some(Outcome::Error(Value::Variant { shape, arguments })) => {
-                let method = schema.method_at(index);
-                let shapes: Vec<&Shape> = schema
-                    .errors_of(method)
-                    .iter()
-                    .map(|error| &error.shape)
-                    .collect();
-                json!({ "kind": "error", "error": variant_to_json(schema, &shapes, &shape, &arguments) })
-            }
-            Some(Outcome::NotRun) => json!({ "kind": "notRun" }),
-            Some(Outcome::InternalError | Outcome::Error(_)) | None => {
-                json!({ "kind": "internalError" })
-            }
+    let outcomes = decode_outcomes(schema, &[index], text)?;
+    Ok(outcomes
+        .into_iter()
+        .next()
+        .unwrap_or(json!({ "kind": "internalError" }))
+        .to_string())
+}
+
+/// Reads the response to a request of several calls, one of each method in
+/// `full_names` (a JSON array of full names) in order, as a JSON array with
+/// one outcome per call in the form [`decode_response_json`] gives. A
+/// response the server couldn't read the request of gives that
+/// `invalidRequest` for every call.
+pub fn decode_responses_json(
+    schema: &Schema,
+    full_names: &str,
+    text: &str,
+) -> Result<String, String> {
+    let full_names: Vec<String> =
+        serde_json::from_str(full_names).map_err(|error| error.to_string())?;
+    let methods = full_names
+        .iter()
+        .map(|full_name| method_index(schema, full_name))
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(Json::Array(decode_outcomes(schema, &methods, text)?).to_string())
+}
+
+fn decode_outcomes(schema: &Schema, methods: &[usize], text: &str) -> Result<Vec<Json>, String> {
+    let response = decode_response(schema, methods, text).map_err(|problem| problem.to_string())?;
+    Ok(match response {
+        Response::InvalidRequest(problem) => {
+            let invalid = json!({
+                "kind": "invalidRequest",
+                "line": problem.line,
+                "column": problem.column,
+                "message": problem.message,
+            });
+            methods.iter().map(|_| invalid.clone()).collect()
+        }
+        Response::Outcomes(outcomes) => {
+            let mut outcomes = outcomes.into_iter();
+            methods
+                .iter()
+                .map(|index| outcome_to_json(schema, *index, outcomes.next()))
+                .collect()
+        }
+    })
+}
+
+fn outcome_to_json(schema: &Schema, index: usize, outcome: Option<Outcome>) -> Json {
+    let method = schema.method_at(index);
+    match outcome {
+        Some(Outcome::Value(value)) => match &method.returns {
+            Some(returns) => json!({
+                "kind": "value",
+                "value": to_json(schema, &returns.r#type, &value),
+            }),
+            None => json!({ "kind": "value" }),
         },
-    };
-    Ok(json.to_string())
+        Some(Outcome::Error(Value::Variant { shape, arguments })) => {
+            let shapes: Vec<&Shape> = schema
+                .errors_of(method)
+                .iter()
+                .map(|error| &error.shape)
+                .collect();
+            json!({ "kind": "error", "error": variant_to_json(schema, &shapes, &shape, &arguments) })
+        }
+        Some(Outcome::NotRun) => json!({ "kind": "notRun" }),
+        Some(Outcome::InternalError | Outcome::Error(_)) | None => {
+            json!({ "kind": "internalError" })
+        }
+    }
 }
 
 fn method_index(schema: &Schema, full_name: &str) -> Result<usize, String> {

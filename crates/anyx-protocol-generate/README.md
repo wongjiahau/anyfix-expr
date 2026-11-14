@@ -59,7 +59,13 @@ const client = new Client(
 );
 const outcome = await client.read("hymn.poentaro");
 const pdf = await client.files.export.pdf("hymn.poentaro"); // a scope's method
+// Several calls in one request, run in order:
+const [a, b] = await client.batch((calls) => [calls.read("a"), calls.read("b")]);
 ```
+
+The wasm functions take and give every call of a request at once:
+`encodePoentaroRequest('[{"method":"read _","arguments":["a"]}]')` and
+`decodePoentaroResponse('["read _"]', response)`, one outcome per call.
 
 In TypeScript every type shares one namespace, so a scoped type's name starts
 with its scope: `diagnostic` in `common` is `CommonDiagnostic`, and the errors
