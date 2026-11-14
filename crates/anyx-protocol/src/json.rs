@@ -8,7 +8,7 @@ use std::collections::BTreeMap;
 
 use serde_json::{Map, Value as Json, json};
 
-use crate::codec::{Call, Outcome, Response, encode_request};
+use crate::codec::{Call, Outcome, Response, decode_request, encode_request};
 use crate::response::decode_response;
 use crate::schema::{Field, Schema, Shape, Type, TypeKind};
 use crate::value::Value;
@@ -67,6 +67,30 @@ pub fn encode_request_json(
         }],
     )
     .map_err(|error| error.message)
+}
+
+/// Reads a request, as a JSON array with one `{ "method": …, "arguments":
+/// […] }` per call, `method` being its full name such as `files/read _`.
+/// For a tool that watches requests go by, like a test faking a server.
+pub fn decode_request_json(schema: &Schema, text: &str) -> Result<String, String> {
+    let calls = decode_request(schema, text).map_err(|problem| problem.to_string())?;
+    let calls: Vec<Json> = calls
+        .iter()
+        .map(|call| {
+            let method = schema.method_at(call.method);
+            json!({
+                "method": method.full_name(),
+                "arguments": method
+                    .shape
+                    .parameters
+                    .iter()
+                    .zip(&call.arguments)
+                    .map(|(parameter, value)| to_json(schema, &parameter.r#type, value))
+                    .collect::<Vec<_>>(),
+            })
+        })
+        .collect();
+    Ok(Json::Array(calls).to_string())
 }
 
 /// Reads the response to one call of the method `full_name`, as JSON:

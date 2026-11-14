@@ -2,7 +2,7 @@
 
 mod common;
 
-use anyx_protocol::json::{decode_response_json, encode_request_json};
+use anyx_protocol::json::{decode_request_json, decode_response_json, encode_request_json};
 use common::poentaro;
 
 const WRITE: &str = "write _ at revision _ content _";
@@ -14,6 +14,17 @@ fn a_request_is_written_from_json_arguments() {
     assert_eq!(request, "write \"a\" at revision 3 content \"x\"\n");
     let mistake = encode_request_json(&schema, "read _", "[3]").unwrap_err();
     assert_eq!(mistake, "in `path`: found 3; expected a string");
+}
+
+#[test]
+fn a_request_reads_back_as_json_calls() {
+    let schema = poentaro();
+    let request = encode_request_json(&schema, WRITE, r#"["a", 3, "x\ny"]"#).unwrap();
+    assert_eq!(
+        decode_request_json(&schema, &request).unwrap(),
+        r#"[{"arguments":["a",3,"x\ny"],"method":"write _ at revision _ content _"}]"#
+    );
+    assert!(decode_request_json(&schema, "nonsense").is_err());
 }
 
 #[test]
